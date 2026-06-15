@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Blockfall</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -111,6 +112,38 @@
 
   /* best wave badge */
   #bestwave { position:fixed; top:38px; right:58px; z-index:6; font-size:11px; opacity:.75; text-shadow:0 2px 4px #000; text-align:right; }
+
+  /* floating damage numbers */
+  #dmgLayer { position:fixed; inset:0; z-index:7; pointer-events:none; overflow:hidden; }
+  .dmg { position:absolute; transform:translate(-50%,-50%); font-weight:bold; font-size:16px; text-shadow:0 2px 4px #000,0 0 6px #000; will-change:transform,opacity; }
+  .dmg.crit { font-size:22px; color:#ffd84a; }
+  .dmg.norm { color:#fff; }
+  .dmg.special { color:#7fe0ff; }
+
+  /* killstreak counter */
+  #streak { position:fixed; left:50%; top:120px; transform:translateX(-50%) scale(1); z-index:7; text-align:center; pointer-events:none; opacity:0; transition:opacity .2s; }
+  #streak .num { font-size:40px; font-weight:900; letter-spacing:1px; text-shadow:0 3px 8px #000; }
+  #streak .lbl { font-size:13px; letter-spacing:3px; opacity:.85; text-shadow:0 2px 4px #000; }
+  #streak.show { opacity:1; }
+  @keyframes streakPop { 0%{transform:translateX(-50%) scale(1.5)} 100%{transform:translateX(-50%) scale(1)} }
+  #streak.pop { animation:streakPop .22s ease-out; }
+
+  /* version + changelog */
+  #version { position:fixed; bottom:6px; right:8px; z-index:6; font-size:11px; opacity:.5; text-shadow:0 1px 2px #000; }
+  #changelogBtn { width:100%; }
+  #changelog .panel { max-height:80vh; overflow:auto; }
+  #changelog .panel ul { margin:6px 0 14px 18px; font-size:13px; line-height:1.6; opacity:.9; }
+  #changelog .panel h3 { font-size:14px; margin:4px 0 4px; opacity:.9; }
+
+  /* mobile touch controls (hidden on desktop) */
+  #touch { position:fixed; inset:0; z-index:8; pointer-events:none; display:none; }
+  body.mobile #touch { display:block; }
+  #joy { position:absolute; left:20px; bottom:24px; width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.2); pointer-events:auto; touch-action:none; }
+  #joyNub { position:absolute; left:50%; top:50%; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%; background:rgba(255,255,255,.35); }
+  #lookPad { position:absolute; right:0; top:0; width:55%; height:100%; pointer-events:auto; touch-action:none; }
+  #btnJump { position:absolute; right:24px; bottom:40px; width:78px; height:78px; border-radius:50%; background:rgba(125,224,255,.25); border:2px solid rgba(125,224,255,.5); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; touch-action:none; }
+  #btnExit { position:absolute; right:26px; bottom:130px; width:72px; height:46px; border-radius:10px; background:rgba(226,59,92,.3); border:2px solid rgba(226,59,92,.55); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; touch-action:none; }
+  body.mobile #upgPanel { top:62px; width:150px; transform:scale(.86); transform-origin:top left; }
 </style>
 </head>
 <body>
@@ -118,6 +151,17 @@
 <div id="crosshair"></div>
 <div id="dmgflash"></div>
 <div id="indicators"></div>
+<div id="dmgLayer"></div>
+<div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
+<div id="version">v061426</div>
+
+<!-- mobile touch controls -->
+<div id="touch">
+  <div id="joy"><div id="joyNub"></div></div>
+  <div id="lookPad"></div>
+  <div id="btnJump">JUMP</div>
+  <div id="btnExit">LEAVE</div>
+</div>
 
 <!-- persistent currency -->
 <div id="shards" class="hud" style="display:none"><span class="gem"></span><span id="shardcount">0</span></div>
@@ -181,8 +225,45 @@
       <input id="sfxVol" type="range" min="0" max="100" step="1">
       <span class="val" id="sfxVolVal">80</span>
     </div>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn-ghost" id="openChangelog">Changelog</button>
+    </div>
     <div class="actions">
       <button class="btn-primary" id="settingsClose">Done</button>
+    </div>
+    <div style="text-align:center;opacity:.4;font-size:11px;margin-top:10px">Blockfall v061426</div>
+  </div>
+</div>
+
+<!-- Changelog -->
+<div id="changelog" class="modal">
+  <div class="panel">
+    <h2>Changelog</h2>
+    <div class="desc">Version v061426 (June 14, 2026)</div>
+    <h3>New</h3>
+    <ul>
+      <li>Two new weapons: Boomerang and Frost Nova</li>
+      <li>New upgrades: Deadly Crits, Overcharge, Frenzy, Thick Hide, Evasion, Heavy Rounds</li>
+      <li>Killstreak counter with escalating pop animations</li>
+      <li>Floating damage numbers on every hit</li>
+      <li>Mobile touch controls (joystick, look pad, jump, leave)</li>
+      <li>Version number and this changelog</li>
+    </ul>
+    <h3>Changes</h3>
+    <ul>
+      <li>Leveling is much faster</li>
+      <li>Enemies only jump when near you, and will parkour across props to reach you up high</li>
+      <li>Boss shots track your height and have smaller hitboxes, so you can jump over them</li>
+      <li>End-of-wave XP now flies to you instead of vanishing</li>
+      <li>Spinning blades are now blade-shaped with a matching hitbox</li>
+      <li>Lightning is brighter and jagged for visibility</li>
+    </ul>
+    <h3>Fixes</h3>
+    <ul>
+      <li>Leech now works with the spinning blades</li>
+    </ul>
+    <div class="actions">
+      <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
   </div>
 </div>
@@ -546,7 +627,7 @@ let pointerLocked=false;
 let suppressAutoSettings=false;   // set when WE release the lock to show another overlay
 const cvs = renderer.domElement;
 cvs.addEventListener('click', ()=>{
-  if(GAME.state!=='title' && GAME.state!=='dead' && !pointerLocked && !GAME.paused && !A.paused)
+  if(!isMobile && GAME.state!=='title' && GAME.state!=='dead' && !pointerLocked && !GAME.paused && !A.paused)
     cvs.requestPointerLock();
 });
 D.addEventListener('pointerlockchange', ()=>{
@@ -567,17 +648,56 @@ addEventListener('mousemove', e=>{
 });
 addEventListener('contextmenu', e=>e.preventDefault());
 
+// ---------- mobile touch controls ----------
+const touch={active:false, mx:0, my:0, jump:false, exit:false};
+const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
+if(isMobile){
+  D.body.classList.add('mobile');
+  // virtual joystick (left)
+  const joy=D.getElementById('joy'), nub=D.getElementById('joyNub');
+  let joyId=null, jcx=0, jcy=0;
+  const joyStart=e=>{ const t=e.changedTouches[0]; joyId=t.identifier; const r=joy.getBoundingClientRect(); jcx=r.left+r.width/2; jcy=r.top+r.height/2; touch.active=true; joyMove(e); };
+  const joyMove=e=>{ for(const t of e.changedTouches){ if(t.identifier!==joyId) continue;
+      let dx=t.clientX-jcx, dy=t.clientY-jcy; const max=55, len=Math.hypot(dx,dy);
+      if(len>max){ dx*=max/len; dy*=max/len; }
+      nub.style.transform='translate('+dx+'px,'+dy+'px)';
+      touch.mx=dx/max; touch.my=dy/max; } };
+  const joyEnd=e=>{ for(const t of e.changedTouches){ if(t.identifier!==joyId) continue;
+      joyId=null; touch.mx=0; touch.my=0; touch.active=false; nub.style.transform='translate(0,0)'; } };
+  joy.addEventListener('touchstart', e=>{e.preventDefault(); joyStart(e);}, {passive:false});
+  joy.addEventListener('touchmove', e=>{e.preventDefault(); joyMove(e);}, {passive:false});
+  joy.addEventListener('touchend', joyEnd); joy.addEventListener('touchcancel', joyEnd);
+  // look pad (right half) -> drag to turn camera
+  const lp=D.getElementById('lookPad');
+  let lookId=null, lx=0, ly=0;
+  lp.addEventListener('touchstart', e=>{ e.preventDefault(); const t=e.changedTouches[0]; lookId=t.identifier; lx=t.clientX; ly=t.clientY; }, {passive:false});
+  lp.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier!==lookId) continue;
+      player.yaw   -= (t.clientX-lx)*0.005;
+      player.pitch -= (t.clientY-ly)*0.005;
+      player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
+      lx=t.clientX; ly=t.clientY; } }, {passive:false});
+  lp.addEventListener('touchend', ()=>{ lookId=null; });
+  // buttons
+  const bj=D.getElementById('btnJump'), bx=D.getElementById('btnExit');
+  bj.addEventListener('touchstart', e=>{ e.preventDefault(); touch.jump=true; }, {passive:false});
+  bx.addEventListener('touchstart', e=>{ e.preventDefault(); touch.exit=true; }, {passive:false});
+}
+
 // ---------- physics + collision (voxel AABB) ----------
 function collideMove(mode){
   const g = mode==='overworld';
   // gravity
   player.vel.y -= 22*dt;
-  // intended movement
+  // intended movement (keyboard or mobile joystick)
   const mv = new THREE.Vector3();
   const fwd = new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
   const right = new THREE.Vector3(-Math.cos(player.yaw),0,Math.sin(player.yaw));
   if(keys.KeyW) mv.add(fwd); if(keys.KeyS) mv.sub(fwd);
   if(keys.KeyD) mv.add(right); if(keys.KeyA) mv.sub(right);
+  if(touch.active && (touch.mx||touch.my)){
+    mv.addScaledVector(fwd, -touch.my);   // up on stick = forward
+    mv.addScaledVector(right, touch.mx);
+  }
   if(mv.lengthSq()>0) mv.normalize().multiplyScalar(player.speed);
 
   const step = (axis,amount)=>{
@@ -613,7 +733,7 @@ function collideMove(mode){
     const r=Math.hypot(player.pos.x, player.pos.z), B=ARENA_R-1.5;
     if(r>B){ player.pos.x*=B/r; player.pos.z*=B/r; }
   }
-  if((keys.Space) && player.onGround){ player.vel.y=JUMP_V; player.onGround=false; }
+  if((keys.Space || touch.jump) && player.onGround){ player.vel.y=JUMP_V; player.onGround=false; } touch.jump=false;
 }
 
 const MAX_JUMP=1.6;       // props at/under this height are jumpable
@@ -695,6 +815,23 @@ function jumpableAhead(e){
   }
   return false;
 }
+// when the player is up high, find a climbable prop the enemy can use as a step toward them
+function parkourTarget(e){
+  if(!A.props) return null;
+  const ey=e.mesh.position.y;
+  let best=null, bestScore=Infinity;
+  for(const p of A.props){
+    if(!p.jumpable) continue;
+    // useful step: its top is above the enemy (progress upward) but within a jump of where they stand
+    if(p.top <= ey+0.2) continue;
+    if(p.top > ey + MAX_JUMP + 0.4) continue;          // too tall to hop onto from here
+    const dp=Math.hypot(p.x-player.pos.x, p.z-player.pos.z);  // prefer props near the player
+    const de=Math.hypot(p.x-e.mesh.position.x, p.z-e.mesh.position.z);
+    const score=dp*1.3 + de*0.4;
+    if(score<bestScore){ bestScore=score; best=p; }
+  }
+  return best;
+}
 function hitsProp(x,z,r){
   if(!A.props) return false;
   for(const p of A.props){
@@ -713,11 +850,11 @@ const ARENA_R = 34;
 const A = {
   active:false, wave:0, waveTime:0, spawnAcc:0, toSpawn:0,
   enemies:[], projectiles:[], orbs:[], boss:null,
-  level:1, xp:0, xpNext:5,
+  level:1, xp:0, xpNext:3,
   hp:100, maxhp:100, invuln:0, dead:false,
   // base stats, modified by upgrades
   stats:{ dmg:10, atkSpeed:1.0, range:9, projSpeed:18, moveBonus:0, pickup:2.2,
-          pierce:0, extraProj:0, crit:0.05, regen:0, lifesteal:0, multishotSpread:0.12 },
+          pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 },
   fireCd:0, mapSeed:0,
   weapons:['ball'], wcd:{},
 };
@@ -778,13 +915,15 @@ function startArena(){
   A.active=true; A.dead=false;
   A.wave=0; A.waveTime=0; A.spawnAcc=0; A.toSpawn=0;
   A.enemies.length=0; A.projectiles.length=0; A.orbs.length=0; A.boss=null;
-  A.level=1; A.xp=0; A.xpNext=5;
+  A.level=1; A.xp=0; A.xpNext=3;
   A.hp=A.maxhp=100; A.invuln=0; A.fireCd=0;
   A.stats={ dmg:10, atkSpeed:1.0, range:9, projSpeed:30, moveBonus:0, pickup:2.2,
-            pierce:0, extraProj:0, crit:0.05, regen:0, lifesteal:0, multishotSpread:0.12 };
+            pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 };
   A.weapons=['ball']; A.wcd={};
   for(const k in upgradeLevels) delete upgradeLevels[k];   // reset owned counts
   ensureBlades();
+  streak.count=0; streak.timer=0; D.getElementById('streak').classList.remove('show');
+  for(const d of dmgTexts) d.el.remove(); dmgTexts.length=0;
   A.mapSeed=(Math.random()*1e9)|0;
   buildArenaMap(A.mapSeed);
   player.pos.set(0,0,6); player.vel.set(0,0,0); player.knock=null;
@@ -941,12 +1080,14 @@ function findTarget(){
 // ----- weapons -----
 // each weapon has its own cooldown + fire logic. Player owns one or more.
 const WEAPONS={
-  ball:    { id:'ball',    ic:'●', name:'Ball',    cd:1.0 },
-  shotgun: { id:'shotgun', ic:'⛯', name:'Scatter', cd:1.4 },
-  blades:  { id:'blades',  ic:'✦', name:'Blades',  cd:0 },
-  bolt:    { id:'bolt',    ic:'⚡', name:'Bolt',    cd:1.6 },
+  ball:    { id:'ball',    ic:'●', name:'Ball',     cd:1.0 },
+  shotgun: { id:'shotgun', ic:'⛯', name:'Scatter',  cd:1.4 },
+  blades:  { id:'blades',  ic:'✦', name:'Blades',   cd:0 },
+  bolt:    { id:'bolt',    ic:'⚡', name:'Bolt',     cd:1.6 },
+  boomerang:{id:'boomerang',ic:'🪃', name:'Boomerang',cd:1.3 },
+  nova:    { id:'nova',    ic:'❄', name:'Nova',     cd:2.2 },
 };
-const WEAPON_ORDER=['ball','shotgun','blades','bolt'];
+const WEAPON_ORDER=['ball','shotgun','blades','bolt','boomerang','nova'];
 
 function fireBall(target){
   const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
@@ -980,42 +1121,93 @@ function fireBolt(target){
   }
   if(chain.length) SFX.hit();
 }
+function fireBoomerang(target){
+  const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
+  const m=new THREE.Mesh(new THREE.TorusGeometry(0.32,0.09,6,12),
+    new THREE.MeshBasicMaterial({color:0xffe27a}));
+  m.rotation.x=Math.PI/2; m.position.copy(player.pos); m.position.y=player.pos.y+1.0;
+  arena.group.add(m);
+  A.projectiles.push({mesh:m, dir:dir.clone(), life:2.4, dmg:A.stats.dmg*0.8, crit:false,
+                      pierceLeft:99, hitSet:new Set(), boomerang:true, t:0, spin:true});
+  SFX.shoot();
+}
+function fireNova(){
+  // expanding ring of frost shards in all directions
+  const n=12;
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2;
+    const d=new THREE.Vector3(Math.cos(a),0,Math.sin(a));
+    fireProjectile(d, 0.16, 0x9fe6ff, A.stats.dmg*0.45, 0.7);
+  }
+  SFX.shoot();
+}
 const UP=new THREE.Vector3(0,1,0);
 const boltLines=[];
 function spawnBolt(a,b){
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([a.x,a.y,a.z,b.x,b.y,b.z]),3));
-  const l=new THREE.Line(g, new THREE.LineBasicMaterial({color:0x9be3ff, transparent:true, opacity:0.95}));
-  arena.group.add(l); boltLines.push({l, t:0.18});
+  // jagged multi-segment lightning, drawn as a few overlapping bright lines
+  const segs=6;
+  const mkPath=(jit)=>{
+    const pts=[];
+    for(let i=0;i<=segs;i++){
+      const t=i/segs;
+      const x=a.x+(b.x-a.x)*t + (i>0&&i<segs?(Math.random()-0.5)*jit:0);
+      const y=a.y+(b.y-a.y)*t + (i>0&&i<segs?(Math.random()-0.5)*jit*0.6:0);
+      const z=a.z+(b.z-a.z)*t + (i>0&&i<segs?(Math.random()-0.5)*jit:0);
+      pts.push(x,y,z);
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts),3));
+    return g;
+  };
+  // wide soft glow strand + bright core strand
+  const glow=new THREE.Line(mkPath(0.6), new THREE.LineBasicMaterial({color:0x6fd0ff, transparent:true, opacity:0.5}));
+  const core=new THREE.Line(mkPath(0.35), new THREE.LineBasicMaterial({color:0xeafcff, transparent:true, opacity:1}));
+  arena.group.add(glow); arena.group.add(core);
+  boltLines.push({l:glow, t:0.32, max:0.32}); boltLines.push({l:core, t:0.32, max:0.32});
 }
 // orbiting blades weapon
 const blades=[];
+function makeBladeMesh(){
+  // a flat angular blade (two stretched tetra-ish prisms) so it reads as a spinning blade
+  const g=new THREE.Group();
+  const mat=new THREE.MeshBasicMaterial({color:0xcdfff0, side:THREE.DoubleSide});
+  const edge=new THREE.MeshBasicMaterial({color:0x7be0c8});
+  const blade=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.07,0.34), mat);   // long thin blade
+  const blade2=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.07,1.1), mat);  // cross blade
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.12,8), edge);
+  g.add(blade); g.add(blade2); g.add(hub);
+  return g;
+}
 function ensureBlades(){
-  // (re)build blade meshes to match owned count + level
   for(const b of blades) arena.group.remove(b.mesh);
   blades.length=0;
   if(!A.weapons.includes('blades')) return;
-  const count=2 + A.stats.extraProj;     // more projectiles upgrade => more blades
+  const count=2 + A.stats.extraProj;     // split-shot adds blades
   for(let i=0;i<count;i++){
-    const m=new THREE.Mesh(new THREE.OctahedronGeometry(0.28),
-      new THREE.MeshBasicMaterial({color:0x8ef0c0}));
+    const m=makeBladeMesh();
     arena.group.add(m);
     blades.push({mesh:m, ang:(i/count)*Math.PI*2, hitCd:new Map()});
   }
 }
+const BLADE_R=2.6;        // orbit radius
+const BLADE_HIT=0.75;     // hit radius (matches the long blade reach)
 function updateBlades(){
   if(!blades.length) return;
-  const R=2.4, spin=performance.now()*0.004;
+  const spin=performance.now()*0.005;
   const all=A.boss?A.enemies.concat([A.boss]):A.enemies;
   for(const b of blades){
     const a=b.ang+spin;
-    b.mesh.position.set(player.pos.x+Math.cos(a)*R, player.pos.y+1.0, player.pos.z+Math.sin(a)*R);
-    b.mesh.rotation.y+=dt*8;
+    b.mesh.position.set(player.pos.x+Math.cos(a)*BLADE_R, player.pos.y+1.0, player.pos.z+Math.sin(a)*BLADE_R);
+    b.mesh.rotation.y+=dt*16;     // visibly spinning
     for(const e of all){
       const dx=b.mesh.position.x-e.mesh.position.x, dz=b.mesh.position.z-e.mesh.position.z;
-      if(Math.hypot(dx,dz)<e.size*0.7+0.3){
+      if(Math.hypot(dx,dz)<e.size*0.7+BLADE_HIT){
         const cd=b.hitCd.get(e)||0;
-        if(cd<=0){ damageEnemy(e, A.stats.dmg*0.5, Math.random()<A.stats.crit); b.hitCd.set(e, 0.4); }
+        if(cd<=0){
+          const crit=Math.random()<A.stats.crit;
+          damageEnemy(e, A.stats.dmg*0.5*(crit?A.stats.critMul:1), crit);   // crit + leech handled in damageEnemy
+          b.hitCd.set(e, 0.4);
+        }
       }
     }
     for(const [e,v] of b.hitCd){ b.hitCd.set(e, v-dt); }
@@ -1031,12 +1223,13 @@ function autoFire(){
     if(def.cd<=0) continue;               // passive (blades) handled separately
     A.wcd[w]=(A.wcd[w]||0)-dt;
     if(A.wcd[w]>0) continue;
-    if(w==='bolt'){ if(!best){ continue; } fireBolt(best); A.wcd[w]=def.cd/A.stats.atkSpeed; }
-    else { if(!best){ continue; } 
-      if(w==='ball') fireBall(best);
-      else if(w==='shotgun') fireShotgun(best);
-      A.wcd[w]=def.cd/A.stats.atkSpeed;
-    }
+    if(w==='nova'){ if(!A.enemies.length && !A.boss){ continue; } fireNova(); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
+    if(!best) continue;
+    if(w==='ball') fireBall(best);
+    else if(w==='shotgun') fireShotgun(best);
+    else if(w==='bolt') fireBolt(best);
+    else if(w==='boomerang') fireBoomerang(best);
+    A.wcd[w]=def.cd/A.stats.atkSpeed;
   }
 }
 function fireProjectile(dir, size, color, dmg, lifeMul){
@@ -1045,7 +1238,7 @@ function fireProjectile(dir, size, color, dmg, lifeMul){
   m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
   arena.group.add(m);
   const crit=Math.random()<A.stats.crit;
-  A.projectiles.push({mesh:m, dir:dir.clone(), life:1.6*(lifeMul||1), dmg:(dmg||A.stats.dmg)*(crit?2:1), crit,
+  A.projectiles.push({mesh:m, dir:dir.clone(), life:1.6*(lifeMul||1), dmg:(dmg||A.stats.dmg)*(crit?A.stats.critMul:1), crit,
                       pierceLeft:A.stats.pierce, hitSet:new Set()});
 }
 
@@ -1083,6 +1276,7 @@ function updateTargetVisuals(){
 function damageEnemy(e, dmg, crit){
   e.hp-=dmg; e.hit=0.12;
   SFX.hit();
+  spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(dmg), false, crit);
   if(A.stats.lifesteal>0){ A.hp=Math.min(A.maxhp, A.hp+dmg*A.stats.lifesteal); }
   if(e.hp<=0) killEnemy(e);
 }
@@ -1091,6 +1285,7 @@ function killEnemy(e){
   if(e.indEl){ e.indEl.remove(); e.indEl=null; }
   addShards(1);                      // +1 shard per kill (persists)
   SFX.kill();
+  bumpStreak();
   if(e===A.boss){
     addShards(9);                    // bosses are worth a bit more
     arena.group.remove(e.mesh);
@@ -1116,7 +1311,7 @@ function gainXp(n){
   A.xp+=n;
   while(A.xp>=A.xpNext){
     A.xp-=A.xpNext; A.level++;
-    A.xpNext=Math.floor(A.xpNext*1.35+3);
+    A.xpNext=Math.floor(A.xpNext*1.18+2);
     addShards(5);                    // +5 shards per level (persists)
     SFX.level();
     offerUpgrades();
@@ -1126,6 +1321,7 @@ function gainXp(n){
 // ----- damage to player -----
 function hurtPlayer(d, fromPos){
   if(A.invuln>0) return;
+  if(A.stats.dodge && Math.random()<A.stats.dodge){ A.invuln=0.2; spawnDamageText(player.pos.x, player.pos.y+1.8, player.pos.z, 'DODGE', true); return; }
   A.hp-=d; A.invuln=0.45;
   SFX.hurt();
   // knockback away from the source
@@ -1173,14 +1369,22 @@ const UPGRADE_POOL = [
   {id:'hp',   ic:'❤️', nm:'Vitality', ds:'+30 max HP & heal', apply:s=>{A.maxhp+=30; A.hp+=30;}},
   {id:'regen',ic:'🌿', nm:'Regeneration', ds:'+1.5 HP/sec', apply:s=>s.regen+=1.5},
   {id:'crit', ic:'💥', nm:'Critical Eye', ds:'+10% crit chance', pct:10, apply:s=>s.crit+=0.10},
+  {id:'critdmg',ic:'🎲', nm:'Deadly Crits', ds:'+40% crit damage', pct:40, apply:s=>s.critMul+=0.4},
   {id:'pickup',ic:'🧲', nm:'Magnet', ds:'+60% pickup range', pct:60, apply:s=>s.pickup*=1.6},
   {id:'life', ic:'🩸', nm:'Leech', ds:'+8% lifesteal', pct:8, apply:s=>s.lifesteal+=0.08},
+  {id:'speedb',ic:'🚀', nm:'Overcharge', ds:'+15% projectile speed', pct:15, apply:s=>s.projSpeed*=1.15},
+  {id:'haste', ic:'🌀', nm:'Frenzy', ds:'+1 projectile & +10% atk spd', apply:s=>{s.extraProj+=1; s.atkSpeed*=1.1; ensureBlades();}},
+  {id:'armor', ic:'🛡️', nm:'Thick Hide', ds:'+10% max HP & heal', pct:10, apply:s=>{const add=Math.round(A.maxhp*0.1); A.maxhp+=add; A.hp+=add;}},
+  {id:'dodge', ic:'🌫️', nm:'Evasion', ds:'+8% dodge chance', pct:8, apply:s=>s.dodge=Math.min(0.6,(s.dodge||0)+0.08)},
+  {id:'magnetdmg',ic:'☄️', nm:'Heavy Rounds', ds:'+18% damage', pct:18, apply:s=>s.dmg*=1.18},
 ];
 // weapon-unlock "cards" mixed into the level-up pool
 const WEAPON_UNLOCKS=[
   {id:'wpn_shotgun', weapon:'shotgun', ic:'⛯', nm:'Scatter Gun', ds:'New weapon: spread of pellets'},
   {id:'wpn_blades',  weapon:'blades',  ic:'✦', nm:'Orbit Blades', ds:'New weapon: blades circle you'},
   {id:'wpn_bolt',    weapon:'bolt',    ic:'⚡', nm:'Chain Bolt',   ds:'New weapon: lightning chains'},
+  {id:'wpn_boomerang',weapon:'boomerang',ic:'🪃', nm:'Boomerang', ds:'New weapon: flies out and back'},
+  {id:'wpn_nova',    weapon:'nova',    ic:'❄', nm:'Frost Nova',  ds:'New weapon: ring of shards'},
 ];
 const upgradeLevels={};
 function buildOfferPool(){
@@ -1207,7 +1411,7 @@ function offerUpgrades(){
       D.getElementById('upgrade').style.display='none';
       A.paused=false;
       updateUpgradePanel();
-      cvs.requestPointerLock();
+      if(!isMobile) cvs.requestPointerLock();
     };
     wrap.appendChild(el);
   }
@@ -1360,7 +1564,7 @@ function updateArena(){
   if(cd<2.4 && A.exitGrace<=0){
     exitHint.style.display='block';
     exitHint.textContent='Press E to leave the run';
-    if(keys.KeyE){ requestExit(); return; }
+    if(keys.KeyE || touch.exit){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
   // wave timer / spawning
@@ -1406,6 +1610,13 @@ function updateArena(){
     } else if(dist>0.001){
       // desired direction + obstacle avoidance steering
       let ax=dx/dist, az=dz/dist;
+      // parkour: if player is well above and out of normal reach, steer toward a stepping-stone prop
+      if(!big && player.pos.y > e.mesh.position.y+1.4){
+        const step=parkourTarget(e);
+        if(step){ ax=step.x-e.mesh.position.x; az=step.z-e.mesh.position.z;
+          const l=Math.hypot(ax,az)||1; ax/=l; az/=l; e.seeking=true; }
+        else e.seeking=false;
+      } else e.seeking=false;
       const av=avoidProps(e, ax, az, big);
       ax+=av.x; az+=av.z;
       const al=Math.hypot(ax,az)||1; ax/=al; az/=al;
@@ -1430,11 +1641,13 @@ function updateArena(){
       let grounded=false;
       if(e.mesh.position.y<=floor){ e.mesh.position.y=floor; e.ev=0; grounded=true; }
       e.baseY=e.mesh.position.y;
-      // auto-jump: player above us, or a jumpable box is right in front
+      // jump only when close to the player, or when actively parkouring up to them
       if(grounded){
-        const needUp = player.pos.y > e.mesh.position.y+0.5;
+        const near = dist < 3.2;
         const ahead = jumpableAhead(e);
-        if(needUp || ahead) e.ev=JUMP_V;
+        const climbing = e.seeking && jumpableAhead(e);
+        const needUp = player.pos.y > e.mesh.position.y+0.5 && dist < 2.4;
+        if((near && ahead) || climbing || needUp) e.ev=JUMP_V;
       }
     }
 
@@ -1465,10 +1678,27 @@ function updateArena(){
   // player projectiles (hit enemies; blocked by props)
   for(let i=A.projectiles.length-1;i>=0;i--){
     const p=A.projectiles[i];
-    p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
-    p.life-=dt;
-    let remove=p.life<=0;
-    if(!remove && hitsProp(p.mesh.position.x, p.mesh.position.z, 0.2)) remove=true;
+    let remove=false;
+    if(p.boomerang){
+      p.t+=dt;
+      // fly out for the first half, curve back to the player after
+      if(p.t>1.0){
+        const back=new THREE.Vector3(player.pos.x-p.mesh.position.x,0,player.pos.z-p.mesh.position.z);
+        p.dir.lerp(back.normalize(), 0.06).normalize();
+      }
+      p.mesh.position.addScaledVector(p.dir, (A.stats.projSpeed*0.7)*dt);
+      p.mesh.position.y=player.pos.y+1.0;
+      p.mesh.rotation.z+=dt*22;
+      p.life-=dt;
+      // re-arm hits as it loops
+      if(p.t>1.2 && p.mesh.position.distanceTo(player.pos)<1.2){ remove=true; }
+      if(p.life<=0) remove=true;
+    } else {
+      p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
+      p.life-=dt;
+      if(p.life<=0) remove=true;
+      if(!remove && hitsProp(p.mesh.position.x, p.mesh.position.z, 0.2)) remove=true;
+    }
     const targets=A.boss? A.enemies.concat([A.boss]):A.enemies;
     for(const e of targets){
       if(p.hitSet.has(e)) continue;
@@ -1476,61 +1706,119 @@ function updateArena(){
       if(Math.hypot(ex,ez) < e.size*0.7+0.3){
         damageEnemy(e, p.dmg, p.crit);
         p.hitSet.add(e);
-        if(p.pierceLeft>0){ p.pierceLeft--; } else { remove=true; }
+        if(p.boomerang){ /* pierces all, keeps flying */ }
+        else if(p.pierceLeft>0){ p.pierceLeft--; } else { remove=true; }
         break;
       }
     }
     if(remove){ arena.group.remove(p.mesh); A.projectiles.splice(i,1); }
   }
 
-  // enemy projectiles (boss); blocked by props
+  // enemy projectiles (boss); smaller hitbox + vertical gap so you can jump over them
   for(let i=(A.eproj?A.eproj.length:0)-1; i>=0; i--){
     const p=A.eproj[i];
     p.mesh.position.addScaledVector(p.dir, p.spd*dt);
     p.life-=dt;
     const dx=p.mesh.position.x-player.pos.x, dz=p.mesh.position.z-player.pos.z;
-    if(Math.hypot(dx,dz)<0.7){ hurtPlayer(p.dmg, p.mesh.position); p.life=0; }
-    else if(hitsProp(p.mesh.position.x, p.mesh.position.z, 0.22)) p.life=0;
+    // player feet at pos.y, head ~1.7; bullet at p.mesh.position.y. Hit only if vertically overlapping.
+    const vy=p.mesh.position.y-(player.pos.y+0.9);
+    if(Math.hypot(dx,dz)<0.45 && Math.abs(vy)<0.8){ hurtPlayer(p.dmg, p.mesh.position); p.life=0; }
+    else if(hitsProp(p.mesh.position.x, p.mesh.position.z, 0.18)) p.life=0;
     if(p.life<=0){ arena.group.remove(p.mesh); A.eproj.splice(i,1); }
   }
 
-  // orbs (xp pickup with magnet)
+  // orbs (xp pickup with magnet; vacuumed ones fly in from anywhere)
   for(let i=A.orbs.length-1;i>=0;i--){
     const o=A.orbs[i]; o.t+=dt;
     const to=player.pos.clone().sub(o.mesh.position);
     const d=to.length();
-    if(d<A.stats.pickup){ o.mesh.position.addScaledVector(to.normalize(), 9*dt*(1+ (A.stats.pickup-d))); }
-    o.mesh.rotation.y+=dt*3; o.mesh.position.y=0.5+Math.sin(o.t*4)*0.12;
+    const pulling = o.vacuum || d<A.stats.pickup;
+    if(pulling){
+      const speed = o.vacuum ? (14 + o.t*22) : 9*(1+(A.stats.pickup-d));
+      o.mesh.position.addScaledVector(to.normalize(), speed*dt);
+    }
+    o.mesh.rotation.y+=dt*3;
+    if(!o.vacuum) o.mesh.position.y=0.5+Math.sin(o.t*4)*0.12;
     if(d<0.8){ gainXp(o.xp); SFX.xp(); arena.group.remove(o.mesh); A.orbs.splice(i,1); }
   }
 
   updateArenaHud();
   updateIndicators();
+  updateDamageTexts();
+  updateStreak();
 }
 
-// pull in every remaining orb at the end of a wave
+// end of wave: flag every orb to fly to the player (same float as normal pickup)
 function collectAllXp(){
-  if(!A.orbs.length) return;
-  let total=0;
-  for(const o of A.orbs){ total+=o.xp; arena.group.remove(o.mesh); }
-  A.orbs.length=0;
-  if(total>0){ gainXp(total); SFX.xp(); }
+  for(const o of A.orbs){ o.vacuum=true; o.t=0; }
+}
+
+// ----- floating damage numbers -----
+const dmgLayer=D.getElementById('dmgLayer');
+const dmgTexts=[];
+const _dv=new THREE.Vector3();
+function spawnDamageText(x,y,z,val,special,crit){
+  const el=D.createElement('div');
+  el.className='dmg '+(special?'special':(crit?'crit':'norm'));
+  el.textContent=(crit?'':'')+val;
+  dmgLayer.appendChild(el);
+  dmgTexts.push({el, x:x+(Math.random()-0.5)*0.6, y, z, t:0, vy:1.6});
+}
+function updateDamageTexts(){
+  for(let i=dmgTexts.length-1;i>=0;i--){
+    const d=dmgTexts[i]; d.t+=dt;
+    _dv.set(d.x, d.y+d.t*d.vy, d.z).project(camera);
+    if(_dv.z>1 || d.t>0.8){ d.el.remove(); dmgTexts.splice(i,1); continue; }
+    const sx=(_dv.x*0.5+0.5)*innerWidth, sy=(-_dv.y*0.5+0.5)*innerHeight;
+    d.el.style.left=sx+'px'; d.el.style.top=sy+'px';
+    d.el.style.opacity=String(Math.max(0,1-d.t/0.8));
+  }
+}
+
+// ----- killstreak -----
+const streak={count:0, timer:0};
+const STREAK_TIERS=[ {n:3,c:'#fff'}, {n:5,c:'#9be79b'}, {n:8,c:'#7fe0ff'}, {n:12,c:'#ffd84a'}, {n:18,c:'#ff7ad0'}, {n:25,c:'#ff5b5b'} ];
+function bumpStreak(){
+  streak.count++; streak.timer=2.2;
+  const el=D.getElementById('streak');
+  if(streak.count>=2){
+    let col='#fff', lbl='STREAK';
+    for(const t of STREAK_TIERS){ if(streak.count>=t.n) col=t.c; }
+    if(streak.count>=25) lbl='UNSTOPPABLE'; else if(streak.count>=18) lbl='RAMPAGE';
+    else if(streak.count>=12) lbl='DOMINATING'; else if(streak.count>=8) lbl='ON FIRE';
+    else if(streak.count>=5) lbl='RAMPAGE'; else lbl='STREAK';
+    el.querySelector('.num').textContent='x'+streak.count;
+    el.querySelector('.num').style.color=col;
+    el.querySelector('.lbl').textContent=lbl;
+    el.classList.add('show');
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    // bigger streaks pop louder
+    const scale=1+Math.min(0.6, streak.count*0.03);
+    el.querySelector('.num').style.fontSize=(40*scale)+'px';
+  }
+}
+function updateStreak(){
+  if(streak.timer>0){
+    streak.timer-=dt;
+    if(streak.timer<=0){ streak.count=0; D.getElementById('streak').classList.remove('show'); }
+  }
 }
 // fade out chain-bolt lines
 function updateBolts(){
   for(let i=boltLines.length-1;i>=0;i--){
     const b=boltLines[i]; b.t-=dt;
-    b.l.material.opacity=Math.max(0, b.t/0.18);
+    b.l.material.opacity=Math.max(0, b.t/(b.max||0.32));
     if(b.t<=0){ arena.group.remove(b.l); boltLines.splice(i,1); }
   }
 }
 
-// fire one enemy bullet
+// fire one enemy bullet (spawns at the player's height so you can jump over them)
 function eshot(x,z,dir,spd,dmg,color){
   A.eproj=A.eproj||[];
-  const m=new THREE.Mesh(new THREE.SphereGeometry(0.28,8,8), new THREE.MeshBasicMaterial({color:color||0xff4bd0}));
-  m.position.set(x,1.0,z); arena.group.add(m);
-  A.eproj.push({mesh:m, dir:dir.clone().normalize(), spd, life:3.2, dmg});
+  const y=player.pos.y+0.9;   // track the player's vertical position
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8), new THREE.MeshBasicMaterial({color:color||0xff4bd0}));
+  m.position.set(x,y,z); arena.group.add(m);
+  A.eproj.push({mesh:m, dir:dir.clone().normalize(), spd, life:3.2, dmg, y});
 }
 // boss runs its next attack, then sets a cooldown
 function bossAttack(boss){
@@ -1642,7 +1930,7 @@ function closeExitConfirm(){
 }
 D.getElementById('exitStay').addEventListener('click', ()=>{
   closeExitConfirm();
-  if(GAME.state==='arena') cvs.requestPointerLock();
+  if(!isMobile && GAME.state==="arena") cvs.requestPointerLock();
 });
 D.getElementById('exitLeave').addEventListener('click', ()=>{
   if(D.getElementById('exitDontAsk').checked){ settings.skipExitConfirm=true; persist(); }
@@ -1671,10 +1959,18 @@ function closeSettings(){
   D.getElementById('settings').style.display='none';
   GAME.paused=false;
   persist();
-  if((GAME.state==='arena'||GAME.state==='overworld')) cvs.requestPointerLock();
+  if(!isMobile && (GAME.state==='arena'||GAME.state==='overworld')) cvs.requestPointerLock();
 }
 D.getElementById('gear').addEventListener('click', openSettings);
 D.getElementById('settingsClose').addEventListener('click', closeSettings);
+D.getElementById('openChangelog').addEventListener('click', ()=>{
+  D.getElementById('settings').style.display='none';
+  D.getElementById('changelog').style.display='flex';
+});
+D.getElementById('closeChangelog').addEventListener('click', ()=>{
+  D.getElementById('changelog').style.display='none';
+  D.getElementById('settings').style.display='flex';
+});
 D.getElementById('fovRange').addEventListener('input', e=>{
   settings.fov=+e.target.value;
   D.getElementById('fovVal').textContent=settings.fov;
@@ -1704,13 +2000,14 @@ function updateBestHud(){ const el=D.getElementById('bestwave'); if(el) el.textC
 // ============================================================
 function beginGame(){
   initAudio();
+  startMusic();
   const ov=D.getElementById('overlay');
   if(GAME.state==='dead'){
     // returning to lobby after death
     ov.style.display='none';
     setMode('overworld');
     exitArenaCleanupAfterDeath();
-    cvs.requestPointerLock();
+    if(!isMobile) cvs.requestPointerLock();
     return;
   }
   ov.style.display='none';
@@ -1720,7 +2017,7 @@ function beginGame(){
   scene.fog=new THREE.Fog(0x9fd0ff,60,140);
   D.getElementById('shards').style.display='flex';
   D.getElementById('gear').style.display='flex';
-  cvs.requestPointerLock();
+  if(!isMobile) cvs.requestPointerLock();
 }
 function exitArenaCleanupAfterDeath(){
   A.active=false; A.dead=false;
