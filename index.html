@@ -651,12 +651,30 @@ addEventListener('contextmenu', e=>e.preventDefault());
 // ---------- mobile touch controls ----------
 const touch={active:false, mx:0, my:0, jump:false, exit:false};
 const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
+// when any menu/overlay is open we must stop the touch layer from eating taps
+// and stop the look-pad/joystick from moving the player behind the menu.
+function setTouchEnabled(on){
+  const t=D.getElementById('touch');
+  if(!t) return;
+  // pointer-events on each interactive child
+  for(const id of ['joy','lookPad','btnJump','btnExit']){
+    const el=D.getElementById(id); if(el) el.style.pointerEvents = on?'auto':'none';
+  }
+  if(!on){ touch.mx=0; touch.my=0; touch.active=false; const nub=D.getElementById('joyNub'); if(nub) nub.style.transform='translate(0,0)'; }
+}
+function anyOverlayOpen(){
+  return GAME.paused || A.paused ||
+    D.getElementById('settings').style.display==='flex' ||
+    D.getElementById('upgrade').style.display==='flex' ||
+    D.getElementById('exitConfirm').style.display==='flex' ||
+    D.getElementById('changelog').style.display==='flex';
+}
 if(isMobile){
   D.body.classList.add('mobile');
   // virtual joystick (left)
   const joy=D.getElementById('joy'), nub=D.getElementById('joyNub');
   let joyId=null, jcx=0, jcy=0;
-  const joyStart=e=>{ const t=e.changedTouches[0]; joyId=t.identifier; const r=joy.getBoundingClientRect(); jcx=r.left+r.width/2; jcy=r.top+r.height/2; touch.active=true; joyMove(e); };
+  const joyStart=e=>{ if(anyOverlayOpen()) return; const t=e.changedTouches[0]; joyId=t.identifier; const r=joy.getBoundingClientRect(); jcx=r.left+r.width/2; jcy=r.top+r.height/2; touch.active=true; joyMove(e); };
   const joyMove=e=>{ for(const t of e.changedTouches){ if(t.identifier!==joyId) continue;
       let dx=t.clientX-jcx, dy=t.clientY-jcy; const max=55, len=Math.hypot(dx,dy);
       if(len>max){ dx*=max/len; dy*=max/len; }
@@ -670,17 +688,29 @@ if(isMobile){
   // look pad (right half) -> drag to turn camera
   const lp=D.getElementById('lookPad');
   let lookId=null, lx=0, ly=0;
-  lp.addEventListener('touchstart', e=>{ e.preventDefault(); const t=e.changedTouches[0]; lookId=t.identifier; lx=t.clientX; ly=t.clientY; }, {passive:false});
-  lp.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier!==lookId) continue;
+  lp.addEventListener('touchstart', e=>{ if(anyOverlayOpen()) return; e.preventDefault(); const t=e.changedTouches[0]; lookId=t.identifier; lx=t.clientX; ly=t.clientY; }, {passive:false});
+  lp.addEventListener('touchmove', e=>{ if(lookId===null) return; e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier!==lookId) continue;
       player.yaw   -= (t.clientX-lx)*0.005;
       player.pitch -= (t.clientY-ly)*0.005;
       player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
       lx=t.clientX; ly=t.clientY; } }, {passive:false});
   lp.addEventListener('touchend', ()=>{ lookId=null; });
-  // buttons
+  lp.addEventListener('touchcancel', ()=>{ lookId=null; });
+  // buttons (use touchend so a tap reliably fires; preventDefault stops the ghost click)
   const bj=D.getElementById('btnJump'), bx=D.getElementById('btnExit');
-  bj.addEventListener('touchstart', e=>{ e.preventDefault(); touch.jump=true; }, {passive:false});
-  bx.addEventListener('touchstart', e=>{ e.preventDefault(); touch.exit=true; }, {passive:false});
+  bj.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
+  bj.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.jump=true; }, {passive:false});
+  bx.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
+  bx.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.exit=true; }, {passive:false});
+}
+// helper so menu buttons work on the first tap on touch devices (click can be swallowed)
+function onTap(el, fn){
+  if(!el) return;
+  let moved=false, sx=0, sy=0, lastTouch=0;
+  el.addEventListener('touchstart', e=>{ moved=false; const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; }, {passive:true});
+  el.addEventListener('touchmove', e=>{ const t=e.changedTouches[0]; if(Math.hypot(t.clientX-sx,t.clientY-sy)>12) moved=true; }, {passive:true});
+  el.addEventListener('touchend', e=>{ if(moved) return; e.preventDefault(); lastTouch=Date.now(); fn(e); }, {passive:false});
+  el.addEventListener('click', e=>{ if(Date.now()-lastTouch<600) return; fn(e); });   // ignore ghost click after a handled tap
 }
 
 // ---------- physics + collision (voxel AABB) ----------
@@ -952,6 +982,7 @@ function exitArena(keepNothingBut){
   player.speed=5.4;
   resetPlayerOverworld();
   setMode('overworld');
+  setTouchEnabled(true);
   toast("Back in the lobby. Levels and upgrades reset.");
 }
 
@@ -1347,6 +1378,7 @@ function arenaDeath(){
   for(const k in upgradeLevels) delete upgradeLevels[k];
   for(const b of blades) arena.group.remove(b.mesh); blades.length=0;
   suppressAutoSettings=true; D.exitPointerLock();
+  setTouchEnabled(false);
   const ov=D.getElementById('overlay');
   ov.querySelector('h1').textContent='YOU DIED';
   ov.querySelector('.tag').innerHTML='You fell on <b>wave '+A.wave+'</b> at <b>level '+A.level+'</b>.<br>Best wave so far: <b>'+bestWave+'</b>. Head back to the lobby and try again.';
@@ -1395,6 +1427,7 @@ function buildOfferPool(){
 function offerUpgrades(){
   A.paused=true;
   suppressAutoSettings=true; D.exitPointerLock();
+  setTouchEnabled(false);
   const pool=buildOfferPool().sort(()=>Math.random()-0.5).slice(0,3);
   const wrap=D.getElementById('cards'); wrap.innerHTML='';
   D.getElementById('upgrade').querySelector('h2').textContent='Level '+A.level;
@@ -1405,14 +1438,16 @@ function offerUpgrades(){
     const tag = isWpn ? 'WEAPON' : (lv>0?('Owned ×'+lv):'New');
     el.innerHTML=`<div class="ic">${u.ic}</div><div class="nm">${u.nm}</div>
       <div class="ds">${u.ds}</div><div class="lv">${tag}</div>`;
-    el.onclick=()=>{
+    onTap(el, ()=>{
+      if(D.getElementById('upgrade').style.display!=='flex') return; // already chosen
       if(isWpn){ A.weapons.push(u.weapon); A.wcd[u.weapon]=0; ensureBlades(); SFX.weapon(); }
       else { u.apply(A.stats); upgradeLevels[u.id]=(upgradeLevels[u.id]||0)+1; }
       D.getElementById('upgrade').style.display='none';
       A.paused=false;
+      setTouchEnabled(true);
       updateUpgradePanel();
       if(!isMobile) cvs.requestPointerLock();
-    };
+    });
     wrap.appendChild(el);
   }
   updateUpgradePanel();
@@ -1921,21 +1956,24 @@ function requestExit(){
   if(settings.skipExitConfirm){ exitArena(); return; }
   GAME.paused=true;
   suppressAutoSettings=true; D.exitPointerLock();
+  setTouchEnabled(false);
   D.getElementById('exitDontAsk').checked=false;
   D.getElementById('exitConfirm').style.display='flex';
 }
 function closeExitConfirm(){
   D.getElementById('exitConfirm').style.display='none';
   GAME.paused=false;
+  setTouchEnabled(true);
 }
-D.getElementById('exitStay').addEventListener('click', ()=>{
+onTap(D.getElementById('exitStay'), ()=>{
   closeExitConfirm();
   if(!isMobile && GAME.state==="arena") cvs.requestPointerLock();
 });
-D.getElementById('exitLeave').addEventListener('click', ()=>{
+onTap(D.getElementById('exitLeave'), ()=>{
   if(D.getElementById('exitDontAsk').checked){ settings.skipExitConfirm=true; persist(); }
   D.getElementById('exitConfirm').style.display='none';
   GAME.paused=false;
+  setTouchEnabled(true);
   exitArena();
 });
 
@@ -1946,6 +1984,7 @@ function applyFov(){ camera.fov=settings.fov; camera.updateProjectionMatrix(); }
 function openSettings(){
   GAME.paused=true;
   suppressAutoSettings=true; D.exitPointerLock();
+  setTouchEnabled(false);
   D.getElementById('fovRange').value=settings.fov;
   D.getElementById('fovVal').textContent=settings.fov;
   D.getElementById('fpToggle').checked=settings.firstPerson;
@@ -1953,21 +1992,24 @@ function openSettings(){
   D.getElementById('musicVolVal').textContent=settings.musicVol;
   D.getElementById('sfxVol').value=settings.sfxVol;
   D.getElementById('sfxVolVal').textContent=settings.sfxVol;
+  D.getElementById('changelog').style.display='none';
   D.getElementById('settings').style.display='flex';
 }
 function closeSettings(){
   D.getElementById('settings').style.display='none';
+  D.getElementById('changelog').style.display='none';
   GAME.paused=false;
+  setTouchEnabled(true);
   persist();
   if(!isMobile && (GAME.state==='arena'||GAME.state==='overworld')) cvs.requestPointerLock();
 }
-D.getElementById('gear').addEventListener('click', openSettings);
-D.getElementById('settingsClose').addEventListener('click', closeSettings);
-D.getElementById('openChangelog').addEventListener('click', ()=>{
+onTap(D.getElementById('gear'), openSettings);
+onTap(D.getElementById('settingsClose'), closeSettings);
+onTap(D.getElementById('openChangelog'), ()=>{
   D.getElementById('settings').style.display='none';
   D.getElementById('changelog').style.display='flex';
 });
-D.getElementById('closeChangelog').addEventListener('click', ()=>{
+onTap(D.getElementById('closeChangelog'), ()=>{
   D.getElementById('changelog').style.display='none';
   D.getElementById('settings').style.display='flex';
 });
@@ -2001,6 +2043,7 @@ function updateBestHud(){ const el=D.getElementById('bestwave'); if(el) el.textC
 function beginGame(){
   initAudio();
   startMusic();
+  setTouchEnabled(true);
   const ov=D.getElementById('overlay');
   if(GAME.state==='dead'){
     // returning to lobby after death
@@ -2031,7 +2074,7 @@ function exitArenaCleanupAfterDeath(){
   resetPlayerOverworld();
 }
 
-D.getElementById('startbtn').addEventListener('click', beginGame);
+onTap(D.getElementById('startbtn'), beginGame);
 
 scene.background=new THREE.Color(0x9fd0ff);
 scene.fog=new THREE.Fog(0x9fd0ff,60,140);
