@@ -173,7 +173,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061426</div>
+<div id="version">v061626</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -259,7 +259,13 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">Version v061426 (June 14, 2026)</div>
+    <div class="desc">Version v061626 (June 16, 2026)</div>
+    <h3>Performance &amp; stability</h3>
+    <ul>
+      <li>Fixed the random freezes on phones — enemies, projectiles, orbs and effects now release their graphics memory when they disappear instead of leaking it</li>
+      <li>Lower render resolution and lighter shadows on mobile for a smoother, more stable framerate</li>
+      <li>The game now recovers gracefully if the device's graphics context is dropped</li>
+    </ul>
     <h3>New</h3>
     <ul>
       <li>Two new weapons: Boomerang and Frost Nova</li>
@@ -324,25 +330,53 @@ import * as THREE from 'three';
 // ============================================================
 
 const W = window, D = document;
+// Detect mobile up front so we can dial back GPU load. iOS Safari enforces a
+// hard WebGL memory budget; over-rendering there causes the context to be
+// dropped, which shows up as the game "randomly freezing".
+const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ canvas: D.getElementById('c'), antialias:true });
+const canvasEl = D.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias:!IS_MOBILE, powerPreference:'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+// iPhones report devicePixelRatio 3, which renders ~9x the pixels of a 1x
+// display and blows through the GPU memory budget. Cap it hard on mobile.
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE?1.5:2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+
+// If the GL context is ever lost, prevent the default (permanent) behaviour so
+// the browser can restore it instead of leaving a frozen black canvas.
+canvasEl.addEventListener('webglcontextlost', e=>{ e.preventDefault(); }, false);
 
 addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
+// Free GPU resources for an Object3D and detach it from the scene graph.
+// Three.js does NOT release geometry/material VRAM when you remove() an object,
+// so without this every enemy, projectile, orb and effect that gets removed
+// leaks memory until the WebGL context dies. This is the root cause of the
+// random freezes, especially on memory-constrained iPhones.
+function disposeObj(obj){
+  if(!obj) return;
+  obj.traverse(o=>{
+    if(o.geometry) o.geometry.dispose();
+    const m=o.material;
+    if(m){ if(Array.isArray(m)) m.forEach(x=>x&&x.dispose()); else m.dispose(); }
+  });
+  if(obj.parent) obj.parent.remove(obj);
+}
+
 // ---------- lighting / sky helpers ----------
 const hemi = new THREE.HemisphereLight(0xbfdfff, 0x4a5a3a, 0.85);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 1.05);
 sun.position.set(40,80,30); sun.castShadow = true;
-sun.shadow.mapSize.set(2048,2048);
+// Smaller shadow map on mobile — a 2048² depth target is a heavy allocation
+// and per-frame cost on phone GPUs.
+sun.shadow.mapSize.set(IS_MOBILE?1024:2048, IS_MOBILE?1024:2048);
 sun.shadow.camera.left=-60; sun.shadow.camera.right=60;
 sun.shadow.camera.top=60; sun.shadow.camera.bottom=-60;
 sun.shadow.camera.near=1; sun.shadow.camera.far=260;
@@ -670,7 +704,7 @@ addEventListener('contextmenu', e=>e.preventDefault());
 
 // ---------- mobile touch controls ----------
 const touch={active:false, mx:0, my:0, jump:false, exit:false};
-const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
+const isMobile = IS_MOBILE;
 // when any menu/overlay is open we must stop the touch layer from eating taps
 // and stop the look-pad/joystick from moving the player behind the menu.
 function setTouchEnabled(on){
@@ -914,7 +948,7 @@ let arenaGround, arenaProps=[];
 
 function buildArenaMap(seed){
   // clear
-  while(arena.group.children.length) arena.group.remove(arena.group.children[0]);
+  while(arena.group.children.length) disposeObj(arena.group.children[0]);
   arenaProps=[];
   const rng = mulberry32(seed);
   // pick a palette / biome
@@ -997,7 +1031,7 @@ function exitArena(keepNothingBut){
   if(tracer) tracer.visible=false;
   A.target=null; A._lastTarget=null;
   for(const k in upgradeLevels) delete upgradeLevels[k];
-  for(const b of blades) arena.group.remove(b.mesh); blades.length=0;
+  for(const b of blades) disposeObj(b.mesh); blades.length=0;
   arena.group.visible=false; overworld.group.visible=true;
   scene.background=new THREE.Color(0x9fd0ff);
   scene.fog=new THREE.Fog(0x9fd0ff, 60, 140);
@@ -1232,7 +1266,7 @@ function makeBladeMesh(){
   return g;
 }
 function ensureBlades(){
-  for(const b of blades) arena.group.remove(b.mesh);
+  for(const b of blades) disposeObj(b.mesh);
   blades.length=0;
   if(!A.weapons.includes('blades')) return;
   const count=2 + A.stats.extraProj;     // split-shot adds blades
@@ -1341,7 +1375,7 @@ function killEnemy(e){
   bumpStreak();
   if(e===A.boss){
     addShards(9);                    // bosses are worth a bit more
-    arena.group.remove(e.mesh);
+    disposeObj(e.mesh);
     spawnOrb(e.mesh.position, e.xp, true);
     A.boss=null;
     D.getElementById('bossbar').style.display='none';
@@ -1350,7 +1384,7 @@ function killEnemy(e){
     return;
   }
   const i=A.enemies.indexOf(e);
-  if(i>=0){ arena.group.remove(e.mesh); A.enemies.splice(i,1); spawnOrb(e.mesh.position, e.xp,false); }
+  if(i>=0){ disposeObj(e.mesh); A.enemies.splice(i,1); spawnOrb(e.mesh.position, e.xp,false); }
 }
 function spawnOrb(pos, xp, big){
   const s=big?0.5:0.22;
@@ -1398,7 +1432,7 @@ function arenaDeath(){
   if(tracer) tracer.visible=false;
   A.target=null; A._lastTarget=null;
   for(const k in upgradeLevels) delete upgradeLevels[k];
-  for(const b of blades) arena.group.remove(b.mesh); blades.length=0;
+  for(const b of blades) disposeObj(b.mesh); blades.length=0;
   suppressAutoSettings=true; D.exitPointerLock();
   setTouchEnabled(false);
   const ov=D.getElementById('overlay');
@@ -1564,8 +1598,9 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
+const _camDir=new THREE.Vector3(), _camFocus=new THREE.Vector3(), _camLook=new THREE.Vector3();
 function updateCamera(){
-  const dir=new THREE.Vector3(
+  const dir=_camDir.set(
     Math.sin(player.yaw)*Math.cos(player.pitch),
     Math.sin(player.pitch),
     Math.cos(player.yaw)*Math.cos(player.pitch)
@@ -1576,10 +1611,10 @@ function updateCamera(){
   avatar.rotation.y = player.yaw;
   avatar.visible = inWorld && !settings.firstPerson;
 
-  const focus = new THREE.Vector3(player.pos.x, player.pos.y + 1.5, player.pos.z);
+  const focus = _camFocus.set(player.pos.x, player.pos.y + 1.5, player.pos.z);
   if(settings.firstPerson || !inWorld){
     camera.position.set(player.pos.x, player.pos.y + player.eyeHeight, player.pos.z);
-    camera.lookAt(camera.position.clone().add(dir));
+    camera.lookAt(_camLook.copy(camera.position).add(dir));
   } else {
     const dist = 5.4;
     camera.position.copy(focus).addScaledVector(dir, -dist);
@@ -1768,7 +1803,7 @@ function updateArena(){
         break;
       }
     }
-    if(remove){ arena.group.remove(p.mesh); A.projectiles.splice(i,1); }
+    if(remove){ disposeObj(p.mesh); A.projectiles.splice(i,1); }
   }
 
   // enemy projectiles (boss); smaller hitbox + vertical gap so you can jump over them
@@ -1781,7 +1816,7 @@ function updateArena(){
     const vy=p.mesh.position.y-(player.pos.y+0.9);
     if(Math.hypot(dx,dz)<0.45 && Math.abs(vy)<0.8){ hurtPlayer(p.dmg, p.mesh.position); p.life=0; }
     else if(hitsProp(p.mesh.position.x, p.mesh.position.z, 0.18)) p.life=0;
-    if(p.life<=0){ arena.group.remove(p.mesh); A.eproj.splice(i,1); }
+    if(p.life<=0){ disposeObj(p.mesh); A.eproj.splice(i,1); }
   }
 
   // orbs (xp pickup with magnet; vacuumed ones fly in from anywhere)
@@ -1796,7 +1831,7 @@ function updateArena(){
     }
     o.mesh.rotation.y+=dt*3;
     if(!o.vacuum) o.mesh.position.y=0.5+Math.sin(o.t*4)*0.12;
-    if(d<0.8){ gainXp(o.xp); SFX.xp(); arena.group.remove(o.mesh); A.orbs.splice(i,1); }
+    if(d<0.8){ gainXp(o.xp); SFX.xp(); disposeObj(o.mesh); A.orbs.splice(i,1); }
   }
 
   updateArenaHud();
@@ -1865,7 +1900,7 @@ function updateBolts(){
   for(let i=boltLines.length-1;i>=0;i--){
     const b=boltLines[i]; b.t-=dt;
     b.l.material.opacity=Math.max(0, b.t/(b.max||0.32));
-    if(b.t<=0){ arena.group.remove(b.l); boltLines.splice(i,1); }
+    if(b.t<=0){ disposeObj(b.l); boltLines.splice(i,1); }
   }
 }
 
