@@ -173,7 +173,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626e · The Tune-Up</div>
+<div id="version">v061626f · Hops & Walls</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -275,8 +275,14 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626e · The Tune-Up (June 16, 2026)</div>
+    <div class="desc">v061626f · Hops & Walls (June 16, 2026)</div>
     <h3>This update</h3>
+    <ul>
+      <li>Regular enemies now simply climb straight up walls to reach you, while elites and bosses walk around obstacles instead (replaces the old parkour logic)</li>
+      <li>Holding jump no longer auto-bounces — each jump needs a fresh press</li>
+      <li>Bunnyhop: time your jumps right as you land to chain them and build extra move speed</li>
+    </ul>
+    <h3>v061626e · The Tune-Up</h3>
     <ul>
       <li>Player walk animation now plays on mobile (joystick movement)</li>
       <li>The mobile LEAVE button only appears when you're on the exit pad and can actually leave</li>
@@ -347,7 +353,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626e · The Tune-Up</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626f · Hops & Walls</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -374,8 +380,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626e';
-const UPDATE_TITLE = 'The Tune-Up';
+const VERSION = 'v061626f';
+const UPDATE_TITLE = 'Hops & Walls';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -679,7 +685,13 @@ const player = {
   height: 1.7, radius: 0.32, eyeHeight: 1.6,
   onGround: false,
   speed: 5.4,
+  bhop: 1,            // bunnyhop speed multiplier (1 = normal)
+  _jumpPrev: false,   // jump input held last frame (for edge detection)
+  _landT: 0,          // timestamp of the most recent landing
 };
+const BHOP_MAX = 1.7;        // top speed multiplier from chaining hops
+const BHOP_GAIN = 0.13;      // multiplier added per well-timed hop
+const BHOP_WINDOW = 170;     // ms after landing that counts as well-timed
 
 // blocky third-person avatar
 const avatar = new THREE.Group();
@@ -894,12 +906,13 @@ function collideMove(mode){
   // remember whether the player is actually trying to move (keyboard OR joystick)
   // so the walk animation works on mobile too, not just with WASD
   player.moving = mv.lengthSq() > 0;
-  if(mv.lengthSq()>0) mv.normalize().multiplyScalar(player.speed);
+  if(mv.lengthSq()>0) mv.normalize().multiplyScalar(player.speed*(player.bhop||1));
 
   const step = (axis,amount)=>{
     if(amount===0) return;
     player.pos[axis]+=amount;   // flat floor, no voxel collide
   };
+  const wasGround = player.onGround;
   player.onGround=false;
   // knockback velocity (decays)
   if(player.knock){
@@ -929,7 +942,32 @@ function collideMove(mode){
     const r=Math.hypot(player.pos.x, player.pos.z), B=ARENA_R-1.5;
     if(r>B){ player.pos.x*=B/r; player.pos.z*=B/r; }
   }
-  if((keys.Space || touch.jump) && player.onGround){ player.vel.y=JUMP_V; player.onGround=false; } touch.jump=false;
+  // record the moment we touch down (used for bunnyhop timing)
+  if(player.onGround && !wasGround) player._landT=performance.now();
+
+  // --- jumping & bunnyhop ---
+  // Holding the key no longer auto-bounces: a jump only fires on a fresh press.
+  // Pressing again within a short window of landing chains into a bunnyhop that
+  // builds extra move speed; mistime it (or stop hopping) and you slow back down.
+  const now=performance.now();
+  const jumpDown = keys.Space || touch.jump;
+  const jumpEdge = jumpDown && !player._jumpPrev;
+  player._jumpPrev = jumpDown;
+  touch.jump=false;
+  if(jumpEdge) player._jumpBufT = now;   // buffer the press so a hop just before landing still counts
+  if(player.onGround){
+    const buffered = (now - (player._jumpBufT||-9999)) < 140;
+    if(buffered){
+      player._jumpBufT = -9999;          // consume the buffered press
+      // a hop landed in the bunnyhop window (and while moving) chains extra speed
+      const wellTimed = (now-player._landT) < BHOP_WINDOW && player.moving;
+      player.bhop = wellTimed ? Math.min(BHOP_MAX, (player.bhop||1)+BHOP_GAIN) : 1;
+      player.vel.y=JUMP_V; player.onGround=false;
+    } else {
+      // standing on the ground without hopping bleeds the speed back to normal
+      player.bhop = Math.max(1, (player.bhop||1) - dt*3.5);
+    }
+  }
 }
 
 const MAX_JUMP=1.6;       // props at/under this height are jumpable
@@ -1008,40 +1046,22 @@ function avoidProps(e, dirx, dirz, big){
   }
   return {x:ax, z:az};
 }
-// is there a jumpable prop in front of this small enemy (checking a small arc,
-// not just dead-ahead, so it climbs obstacles it's steering around too)?
-function jumpableAhead(e){
-  if(!A.props) return false;
+// height of the tallest prop directly in front of a climbing (regular) enemy
+// whose top is above its feet — i.e. the wall it should scale. 0 if path is clear.
+const CLIMB_SPEED = 5.0;   // how fast regular enemies climb walls (units/sec)
+function wallAheadTop(e){
+  if(!A.props) return 0;
   const sx=e.steerX||0, sz=e.steerZ||0;
-  if(!sx && !sz) return false;
-  const reach=e.size*0.5+0.55, ey=e.mesh.position.y;
-  for(const off of [0, 0.6, -0.6]){
-    const ca=Math.cos(off), sa=Math.sin(off);
-    const dx=sx*ca - sz*sa, dz=sx*sa + sz*ca;
-    const fx=e.mesh.position.x+dx*reach, fz=e.mesh.position.z+dz*reach;
-    for(const p of A.props){
-      if(!p.jumpable) continue;
-      if(Math.abs(fx-p.x)<p.hx+0.25 && Math.abs(fz-p.z)<p.hz+0.25 && ey<p.top-0.2) return true;
+  if(!sx && !sz) return 0;
+  const reach=e.size*0.5+0.35, ey=e.mesh.position.y;
+  const fx=e.mesh.position.x+sx*reach, fz=e.mesh.position.z+sz*reach;
+  let top=0;
+  for(const p of A.props){
+    if(Math.abs(fx-p.x)<p.hx+0.2 && Math.abs(fz-p.z)<p.hz+0.2 && ey < p.top-0.1){
+      if(p.top>top) top=p.top;
     }
   }
-  return false;
-}
-// when the player is up high, find a climbable prop the enemy can use as a step toward them
-function parkourTarget(e){
-  if(!A.props) return null;
-  const ey=e.mesh.position.y;
-  let best=null, bestScore=Infinity;
-  for(const p of A.props){
-    if(!p.jumpable) continue;
-    // useful step: its top is above the enemy (progress upward) but within a jump of where they stand
-    if(p.top <= ey+0.2) continue;
-    if(p.top > ey + MAX_JUMP + 0.4) continue;          // too tall to hop onto from here
-    const dp=Math.hypot(p.x-player.pos.x, p.z-player.pos.z);  // prefer props near the player
-    const de=Math.hypot(p.x-e.mesh.position.x, p.z-e.mesh.position.z);
-    const score=dp*1.3 + de*0.4;
-    if(score<bestScore){ bestScore=score; best=p; }
-  }
-  return best;
+  return top;
 }
 function hitsProp(x,z,r){
   if(!A.props) return false;
@@ -1172,6 +1192,7 @@ function startArena(){
   A.mapSeed=(Math.random()*1e9)|0;
   buildArenaMap(A.mapSeed);
   player.pos.set(0,0,6); player.vel.set(0,0,0); player.knock=null;
+  player.bhop=1; player._jumpPrev=false;
   player.pitch=-0.12;
   player.speed=7.2;
   A.exitGrace=1.2;
@@ -1933,23 +1954,20 @@ function updateArena(){
       e.mesh.position.z += e.dashDir.z*16*dt;
       e.dashing-=dt; moved=16;
     } else if(dist>0.001){
-      // desired direction + obstacle avoidance steering
+      // everyone heads straight for the player
       let ax=dx/dist, az=dz/dist;
-      // parkour: if the player is above the enemy, steer toward a stepping-stone prop
-      if(!big && player.pos.y > e.mesh.position.y+1.0){
-        const step=parkourTarget(e);
-        if(step){ ax=step.x-e.mesh.position.x; az=step.z-e.mesh.position.z;
-          const l=Math.hypot(ax,az)||1; ax/=l; az/=l; e.seeking=true; }
-        else e.seeking=false;
-      } else e.seeking=false;
-      // if recently stuck, commit to a sideways detour for a moment to escape corners
-      if(e._detourT>0){
-        const a=e._detourSide*1.15, ca=Math.cos(a), sa=Math.sin(a);
-        const nx=ax*ca - az*sa, nz=ax*sa + az*ca; ax=nx; az=nz;
+      if(big){
+        // elites & bosses can't climb, so they steer AROUND obstacles, and
+        // break out of corners with a brief committed detour when wedged
+        if(e._detourT>0){
+          const a=e._detourSide*1.15, ca=Math.cos(a), sa=Math.sin(a);
+          const nx=ax*ca - az*sa, nz=ax*sa + az*ca; ax=nx; az=nz;
+        }
+        const av=avoidProps(e, ax, az, true);
+        ax+=av.x; az+=av.z;
+        const al=Math.hypot(ax,az)||1; ax/=al; az/=al;
       }
-      const av=avoidProps(e, ax, az, big);
-      ax+=av.x; az+=av.z;
-      const al=Math.hypot(ax,az)||1; ax/=al; az/=al;
+      // regular enemies go straight in — they climb over anything in the way
       const sp=e.spd;
       e.mesh.position.x += ax*sp*dt;
       e.mesh.position.z += az*sp*dt;
@@ -1962,33 +1980,37 @@ function updateArena(){
       pushOutOfProps(e.mesh.position, e.size*0.5);
       e.baseY=0;
     } else {
-      // small enemy: gravity, can stand on / jump onto props
-      e.ev=(e.ev||0)-22*dt;
-      e.mesh.position.y += e.ev*dt;
-      pushOutSides(e.mesh.position, e.size*0.45, e.mesh.position.y);
-      const support=propSupportY(e.mesh.position, e.size*0.45);
-      const floor=Math.max(0, support);
-      let grounded=false;
-      if(e.mesh.position.y<=floor){ e.mesh.position.y=floor; e.ev=0; grounded=true; }
-      e.baseY=e.mesh.position.y;
-      // jump to climb onto any prop in the way, to parkour up, or to reach the player above
-      if(grounded){
-        const ahead = jumpableAhead(e);              // climbable prop blocking the path
-        const needUp = player.pos.y > e.mesh.position.y+0.5 && dist < 3.2;
-        if(ahead || needUp) e.ev=JUMP_V;
+      // regular enemy: climbs straight up any wall in its path toward the player
+      const wallTop=wallAheadTop(e);
+      if(wallTop > e.mesh.position.y + 0.05){
+        // scale the wall face; pushOutSides keeps it pinned to the surface as it rises
+        e.ev=0;
+        e.mesh.position.y += CLIMB_SPEED*dt;
+        pushOutSides(e.mesh.position, e.size*0.45, e.mesh.position.y);
+      } else {
+        // no wall ahead: gravity + land on top of props / the floor
+        e.ev=(e.ev||0)-22*dt;
+        e.mesh.position.y += e.ev*dt;
+        pushOutSides(e.mesh.position, e.size*0.45, e.mesh.position.y);
+        const support=propSupportY(e.mesh.position, e.size*0.45);
+        const floor=Math.max(0, support);
+        if(e.mesh.position.y<=floor){ e.mesh.position.y=floor; e.ev=0; }
       }
+      e.baseY=e.mesh.position.y;
     }
 
     // keep in arena
     const rr=Math.hypot(e.mesh.position.x,e.mesh.position.z), BB=ARENA_R-1.5;
     if(rr>BB){ e.mesh.position.x*=BB/rr; e.mesh.position.z*=BB/rr; }
-    // stuck detection: chasing the player but barely moving => break out with a
-    // short, committed sideways detour (escapes corners and prop pockets)
-    const prog=Math.hypot(e.mesh.position.x-px, e.mesh.position.z-pz);
-    const tryingToMove = dist>0.8 && !(isBoss && e.dashing>0);
-    if(tryingToMove && prog < (e.spd*dt)*0.4) e._stuck=(e._stuck||0)+dt;
-    else e._stuck=Math.max(0,(e._stuck||0)-dt*2);
-    if(e._stuck>0.3 && (e._detourT||0)<=0){ e._detourT=0.8; e._detourSide=(Math.random()<0.5?-1:1); e._stuck=0; }
+    // stuck detection (elites/bosses only — they walk around and can wedge in
+    // corners; regular enemies climb, so they don't get stuck)
+    if(big){
+      const prog=Math.hypot(e.mesh.position.x-px, e.mesh.position.z-pz);
+      const tryingToMove = dist>0.8 && !(isBoss && e.dashing>0);
+      if(tryingToMove && prog < (e.spd*dt)*0.4) e._stuck=(e._stuck||0)+dt;
+      else e._stuck=Math.max(0,(e._stuck||0)-dt*2);
+      if(e._stuck>0.3 && (e._detourT||0)<=0){ e._detourT=0.8; e._detourSide=(Math.random()<0.5?-1:1); e._stuck=0; }
+    }
     // face player (model front = +z)
     e.mesh.rotation.y = Math.atan2(dx, dz);
     // walk animation
