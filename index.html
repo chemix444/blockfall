@@ -347,7 +347,8 @@ renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMa
 
 // If the GL context is ever lost, prevent the default (permanent) behaviour so
 // the browser can restore it instead of leaving a frozen black canvas.
-canvasEl.addEventListener('webglcontextlost', e=>{ e.preventDefault(); }, false);
+canvasEl.addEventListener('webglcontextlost', e=>{ e.preventDefault(); reportError('WebGL context lost — GPU ran out of memory. Trying to recover…'); }, false);
+canvasEl.addEventListener('webglcontextrestored', ()=>{ reportError('WebGL context restored.'); }, false);
 
 addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -1588,15 +1589,42 @@ function ensureExitPad(){
 // ============================================================
 let last=performance.now(), dt=0;
 const clock={};
+let _loopErrs=0;
 function loop(now){
-  dt=Math.min(0.05,(now-last)/1000); last=now;
-  if(GAME.state==='overworld') updateOverworld();
-  else if(GAME.state==='arena') updateArena();
-  if((GAME.state==='overworld'||GAME.state==='arena') && !GAME.paused && !A.paused) animateAvatar();
-  updateCamera();
-  renderer.render(scene,camera);
+  // Schedule the next frame FIRST. Previously the requestAnimationFrame call
+  // sat at the END of this function, so ANY exception thrown while updating or
+  // rendering skipped it and the loop died — which is exactly what a "random
+  // freeze" looks like. Now a bad frame is caught and the game keeps running.
   requestAnimationFrame(loop);
+  dt=Math.min(0.05,(now-last)/1000); last=now;
+  try {
+    if(GAME.state==='overworld') updateOverworld();
+    else if(GAME.state==='arena') updateArena();
+    if((GAME.state==='overworld'||GAME.state==='arena') && !GAME.paused && !A.paused) animateAvatar();
+    updateCamera();
+    renderer.render(scene,camera);
+  } catch(err) {
+    if(_loopErrs++ < 5){ console.error('[loop]', err); reportError(err); }
+  }
 }
+
+// On-screen error surface. Without this, errors only land in a console nobody
+// can see on a phone, so a freeze gives us nothing to debug. Tap to dismiss.
+function reportError(err){
+  try {
+    let box=D.getElementById('errbox');
+    if(!box){
+      box=D.createElement('div'); box.id='errbox';
+      box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:rgba(150,18,30,.94);color:#fff;font:12px/1.45 ui-monospace,monospace;padding:9px 11px;border-radius:9px;white-space:pre-wrap;max-height:42vh;overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.5)';
+      box.addEventListener('click', ()=>box.remove());
+      (D.body||D.documentElement).appendChild(box);
+    }
+    const msg=(err && (err.stack||err.message)) || String(err);
+    box.textContent='⚠ '+msg+'\n\n(tap to dismiss)';
+  } catch(_){}
+}
+addEventListener('error', e=>reportError(e.error||e.message||'error'));
+addEventListener('unhandledrejection', e=>reportError((e.reason && (e.reason.stack||e.reason.message))||'unhandled promise rejection'));
 
 const _camDir=new THREE.Vector3(), _camFocus=new THREE.Vector3(), _camLook=new THREE.Vector3();
 function updateCamera(){
