@@ -164,6 +164,9 @@
   #btnExit { position:absolute; right:max(26px,env(safe-area-inset-right)); bottom:130px; width:72px; height:46px; border-radius:10px; background:rgba(226,59,92,.3); border:2px solid rgba(226,59,92,.55); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; touch-action:none; }
   body.mobile #upgPanel { top:62px; width:150px; transform:scale(.86); transform-origin:top left; }
   body.mobile #gear { z-index:12; }
+  /* live speed readout: bottom-left on desktop, lifted above the joystick on mobile */
+  #speedo { display:none; position:fixed; left:12px; bottom:14px; z-index:6; font-size:13px; background:rgba(0,0,0,.45); padding:5px 10px; border-radius:6px; font-variant-numeric:tabular-nums; }
+  body.mobile #speedo { bottom:164px; left:16px; }
 </style>
 </head>
 <body>
@@ -173,7 +176,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626f · Hops & Walls</div>
+<div id="version">v061626g · Creature Comforts</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -185,6 +188,9 @@
 
 <!-- persistent currency -->
 <div id="shards" class="hud" style="display:none"><span class="gem"></span><span id="shardcount">0</span></div>
+
+<!-- live speed readout -->
+<div id="speedo" class="hud"></div>
 
 <!-- settings gear -->
 <div id="gear" style="display:none">⚙</div>
@@ -237,6 +243,14 @@
       <label class="switch"><input id="fpToggle" type="checkbox"><span class="track"></span></label>
     </div>
     <div class="row">
+      <label for="easyBhopToggle">Easy bunnyhop (hold jump)</label>
+      <label class="switch"><input id="easyBhopToggle" type="checkbox"><span class="track"></span></label>
+    </div>
+    <div class="row" id="potatoRow">
+      <label for="potatoToggle">Potato mode (lower quality)</label>
+      <label class="switch"><input id="potatoToggle" type="checkbox"><span class="track"></span></label>
+    </div>
+    <div class="row">
       <label for="musicVol">Music volume</label>
       <input id="musicVol" type="range" min="0" max="100" step="1">
       <span class="val" id="musicVolVal">50</span>
@@ -275,11 +289,12 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626f · Hops & Walls (June 16, 2026)</div>
+    <div class="desc">v061626g · Creature Comforts (June 16, 2026)</div>
     <ul>
-      <li>Regular enemies now simply climb straight up walls to reach you, while elites and bosses walk around obstacles instead (replaces the old parkour logic)</li>
-      <li>Holding jump no longer auto-bounces — each jump needs a fresh press</li>
-      <li>Bunnyhop: time your jumps right as you land to chain them and build extra move speed</li>
+      <li>Enemies now knock you back each time they hit you</li>
+      <li>New "Easy bunnyhop" toggle in Settings — hold jump to auto-bhop without timing it</li>
+      <li>Live speed counter (shows your current speed and bunnyhop multiplier)</li>
+      <li>New "Potato mode" toggle in Settings (desktop) — runs at mobile-level quality for weaker machines</li>
     </ul>
     <div class="actions">
       <button class="btn-primary" id="closeChangelog">Back</button>
@@ -303,7 +318,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626f · Hops & Walls</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626g · Creature Comforts</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -330,8 +345,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626f';
-const UPDATE_TITLE = 'Hops & Walls';
+const VERSION = 'v061626g';
+const UPDATE_TITLE = 'Creature Comforts';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -417,7 +432,7 @@ const GAME = {
 // ---------- persistent save (localStorage, degrades gracefully) ----------
 const SAVE_KEY = 'blockfall_save_v1';
 const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50, sfxVol:80,
-  sens:1.0,
+  sens:1.0, easyBhop:false, potato:false,
   skyColor:'#9fd0ff', outlineColor:'#fff27a',
   playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' } };
 const DEFAULT_SETTINGS = JSON.parse(JSON.stringify(settings));
@@ -439,6 +454,8 @@ function loadSave(){
         if(typeof s.settings.musicVol==='number') settings.musicVol = Math.max(0,Math.min(100,s.settings.musicVol));
         if(typeof s.settings.sfxVol==='number') settings.sfxVol = Math.max(0,Math.min(100,s.settings.sfxVol));
         if(typeof s.settings.sens==='number') settings.sens = Math.max(0.2,Math.min(3,s.settings.sens));
+        if(typeof s.settings.easyBhop==='boolean') settings.easyBhop = s.settings.easyBhop;
+        if(typeof s.settings.potato==='boolean') settings.potato = s.settings.potato;
         const isHex=v=>typeof v==='string' && /^#[0-9a-fA-F]{6}$/.test(v);
         if(isHex(s.settings.skyColor)) settings.skyColor = s.settings.skyColor;
         if(isHex(s.settings.outlineColor)) settings.outlineColor = s.settings.outlineColor;
@@ -841,6 +858,7 @@ function onTap(el, fn){
 // ---------- physics + collision (voxel AABB) ----------
 function collideMove(mode){
   const g = mode==='overworld';
+  const spx=player.pos.x, spz=player.pos.z;   // for the live speed readout
   // gravity
   player.vel.y -= 22*dt;
   // intended movement (keyboard or mobile joystick)
@@ -905,12 +923,15 @@ function collideMove(mode){
   player._jumpPrev = jumpDown;
   touch.jump=false;
   if(jumpEdge) player._jumpBufT = now;   // buffer the press so a hop just before landing still counts
+  // Easy bhop: holding jump auto-hops on every landing and always counts as
+  // well-timed, so you keep your bunnyhop speed without manual timing.
+  const autoHop = settings.easyBhop && jumpDown;
   if(player.onGround){
-    const buffered = (now - (player._jumpBufT||-9999)) < 140;
+    const buffered = autoHop || (now - (player._jumpBufT||-9999)) < 140;
     if(buffered){
       player._jumpBufT = -9999;          // consume the buffered press
       // a hop landed in the bunnyhop window (and while moving) chains extra speed
-      const wellTimed = (now-player._landT) < BHOP_WINDOW && player.moving;
+      const wellTimed = (autoHop || (now-player._landT) < BHOP_WINDOW) && player.moving;
       player.bhop = wellTimed ? Math.min(BHOP_MAX, (player.bhop||1)+BHOP_GAIN) : 1;
       player.vel.y=JUMP_V; player.onGround=false;
     } else {
@@ -918,6 +939,13 @@ function collideMove(mode){
       player.bhop = Math.max(1, (player.bhop||1) - dt*3.5);
     }
   }
+
+  // live horizontal speed readout (smoothed actual movement, in units/sec)
+  const inst = dt>0 ? Math.hypot(player.pos.x-spx, player.pos.z-spz)/dt : 0;
+  player.curSpeed = (player.curSpeed||0)*0.7 + inst*0.3;
+  const sp=D.getElementById('speedo');
+  if(sp) sp.innerHTML = 'SPEED <b>'+player.curSpeed.toFixed(1)+'</b>'+
+    ((player.bhop||1)>1.02 ? ' <span style="color:#7df0ff">×'+(player.bhop).toFixed(2)+'</span>' : '');
 }
 
 const MAX_JUMP=1.6;       // props at/under this height are jumpable
@@ -1576,6 +1604,11 @@ function contactDamage(e){
     const f=D.getElementById('dmgflash');
     f.style.boxShadow='inset 0 0 120px rgba(226,59,59,.42)';
     setTimeout(()=>f.style.boxShadow='inset 0 0 120px rgba(226,59,59,0)',90);
+    // each contact "hit" shoves the player away from the enemy
+    let kx=player.pos.x-e.mesh.position.x, kz=player.pos.z-e.mesh.position.z;
+    const m=Math.hypot(kx,kz)||1; kx/=m; kz/=m;
+    const strength=9 + Math.min(12, e.dmg*0.3);
+    player.knock={ x:kx*strength, z:kz*strength };
   }
   if(A.hp<=0){ A.hp=0; arenaDeath(); }
 }
@@ -1717,6 +1750,8 @@ function setMode(m){
   D.getElementById('crosshair').style.display = 'none';
   // LEAVE button is arena-only and gated further by proximity in updateArena
   const be=D.getElementById('btnExit'); if(be) be.style.display='none';
+  // speed readout shows during play (lobby + arena)
+  const sp=D.getElementById('speedo'); if(sp) sp.style.display=(m==='arena'||m==='overworld')?'block':'none';
 }
 function updateHotbar(){ /* no hotbar in lobby */ }
 function updateOverworldHud(){ /* no inventory in lobby */ }
@@ -2262,6 +2297,21 @@ onTap(D.getElementById('exitLeave'), ()=>{
 //  SETTINGS MENU + FOV
 // ============================================================
 function applyFov(){ camera.fov=settings.fov; camera.updateProjectionMatrix(); }
+// Render quality. "Potato mode" makes a desktop run at the same lightened
+// quality as mobile (lower resolution, smaller/softer shadows). Mobile is always
+// low regardless, so the toggle has no effect (and is hidden) there.
+function applyQuality(){
+  const low = IS_MOBILE || settings.potato;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, low?1.5:2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.type = low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+  const ms = low ? 1024 : 2048;
+  if(sun.shadow.mapSize.x !== ms){
+    sun.shadow.mapSize.set(ms, ms);
+    if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; }  // force rebuild at new size
+  }
+  renderer.shadowMap.needsUpdate = true;
+}
 function openSettings(){
   GAME.paused=true;
   suppressAutoSettings=true; exitPointerLockSafe();
@@ -2269,6 +2319,10 @@ function openSettings(){
   D.getElementById('fovRange').value=settings.fov;
   D.getElementById('fovVal').textContent=settings.fov;
   D.getElementById('fpToggle').checked=settings.firstPerson;
+  D.getElementById('easyBhopToggle').checked=settings.easyBhop;
+  D.getElementById('potatoToggle').checked=settings.potato;
+  // mobile already runs at this quality, so hide the toggle there
+  D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
   D.getElementById('musicVol').value=settings.musicVol;
   D.getElementById('musicVolVal').textContent=settings.musicVol;
   D.getElementById('sfxVol').value=settings.sfxVol;
@@ -2310,6 +2364,15 @@ D.getElementById('fovRange').addEventListener('input', e=>{
 D.getElementById('fpToggle').addEventListener('change', e=>{
   settings.firstPerson=e.target.checked;
   persist();
+});
+D.getElementById('easyBhopToggle').addEventListener('change', e=>{
+  settings.easyBhop=e.target.checked;
+  persist();
+});
+D.getElementById('potatoToggle').addEventListener('change', e=>{
+  if(isMobile) return;                 // mobile can't change quality
+  settings.potato=e.target.checked;
+  applyQuality(); persist();
 });
 D.getElementById('musicVol').addEventListener('input', e=>{
   settings.musicVol=+e.target.value;
@@ -2388,6 +2451,7 @@ onTap(D.getElementById('startbtn'), beginGame);
 
 scene.fog=new THREE.Fog(0x000000,60,140);
 applyFov();
+applyQuality();
 applyPlayerColors();
 applyOutlineColor();
 applySky();
