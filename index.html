@@ -176,7 +176,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626g · Creature Comforts</div>
+<div id="version">v061626h · Going Fast</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -289,12 +289,9 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626g · Creature Comforts (June 16, 2026)</div>
+    <div class="desc">v061626h · Going Fast (June 16, 2026)</div>
     <ul>
-      <li>Enemies now knock you back each time they hit you</li>
-      <li>New "Easy bunnyhop" toggle in Settings — hold jump to auto-bhop without timing it</li>
-      <li>Live speed counter (shows your current speed and bunnyhop multiplier)</li>
-      <li>New "Potato mode" toggle in Settings (desktop) — runs at mobile-level quality for weaker machines</li>
+      <li>Bunnyhop speed now caps at ×3.5 (up from ×1.7)</li>
     </ul>
     <div class="actions">
       <button class="btn-primary" id="closeChangelog">Back</button>
@@ -318,7 +315,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626g · Creature Comforts</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626h · Going Fast</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -345,8 +342,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626g';
-const UPDATE_TITLE = 'Creature Comforts';
+const VERSION = 'v061626h';
+const UPDATE_TITLE = 'Going Fast';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -656,7 +653,7 @@ const player = {
   _jumpPrev: false,   // jump input held last frame (for edge detection)
   _landT: 0,          // timestamp of the most recent landing
 };
-const BHOP_MAX = 1.7;        // top speed multiplier from chaining hops
+const BHOP_MAX = 3.5;        // top speed multiplier from chaining hops
 const BHOP_GAIN = 0.13;      // multiplier added per well-timed hop
 const BHOP_WINDOW = 170;     // ms after landing that counts as well-timed
 
