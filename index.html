@@ -176,7 +176,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626i · Trailblazer</div>
+<div id="version">v061626j · Hard Stop</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -292,11 +292,9 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626i · Trailblazer (June 16, 2026)</div>
+    <div class="desc">v061626j · Hard Stop (June 16, 2026)</div>
     <ul>
-      <li>Your character now emits a speed trail that appears and grows as your bunnyhop multiplier climbs (none at normal speed)</li>
-      <li>Enemies now burst into sparks when hit</li>
-      <li>New Settings colors: speed trail (slow + fast ends) and enemy hit sparks</li>
+      <li>Your bunnyhop speed now resets when you bump into a prop or the arena wall, or when an enemy hits you (landing still keeps it)</li>
     </ul>
     <div class="actions">
       <button class="btn-primary" id="closeChangelog">Back</button>
@@ -320,7 +318,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626i · Trailblazer</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626j · Hard Stop</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -347,8 +345,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626i';
-const UPDATE_TITLE = 'Trailblazer';
+const VERSION = 'v061626j';
+const UPDATE_TITLE = 'Hard Stop';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -984,21 +982,24 @@ function collideMove(mode){
   step('z', mv.z*dt);
   step('y', player.vel.y*dt);
 
+  let hitWall=false;   // bumped a prop side or the world barrier this frame
   if(g){
     // lobby flat floor at y=0 (feet)
     if(player.pos.y < 0){ player.pos.y=0; player.vel.y=0; player.onGround=true; }
     // circular lobby bounds (radius ~19 inside the wall)
     const r=Math.hypot(player.pos.x, player.pos.z), B=18.6;
-    if(r>B){ player.pos.x*=B/r; player.pos.z*=B/r; }
+    if(r>B){ player.pos.x*=B/r; player.pos.z*=B/r; hitWall=true; }
   } else {
     // arena: props are solid boxes you can stand on top of
+    const bx=player.pos.x, bz=player.pos.z;
     pushOutSides(player.pos, 0.4, player.pos.y);     // block the sides of boxes
+    if(Math.hypot(player.pos.x-bx, player.pos.z-bz) > 0.0005) hitWall=true;  // got pushed = bumped a prop
     const support = propSupportY(player.pos, 0.4);   // box top under the player, if any
     const floor = Math.max(0, support);
     if(player.pos.y < floor){ player.pos.y=floor; player.vel.y=0; player.onGround=true; }
     // circular arena bounds matching the round floor
     const r=Math.hypot(player.pos.x, player.pos.z), B=ARENA_R-1.5;
-    if(r>B){ player.pos.x*=B/r; player.pos.z*=B/r; }
+    if(r>B){ player.pos.x*=B/r; player.pos.z*=B/r; hitWall=true; }
   }
   // record the moment we touch down (used for bunnyhop timing)
   if(player.onGround && !wasGround) player._landT=performance.now();
@@ -1029,6 +1030,8 @@ function collideMove(mode){
       player.bhop = Math.max(1, (player.bhop||1) - dt*3.5);
     }
   }
+  // bumping a prop or the world barrier kills your bunnyhop speed
+  if(hitWall) player.bhop=1;
 
   // live horizontal speed readout (smoothed actual movement, in units/sec)
   const inst = dt>0 ? Math.hypot(player.pos.x-spx, player.pos.z-spz)/dt : 0;
@@ -1670,6 +1673,7 @@ function hurtPlayer(d, fromPos){
   if(A.invuln>0) return;
   if(A.stats.dodge && Math.random()<A.stats.dodge){ A.invuln=0.2; spawnDamageText(player.pos.x, player.pos.y+1.8, player.pos.z, 'DODGE', true); return; }
   A.hp-=d; A.invuln=0.45;
+  player.bhop=1;                 // getting hit kills your bunnyhop speed
   SFX.hurt();
   // knockback away from the source
   if(fromPos){
@@ -1688,6 +1692,7 @@ function hurtPlayer(d, fromPos){
 let _contactFx=0;
 function contactDamage(e){
   if(A.dead) return;
+  player.bhop=1;                 // getting hit kills your bunnyhop speed
   A.hp -= e.dmg*dt*(1-(A.stats.dodge||0));
   _contactFx-=dt;
   if(_contactFx<=0){
