@@ -173,7 +173,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626c</div>
+<div id="version">v061626d</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -251,7 +251,7 @@
     <div class="actions">
       <button class="btn-primary" id="settingsClose">Done</button>
     </div>
-    <div style="text-align:center;opacity:.4;font-size:11px;margin-top:10px">Blockfall v061426</div>
+    <div id="verFooter" style="text-align:center;opacity:.4;font-size:11px;margin-top:10px">Blockfall</div>
   </div>
 </div>
 
@@ -259,7 +259,14 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">Version v061626 (June 16, 2026)</div>
+    <div class="desc">Version v061626d (June 16, 2026)</div>
+    <h3>This update</h3>
+    <ul>
+      <li>Player walk animation now plays on mobile (joystick movement)</li>
+      <li>The LEAVE button only appears when you're on the exit pad and can actually leave</li>
+      <li>Smarter enemies: they steer around props instead of getting stuck, break out of corners, and climb/parkour up onto platforms to reach you</li>
+      <li>Version number is now consistent everywhere</li>
+    </ul>
     <h3>Performance &amp; stability</h3>
     <ul>
       <li>Fixed the freeze on iPhone when leveling up (the game was calling a mouse-pointer feature that iPhones don't support, which crashed the frame)</li>
@@ -336,6 +343,11 @@ const W = window, D = document;
 // hard WebGL memory budget; over-rendering there causes the context to be
 // dropped, which shows up as the game "randomly freezing".
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
+// Single source of truth for the version. Update this (and the changelog) each
+// release; the on-screen version tag and the settings footer both read from it.
+const VERSION = 'v061626d';
+{ const ve=D.getElementById('version'); if(ve) ve.textContent=VERSION;
+  const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VERSION; }
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
 const canvasEl = D.getElementById('c');
@@ -654,7 +666,7 @@ scene.add(avatar);
 let avatarStepTimer=0;
 function animateAvatar(){
   const u=avatar.userData;
-  const moving = keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;
+  const moving = player.moving;
   if(moving){
     u.phase += dt*10;
     const sw=Math.sin(u.phase)*0.6;
@@ -794,6 +806,9 @@ function collideMove(mode){
     mv.addScaledVector(fwd, -touch.my);   // up on stick = forward
     mv.addScaledVector(right, touch.mx);
   }
+  // remember whether the player is actually trying to move (keyboard OR joystick)
+  // so the walk animation works on mobile too, not just with WASD
+  player.moving = mv.lengthSq() > 0;
   if(mv.lengthSq()>0) mv.normalize().multiplyScalar(player.speed);
 
   const step = (axis,amount)=>{
@@ -876,38 +891,53 @@ function propSupportY(pos, pr){
   }
   return g;
 }
-// steering force that pushes an enemy around props in its path
+// steering force that guides an enemy AROUND props in its path. Rather than
+// pushing straight back from the obstacle (which stalls the enemy when the push
+// directly opposes its goal), this steers tangentially — sliding along the prop
+// toward the side that makes progress — plus a small push-off to avoid grazing.
 function avoidProps(e, dirx, dirz, big){
   let ax=0, az=0;
   if(!A.props) return {x:0,z:0};
   const ex=e.mesh.position.x, ez=e.mesh.position.z, ey=e.mesh.position.y;
   const look = e.size*0.5 + 1.6;
   for(const p of A.props){
-    // small enemies ignore props they can simply stand on / jump over
+    // small enemies ignore props low enough to stand on once they're up there
     if(!big && p.jumpable && ey >= p.top-0.4) continue;
-    if(!big && p.jumpable) { /* short prop: let them try to climb, only mild avoid */ }
     const cx=Math.max(p.x-p.hx, Math.min(ex, p.x+p.hx));
     const cz=Math.max(p.z-p.hz, Math.min(ez, p.z+p.hz));
     let ox=ex-cx, oz=ez-cz, d=Math.hypot(ox,oz);
     const reach = look + Math.max(p.hx,p.hz);
     if(d<reach && d>0.0001){
-      // only avoid props roughly ahead of the enemy
-      if(dirx*(p.x-ex)+dirz*(p.z-ez) > 0){
-        const w=(reach-d)/reach * (big? 1.6 : (p.jumpable?0.5:1.4));
-        ax += ox/d*w; az += oz/d*w;
+      // only react to props roughly ahead of the enemy
+      if(dirx*(p.x-ex)+dirz*(p.z-ez) > -0.25){
+        const awx=ox/d, awz=oz/d;                 // unit vector away from prop
+        // tangent (perpendicular); pick the side that heads toward the goal
+        let tx=-awz, tz=awx;
+        if(tx*dirx+tz*dirz < 0){ tx=awz; tz=-awx; }
+        const base = big ? 1.7 : (p.jumpable ? 0.6 : 1.5);
+        const w=(reach-d)/reach * base;
+        ax += (tx*0.9 + awx*0.45)*w;
+        az += (tz*0.9 + awz*0.45)*w;
       }
     }
   }
   return {x:ax, z:az};
 }
-// is there a jumpable prop right in front of this small enemy?
+// is there a jumpable prop in front of this small enemy (checking a small arc,
+// not just dead-ahead, so it climbs obstacles it's steering around too)?
 function jumpableAhead(e){
   if(!A.props) return false;
   const sx=e.steerX||0, sz=e.steerZ||0;
-  const fx=e.mesh.position.x+sx*(e.size*0.5+0.5), fz=e.mesh.position.z+sz*(e.size*0.5+0.5);
-  for(const p of A.props){
-    if(!p.jumpable) continue;
-    if(Math.abs(fx-p.x)<p.hx+0.2 && Math.abs(fz-p.z)<p.hz+0.2 && e.mesh.position.y<p.top-0.2) return true;
+  if(!sx && !sz) return false;
+  const reach=e.size*0.5+0.55, ey=e.mesh.position.y;
+  for(const off of [0, 0.6, -0.6]){
+    const ca=Math.cos(off), sa=Math.sin(off);
+    const dx=sx*ca - sz*sa, dz=sx*sa + sz*ca;
+    const fx=e.mesh.position.x+dx*reach, fz=e.mesh.position.z+dz*reach;
+    for(const p of A.props){
+      if(!p.jumpable) continue;
+      if(Math.abs(fx-p.x)<p.hx+0.25 && Math.abs(fz-p.z)<p.hz+0.25 && ey<p.top-0.2) return true;
+    }
   }
   return false;
 }
@@ -1558,6 +1588,8 @@ function setMode(m){
   D.getElementById('overworldhud').style.display = m==='overworld'?'block':'none';
   D.getElementById('arenahud').style.display = m==='arena'?'block':'none';
   D.getElementById('crosshair').style.display = 'none';
+  // LEAVE button is arena-only and gated further by proximity in updateArena
+  const be=D.getElementById('btnExit'); if(be) be.style.display='none';
 }
 function updateHotbar(){ /* no hotbar in lobby */ }
 function updateOverworldHud(){ /* no inventory in lobby */ }
@@ -1686,13 +1718,17 @@ function updateArena(){
   // movement
   collideMove('arena');
 
-  // exit pad: stand near center and press E to leave the run
+  // exit pad: stand near center and press E (or tap LEAVE) to leave the run
   if(A.exitGrace>0) A.exitGrace-=dt;
   const cd=Math.hypot(player.pos.x, player.pos.z);
   if(arenaExitPad) arenaExitPad.material.opacity=0.5+Math.sin(performance.now()*0.005)*0.25;
-  if(cd<2.4 && A.exitGrace<=0){
+  const canLeave = cd<2.4 && A.exitGrace<=0;
+  // the LEAVE button only appears when the player is actually able to leave
+  const btnExit=D.getElementById('btnExit');
+  if(btnExit) btnExit.style.display = (canLeave && isMobile) ? 'flex' : 'none';
+  if(canLeave){
     exitHint.style.display='block';
-    exitHint.textContent='Press E to leave the run';
+    exitHint.textContent = isMobile ? 'Tap LEAVE to exit the run' : 'Press E to leave the run';
     if(keys.KeyE || touch.exit){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
@@ -1727,10 +1763,12 @@ function updateArena(){
   // enemies chase (grounded, animated, collide with props)
   const all=A.boss? A.enemies.concat([A.boss]):A.enemies;
   for(const e of all){
+    const px=e.mesh.position.x, pz=e.mesh.position.z;   // for stuck detection
     const dx=player.pos.x-e.mesh.position.x, dz=player.pos.z-e.mesh.position.z;
     const dist=Math.hypot(dx,dz);
     const isBoss=(e===A.boss);
     const big = isBoss || e.kind==='tank';   // big ones can't climb
+    if(e._detourT>0) e._detourT-=dt;
     let moved=0;
     if(isBoss && e.dashing>0){
       e.mesh.position.x += e.dashDir.x*16*dt;
@@ -1739,13 +1777,18 @@ function updateArena(){
     } else if(dist>0.001){
       // desired direction + obstacle avoidance steering
       let ax=dx/dist, az=dz/dist;
-      // parkour: if player is well above and out of normal reach, steer toward a stepping-stone prop
-      if(!big && player.pos.y > e.mesh.position.y+1.4){
+      // parkour: if the player is above the enemy, steer toward a stepping-stone prop
+      if(!big && player.pos.y > e.mesh.position.y+1.0){
         const step=parkourTarget(e);
         if(step){ ax=step.x-e.mesh.position.x; az=step.z-e.mesh.position.z;
           const l=Math.hypot(ax,az)||1; ax/=l; az/=l; e.seeking=true; }
         else e.seeking=false;
       } else e.seeking=false;
+      // if recently stuck, commit to a sideways detour for a moment to escape corners
+      if(e._detourT>0){
+        const a=e._detourSide*1.15, ca=Math.cos(a), sa=Math.sin(a);
+        const nx=ax*ca - az*sa, nz=ax*sa + az*ca; ax=nx; az=nz;
+      }
       const av=avoidProps(e, ax, az, big);
       ax+=av.x; az+=av.z;
       const al=Math.hypot(ax,az)||1; ax/=al; az/=al;
@@ -1770,19 +1813,24 @@ function updateArena(){
       let grounded=false;
       if(e.mesh.position.y<=floor){ e.mesh.position.y=floor; e.ev=0; grounded=true; }
       e.baseY=e.mesh.position.y;
-      // jump only when close to the player, or when actively parkouring up to them
+      // jump to climb onto any prop in the way, to parkour up, or to reach the player above
       if(grounded){
-        const near = dist < 3.2;
-        const ahead = jumpableAhead(e);
-        const climbing = e.seeking && jumpableAhead(e);
-        const needUp = player.pos.y > e.mesh.position.y+0.5 && dist < 2.4;
-        if((near && ahead) || climbing || needUp) e.ev=JUMP_V;
+        const ahead = jumpableAhead(e);              // climbable prop blocking the path
+        const needUp = player.pos.y > e.mesh.position.y+0.5 && dist < 3.2;
+        if(ahead || needUp) e.ev=JUMP_V;
       }
     }
 
     // keep in arena
     const rr=Math.hypot(e.mesh.position.x,e.mesh.position.z), BB=ARENA_R-1.5;
     if(rr>BB){ e.mesh.position.x*=BB/rr; e.mesh.position.z*=BB/rr; }
+    // stuck detection: chasing the player but barely moving => break out with a
+    // short, committed sideways detour (escapes corners and prop pockets)
+    const prog=Math.hypot(e.mesh.position.x-px, e.mesh.position.z-pz);
+    const tryingToMove = dist>0.8 && !(isBoss && e.dashing>0);
+    if(tryingToMove && prog < (e.spd*dt)*0.4) e._stuck=(e._stuck||0)+dt;
+    else e._stuck=Math.max(0,(e._stuck||0)-dt*2);
+    if(e._stuck>0.3 && (e._detourT||0)<=0){ e._detourT=0.8; e._detourSide=(Math.random()<0.5?-1:1); e._stuck=0; }
     // face player (model front = +z)
     e.mesh.rotation.y = Math.atan2(dx, dz);
     // walk animation
