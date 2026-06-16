@@ -173,7 +173,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626c</div>
+<div id="version">v061626e · The Tune-Up</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -219,6 +219,7 @@
   <h2>Level Up</h2>
   <div class="sub">Choose one upgrade</div>
   <div id="cards"></div>
+  <button id="randomUpgrade" class="btn" style="margin-top:22px">🎲 Random</button>
 </div>
 
 <!-- Settings menu -->
@@ -245,13 +246,28 @@
       <input id="sfxVol" type="range" min="0" max="100" step="1">
       <span class="val" id="sfxVolVal">80</span>
     </div>
+    <div class="row">
+      <label for="sensRange">Look sensitivity</label>
+      <input id="sensRange" type="range" min="20" max="300" step="5">
+      <span class="val" id="sensVal">1.0</span>
+    </div>
+    <h2 style="font-size:15px;margin:18px 0 2px">Colors</h2>
+    <div class="row"><label for="skyCol">Sky</label><input id="skyCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="outlineCol">Enemy outline</label><input id="outlineCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcHead">Player head</label><input id="pcHead" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcTorso">Player torso</label><input id="pcTorso" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcArms">Player arms</label><input id="pcArms" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcLegs">Player legs</label><input id="pcLegs" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="actions" style="margin-top:6px">
+      <button class="btn-ghost" id="resetColors">Reset colors</button>
+    </div>
     <div class="actions" style="margin-top:14px">
       <button class="btn-ghost" id="openChangelog">Changelog</button>
     </div>
     <div class="actions">
       <button class="btn-primary" id="settingsClose">Done</button>
     </div>
-    <div style="text-align:center;opacity:.4;font-size:11px;margin-top:10px">Blockfall v061426</div>
+    <div id="verFooter" style="text-align:center;opacity:.4;font-size:11px;margin-top:10px">Blockfall</div>
   </div>
 </div>
 
@@ -259,7 +275,26 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">Version v061626 (June 16, 2026)</div>
+    <div class="desc">v061626e · The Tune-Up (June 16, 2026)</div>
+    <h3>This update</h3>
+    <ul>
+      <li>Player walk animation now plays on mobile (joystick movement)</li>
+      <li>The mobile LEAVE button only appears when you're on the exit pad and can actually leave</li>
+      <li>Smarter enemies: they steer around props instead of getting stuck, break out of corners, and climb/parkour onto platforms to reach you</li>
+      <li>Difficulty now ramps up harder in later waves (faster, tougher, hit harder)</li>
+      <li>Customizable colors in Settings: sky, enemy outline, and each player body part</li>
+      <li>Look/aim sensitivity slider in Settings</li>
+      <li>Total kills (all-time) and per-run kill counters</li>
+      <li>Update title now shown with the version everywhere, including the title screen</li>
+      <li>New "Random" button in the level-up menu picks one of the offered upgrades for you</li>
+      <li>Boomerang now reliably flies out and returns to you, and you can't throw another until it's back</li>
+      <li>Enemies now deal continuous contact damage (no more hit-and-wait cooldown)</li>
+      <li>Boss shots now hit you correctly while you're standing on a prop, and pass over low cover</li>
+      <li>Fixed: damage numbers freezing on screen after you die or leave</li>
+      <li>Fixed: boss health bar lingering after the boss is gone</li>
+      <li>Fixed: Escape sometimes only freeing the mouse without opening Settings</li>
+      <li>Fewer lag spikes on desktop (less per-frame memory churn)</li>
+    </ul>
     <h3>Performance &amp; stability</h3>
     <ul>
       <li>Fixed the freeze on iPhone when leveling up (the game was calling a mouse-pointer feature that iPhones don't support, which crashed the frame)</li>
@@ -312,6 +347,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626e · The Tune-Up</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -336,6 +372,14 @@ const W = window, D = document;
 // hard WebGL memory budget; over-rendering there causes the context to be
 // dropped, which shows up as the game "randomly freezing".
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
+// Single source of truth for the version + update title. Update both (and the
+// changelog) each release; everything that shows the version reads from here.
+const VERSION = 'v061626e';
+const UPDATE_TITLE = 'The Tune-Up';
+const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
+{ const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
+  const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
+  const os=D.getElementById('overlaySub'); if(os) os.textContent=VLABEL; }
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
 const canvasEl = D.getElementById('c');
@@ -416,9 +460,15 @@ const GAME = {
 
 // ---------- persistent save (localStorage, degrades gracefully) ----------
 const SAVE_KEY = 'blockfall_save_v1';
-const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50, sfxVol:80 };
+const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50, sfxVol:80,
+  sens:1.0,
+  skyColor:'#9fd0ff', outlineColor:'#fff27a',
+  playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' } };
+const DEFAULT_SETTINGS = JSON.parse(JSON.stringify(settings));
+function hexToInt(h){ return parseInt(String(h).replace('#',''),16)||0; }
 let shards = 0;
 let bestWave = 0;
+let totalKills = 0;   // all-time kills across every run (persisted)
 function loadSave(){
   try{
     const raw = localStorage.getItem(SAVE_KEY);
@@ -432,12 +482,18 @@ function loadSave(){
         if(typeof s.settings.skipExitConfirm==='boolean') settings.skipExitConfirm = s.settings.skipExitConfirm;
         if(typeof s.settings.musicVol==='number') settings.musicVol = Math.max(0,Math.min(100,s.settings.musicVol));
         if(typeof s.settings.sfxVol==='number') settings.sfxVol = Math.max(0,Math.min(100,s.settings.sfxVol));
+        if(typeof s.settings.sens==='number') settings.sens = Math.max(0.2,Math.min(3,s.settings.sens));
+        const isHex=v=>typeof v==='string' && /^#[0-9a-fA-F]{6}$/.test(v);
+        if(isHex(s.settings.skyColor)) settings.skyColor = s.settings.skyColor;
+        if(isHex(s.settings.outlineColor)) settings.outlineColor = s.settings.outlineColor;
+        if(s.settings.playerColors){ for(const k of ['head','torso','arms','legs']) if(isHex(s.settings.playerColors[k])) settings.playerColors[k]=s.settings.playerColors[k]; }
       }
+      if(typeof s.totalKills==='number') totalKills = s.totalKills;
     }
   }catch(e){ /* storage blocked: run without persistence */ }
 }
 function persist(){
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, settings })); }
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, totalKills, settings })); }
   catch(e){ /* ignore */ }
 }
 function addShards(n){ shards += n; updateShardHud(); persist(); }
@@ -628,11 +684,13 @@ const player = {
 // blocky third-person avatar
 const avatar = new THREE.Group();
 (function buildAvatar(){
-  const skin = new THREE.MeshLambertMaterial({ color:0x6d8cff });
-  const dark = new THREE.MeshLambertMaterial({ color:0x3a4a8a });
-  const head = new THREE.MeshLambertMaterial({ color:0xe9d2b0 });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.78,0.36), skin); torso.position.y=1.06; torso.castShadow=true; avatar.add(torso);
-  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.44,0.44,0.44), head); hd.position.y=1.7; hd.castShadow=true; avatar.add(hd);
+  // one material per body part so each can be recolored from Settings
+  const torsoMat = new THREE.MeshLambertMaterial({ color:0x6d8cff });
+  const armMat   = new THREE.MeshLambertMaterial({ color:0x6d8cff });
+  const legMat   = new THREE.MeshLambertMaterial({ color:0x3a4a8a });
+  const headMat  = new THREE.MeshLambertMaterial({ color:0xe9d2b0 });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.78,0.36), torsoMat); torso.position.y=1.06; torso.castShadow=true; avatar.add(torso);
+  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.44,0.44,0.44), headMat); hd.position.y=1.7; hd.castShadow=true; avatar.add(hd);
   // eyes (front = +z)
   const eyeMat=new THREE.MeshBasicMaterial({color:0x16203a});
   const eg=new THREE.BoxGeometry(0.07,0.09,0.04);
@@ -644,17 +702,38 @@ const avatar = new THREE.Group();
     const seg=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); seg.position.y=-h/2; seg.castShadow=true;
     piv.add(seg); avatar.add(piv); return piv;
   };
-  const lLeg=mkLimb(-0.16,0.7,0.26,0.7,0.3,dark);
-  const rLeg=mkLimb(0.16,0.7,0.26,0.7,0.3,dark);
-  const lArm=mkLimb(-0.42,1.44,0.2,0.72,0.24,skin);
-  const rArm=mkLimb(0.42,1.44,0.2,0.72,0.24,skin);
-  avatar.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], phase:0};
+  const lLeg=mkLimb(-0.16,0.7,0.26,0.7,0.3,legMat);
+  const rLeg=mkLimb(0.16,0.7,0.26,0.7,0.3,legMat);
+  const lArm=mkLimb(-0.42,1.44,0.2,0.72,0.24,armMat);
+  const rArm=mkLimb(0.42,1.44,0.2,0.72,0.24,armMat);
+  avatar.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], phase:0,
+                   mats:{head:headMat, torso:torsoMat, arms:armMat, legs:legMat}};
 })();
 scene.add(avatar);
+// ---------- customizable color application ----------
+function applyPlayerColors(){
+  const m=avatar.userData.mats; if(!m) return;
+  const c=settings.playerColors;
+  m.head.color.setHex(hexToInt(c.head));
+  m.torso.color.setHex(hexToInt(c.torso));
+  m.arms.color.setHex(hexToInt(c.arms));
+  m.legs.color.setHex(hexToInt(c.legs));
+}
+function applyOutlineColor(){
+  const hx=hexToInt(settings.outlineColor);
+  const paint=e=>{ if(e&&e.outlines) for(const o of e.outlines) o.material.color.setHex(hx); };
+  for(const e of A.enemies) paint(e);
+  if(A.boss) paint(A.boss);
+}
+function applySky(){
+  const c=new THREE.Color(hexToInt(settings.skyColor));
+  scene.background=c;
+  if(scene.fog) scene.fog.color.copy(c);
+}
 let avatarStepTimer=0;
 function animateAvatar(){
   const u=avatar.userData;
-  const moving = keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD;
+  const moving = player.moving;
   if(moving){
     u.phase += dt*10;
     const sw=Math.sin(u.phase)*0.6;
@@ -677,8 +756,26 @@ function topYAt(x,z){ return LOBBY_Y; }
 
 // input
 const keys = {};
-addEventListener('keydown', e=>{ keys[e.code]=true; });
+addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='Escape') escapePressed(); });
 addEventListener('keyup', e=>keys[e.code]=false);
+// Robust Escape handling. Escape can arrive as a keydown OR (when the pointer is
+// locked) as a pointerlockchange with the keydown swallowed by the browser, and
+// the lock can fail to re-acquire — which used to leave Escape only freeing the
+// mouse without opening Settings. We handle both paths, debounced, and also
+// toggle Settings closed on a second press.
+let _escT=0;
+function escapePressed(){
+  const now=performance.now();
+  if(now-_escT<350) return;   // both paths can fire for one press; act once
+  _escT=now;
+  if(GAME.state!=='arena' && GAME.state!=='overworld') return;
+  if(A.paused) return;        // level-up menu is open
+  const setEl=D.getElementById('settings');
+  if(setEl.style.display==='flex'){ closeSettings(); return; }
+  if(D.getElementById('upgrade').style.display==='flex') return;
+  if(D.getElementById('exitConfirm').style.display==='flex') return;
+  openSettings();
+}
 
 let pointerLocked=false;
 let suppressAutoSettings=false;   // set when WE release the lock to show another overlay
@@ -696,18 +793,18 @@ cvs.addEventListener('click', ()=>{
 });
 D.addEventListener('pointerlockchange', ()=>{
   pointerLocked = D.pointerLockElement===cvs;
-  if(!pointerLocked){
-    if(suppressAutoSettings){ suppressAutoSettings=false; return; }
-    // user pressed Escape mid-play -> treat as opening the menu
-    if((GAME.state==='arena'||GAME.state==='overworld') && !GAME.paused && !A.paused){
-      openSettings();
-    }
+  if(pointerLocked){ suppressAutoSettings=false; return; }  // re-locked: clear any stale suppress
+  if(suppressAutoSettings){ suppressAutoSettings=false; return; }
+  // user pressed Escape mid-play -> open the menu (debounced vs the keydown path)
+  if((GAME.state==='arena'||GAME.state==='overworld') && !GAME.paused && !A.paused){
+    escapePressed();
   }
 });
 addEventListener('mousemove', e=>{
   if(!pointerLocked) return;
-  player.yaw   -= e.movementX*0.0023;
-  player.pitch -= e.movementY*0.0023;
+  const s=0.0023*settings.sens;
+  player.yaw   -= e.movementX*s;
+  player.pitch -= e.movementY*s;
   player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
 });
 addEventListener('contextmenu', e=>e.preventDefault());
@@ -755,9 +852,9 @@ if(isMobile){
   const lp=D.getElementById('lookPad');
   let lookId=null, lx=0, ly=0;
   lp.addEventListener('touchstart', e=>{ if(anyOverlayOpen()) return; e.preventDefault(); const t=e.changedTouches[0]; lookId=t.identifier; lx=t.clientX; ly=t.clientY; }, {passive:false});
-  lp.addEventListener('touchmove', e=>{ if(lookId===null) return; e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier!==lookId) continue;
-      player.yaw   -= (t.clientX-lx)*0.005;
-      player.pitch -= (t.clientY-ly)*0.005;
+  lp.addEventListener('touchmove', e=>{ if(lookId===null) return; e.preventDefault(); const s=0.005*settings.sens; for(const t of e.changedTouches){ if(t.identifier!==lookId) continue;
+      player.yaw   -= (t.clientX-lx)*s;
+      player.pitch -= (t.clientY-ly)*s;
       player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
       lx=t.clientX; ly=t.clientY; } }, {passive:false});
   lp.addEventListener('touchend', ()=>{ lookId=null; });
@@ -794,6 +891,9 @@ function collideMove(mode){
     mv.addScaledVector(fwd, -touch.my);   // up on stick = forward
     mv.addScaledVector(right, touch.mx);
   }
+  // remember whether the player is actually trying to move (keyboard OR joystick)
+  // so the walk animation works on mobile too, not just with WASD
+  player.moving = mv.lengthSq() > 0;
   if(mv.lengthSq()>0) mv.normalize().multiplyScalar(player.speed);
 
   const step = (axis,amount)=>{
@@ -876,38 +976,53 @@ function propSupportY(pos, pr){
   }
   return g;
 }
-// steering force that pushes an enemy around props in its path
+// steering force that guides an enemy AROUND props in its path. Rather than
+// pushing straight back from the obstacle (which stalls the enemy when the push
+// directly opposes its goal), this steers tangentially — sliding along the prop
+// toward the side that makes progress — plus a small push-off to avoid grazing.
 function avoidProps(e, dirx, dirz, big){
   let ax=0, az=0;
   if(!A.props) return {x:0,z:0};
   const ex=e.mesh.position.x, ez=e.mesh.position.z, ey=e.mesh.position.y;
   const look = e.size*0.5 + 1.6;
   for(const p of A.props){
-    // small enemies ignore props they can simply stand on / jump over
+    // small enemies ignore props low enough to stand on once they're up there
     if(!big && p.jumpable && ey >= p.top-0.4) continue;
-    if(!big && p.jumpable) { /* short prop: let them try to climb, only mild avoid */ }
     const cx=Math.max(p.x-p.hx, Math.min(ex, p.x+p.hx));
     const cz=Math.max(p.z-p.hz, Math.min(ez, p.z+p.hz));
     let ox=ex-cx, oz=ez-cz, d=Math.hypot(ox,oz);
     const reach = look + Math.max(p.hx,p.hz);
     if(d<reach && d>0.0001){
-      // only avoid props roughly ahead of the enemy
-      if(dirx*(p.x-ex)+dirz*(p.z-ez) > 0){
-        const w=(reach-d)/reach * (big? 1.6 : (p.jumpable?0.5:1.4));
-        ax += ox/d*w; az += oz/d*w;
+      // only react to props roughly ahead of the enemy
+      if(dirx*(p.x-ex)+dirz*(p.z-ez) > -0.25){
+        const awx=ox/d, awz=oz/d;                 // unit vector away from prop
+        // tangent (perpendicular); pick the side that heads toward the goal
+        let tx=-awz, tz=awx;
+        if(tx*dirx+tz*dirz < 0){ tx=awz; tz=-awx; }
+        const base = big ? 1.7 : (p.jumpable ? 0.6 : 1.5);
+        const w=(reach-d)/reach * base;
+        ax += (tx*0.9 + awx*0.45)*w;
+        az += (tz*0.9 + awz*0.45)*w;
       }
     }
   }
   return {x:ax, z:az};
 }
-// is there a jumpable prop right in front of this small enemy?
+// is there a jumpable prop in front of this small enemy (checking a small arc,
+// not just dead-ahead, so it climbs obstacles it's steering around too)?
 function jumpableAhead(e){
   if(!A.props) return false;
   const sx=e.steerX||0, sz=e.steerZ||0;
-  const fx=e.mesh.position.x+sx*(e.size*0.5+0.5), fz=e.mesh.position.z+sz*(e.size*0.5+0.5);
-  for(const p of A.props){
-    if(!p.jumpable) continue;
-    if(Math.abs(fx-p.x)<p.hx+0.2 && Math.abs(fz-p.z)<p.hz+0.2 && e.mesh.position.y<p.top-0.2) return true;
+  if(!sx && !sz) return false;
+  const reach=e.size*0.5+0.55, ey=e.mesh.position.y;
+  for(const off of [0, 0.6, -0.6]){
+    const ca=Math.cos(off), sa=Math.sin(off);
+    const dx=sx*ca - sz*sa, dz=sx*sa + sz*ca;
+    const fx=e.mesh.position.x+dx*reach, fz=e.mesh.position.z+dz*reach;
+    for(const p of A.props){
+      if(!p.jumpable) continue;
+      if(Math.abs(fx-p.x)<p.hx+0.25 && Math.abs(fz-p.z)<p.hz+0.25 && ey<p.top-0.2) return true;
+    }
   }
   return false;
 }
@@ -937,6 +1052,18 @@ function hitsProp(x,z,r){
   }
   return false;
 }
+// height-aware version for projectiles: a shot flying above a prop passes over
+// it (so boss shots can still reach a player standing on top of a prop)
+function hitsPropH(x,z,y,r){
+  if(!A.props) return false;
+  for(const p of A.props){
+    if(y > p.top-0.1) continue;
+    const cx=Math.max(p.x-p.hx,Math.min(x,p.x+p.hx));
+    const cz=Math.max(p.z-p.hz,Math.min(z,p.z+p.hz));
+    if(Math.hypot(x-cx,z-cz)<r) return true;
+  }
+  return false;
+}
 
 
 // ============================================================
@@ -955,6 +1082,18 @@ const A = {
   weapons:['ball'], wcd:{},
 };
 let arenaGround, arenaProps=[];
+// Reusable "all targets" list (enemies + boss). Rebuilt on demand into the SAME
+// array so the per-frame, per-projectile target scans don't allocate a fresh
+// array every time — a notable source of GC-driven lag spikes on desktop.
+const _targets=[];
+const _orbV=new THREE.Vector3();   // scratch vector for the orb magnet loop
+function allTargets(){
+  _targets.length=0;
+  const es=A.enemies;
+  for(let i=0;i<es.length;i++) _targets.push(es[i]);
+  if(A.boss) _targets.push(A.boss);
+  return _targets;
+}
 
 function buildArenaMap(seed){
   // clear
@@ -971,8 +1110,8 @@ function buildArenaMap(seed){
   ];
   const b = biomes[Math.floor(rng()*biomes.length)];
   A.biomeName=b.name;
-  scene.background = new THREE.Color(b.sky);
-  scene.fog = new THREE.Fog(b.sky, ARENA_R*0.8, ARENA_R*2.1);
+  scene.fog = new THREE.Fog(0x000000, ARENA_R*0.8, ARENA_R*2.1);
+  applySky();   // sky/fog color comes from the player's setting (overrides biome)
   // ground disc (top surface at y=0)
   const gMat=new THREE.MeshLambertMaterial({color:b.ground});
   const gGeo=new THREE.CylinderGeometry(ARENA_R, ARENA_R, 1, 48);
@@ -1007,8 +1146,17 @@ function buildArenaMap(seed){
   const pl=new THREE.PointLight(0xb14bff,6,12); pl.position.set(0,2,0); arena.group.add(pl);
 }
 
+function hideBossBar(){
+  D.getElementById('bossbar').style.display='none';
+  D.getElementById('bossname').style.display='none';
+}
+function clearDmgTexts(){
+  for(const d of dmgTexts) d.el.remove();
+  dmgTexts.length=0;
+}
 function startArena(){
   A.active=true; A.dead=false;
+  hideBossBar();
   A.wave=0; A.waveTime=0; A.spawnAcc=0; A.toSpawn=0;
   A.enemies.length=0; A.projectiles.length=0; A.orbs.length=0; A.boss=null;
   A.level=1; A.xp=0; A.xpNext=3;
@@ -1016,10 +1164,11 @@ function startArena(){
   A.stats={ dmg:10, atkSpeed:1.0, range:9, projSpeed:30, moveBonus:0, pickup:2.2,
             pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 };
   A.weapons=['ball']; A.wcd={};
+  A.runKills=0; A.boomerangOut=false;
   for(const k in upgradeLevels) delete upgradeLevels[k];   // reset owned counts
   ensureBlades();
   streak.count=0; streak.timer=0; D.getElementById('streak').classList.remove('show');
-  for(const d of dmgTexts) d.el.remove(); dmgTexts.length=0;
+  clearDmgTexts();
   A.mapSeed=(Math.random()*1e9)|0;
   buildArenaMap(A.mapSeed);
   player.pos.set(0,0,6); player.vel.set(0,0,0); player.knock=null;
@@ -1038,13 +1187,16 @@ function exitArena(keepNothingBut){
   recordWave(A.wave);
   stopMusic();
   clearIndicators();
+  clearDmgTexts();
+  hideBossBar();
+  A.boomerangOut=false;
   if(tracer) tracer.visible=false;
   A.target=null; A._lastTarget=null;
   for(const k in upgradeLevels) delete upgradeLevels[k];
   for(const b of blades) disposeObj(b.mesh); blades.length=0;
   arena.group.visible=false; overworld.group.visible=true;
-  scene.background=new THREE.Color(0x9fd0ff);
-  scene.fog=new THREE.Fog(0x9fd0ff, 60, 140);
+  scene.fog=new THREE.Fog(0x000000, 60, 140);
+  applySky();
   player.speed=5.4;
   resetPlayerOverworld();
   setMode('overworld');
@@ -1062,15 +1214,15 @@ function nextWave(){
     spawnBoss();
     A.toSpawn=0; A.spawnAcc=0;
   } else {
-    // fewer enemies, slow climb: 4 at wave 1, ~+1 per wave
-    A.toSpawn = 3 + Math.ceil(A.wave*1.0);
+    // enemy count climbs a bit faster in later waves
+    A.toSpawn = 3 + Math.ceil(A.wave*1.15) + Math.max(0, A.wave-10);
     A.spawnAcc=0;
   }
   flashWave(isBoss);
 }
 
 function outlineFor(mesh, scale){
-  const o=new THREE.Mesh(mesh.geometry, new THREE.MeshBasicMaterial({color:0xfff27a, side:THREE.BackSide}));
+  const o=new THREE.Mesh(mesh.geometry, new THREE.MeshBasicMaterial({color:hexToInt(settings.outlineColor), side:THREE.BackSide}));
   o.scale.setScalar(scale); o.visible=false; mesh.add(o);
   return o;
 }
@@ -1118,10 +1270,13 @@ function spawnEnemy(kind){
   const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
   let hp, spd, size, color, dmg, xp;
   const w=A.wave;
-  // faster + harder than before
-  if(kind==='fast'){ hp=10+w*3; spd=5.4; size=0.8; color=0xff6b3b; dmg=14; xp=1; }
-  else if(kind==='tank'){ hp=44+w*10; spd=2.5; size=1.5; color=0x7a4bff; dmg=30; xp=3; }
-  else { hp=16+w*5; spd=3.7; size=1.0; color=0xff4b6b; dmg=20; xp=1; }
+  // difficulty ramps up harder in later waves (kicks in after ~wave 6):
+  // more health, more damage, and a little more speed the deeper you go.
+  const lateMul = 1 + Math.max(0, w-6)*0.11;
+  const spdMul  = 1 + Math.min(0.7, Math.max(0, w-6)*0.03);
+  if(kind==='fast'){ hp=(10+w*3)*lateMul; spd=5.4*spdMul; size=0.8; color=0xff6b3b; dmg=14*lateMul; xp=1; }
+  else if(kind==='tank'){ hp=(44+w*10)*lateMul; spd=2.5*spdMul; size=1.5; color=0x7a4bff; dmg=30*lateMul; xp=3; }
+  else { hp=(16+w*5)*lateMul; spd=3.7*spdMul; size=1.0; color=0xff4b6b; dmg=20*lateMul; xp=1; }
   const mdl=makeEnemyModel(size, color, kind);
   mdl.group.position.set(x, 0, z);
   arena.group.add(mdl.group);
@@ -1134,7 +1289,7 @@ const BOSS_SUF=['the Render','Hollowmaw','the Unmade','Gravebloom','the Gnashing
 const BOSS_ATTACKS=['radial','aimed','spiral','dash','rain','spread'];
 function spawnBoss(){
   const tier=A.wave/10;
-  const hp=420*tier + 320;
+  const hp=(420*tier + 320)*(1+tier*0.18);   // steeper boss HP at higher tiers
   const size=2.4+Math.random()*1.0;
   // random color
   const hue=Math.random();
@@ -1149,7 +1304,7 @@ function spawnBoss(){
   const pool=[...BOSS_ATTACKS].sort(()=>Math.random()-0.5);
   const attacks=pool.slice(0, 2+Math.floor(Math.random()*2));
   const name=BOSS_PRE[(Math.random()*BOSS_PRE.length)|0]+' '+BOSS_SUF[(Math.random()*BOSS_SUF.length)|0];
-  A.boss={mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.2, dmg:34, xp:25, size, top:mdl.top,
+  A.boss={mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.25, dmg:34*(1+tier*0.35), xp:25, size, top:mdl.top,
           hit:0, kind:'boss', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
           phase:0, baseY:0, color,
           attacks, atkIdx:0, atkCd:1.4, dashing:0, dashDir:new THREE.Vector3()};
@@ -1219,13 +1374,15 @@ function fireBolt(target){
   if(chain.length) SFX.hit();
 }
 function fireBoomerang(target){
+  if(A.boomerangOut) return;            // only one boomerang in flight at a time
+  A.boomerangOut=true;
   const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
   const m=new THREE.Mesh(new THREE.TorusGeometry(0.32,0.09,6,12),
     new THREE.MeshBasicMaterial({color:0xffe27a}));
   m.rotation.x=Math.PI/2; m.position.copy(player.pos); m.position.y=player.pos.y+1.0;
   arena.group.add(m);
-  A.projectiles.push({mesh:m, dir:dir.clone(), life:2.4, dmg:A.stats.dmg*0.8, crit:false,
-                      pierceLeft:99, hitSet:new Set(), boomerang:true, t:0, spin:true});
+  A.projectiles.push({mesh:m, dir:dir.clone(), life:5.0, dmg:A.stats.dmg*0.8, crit:false,
+                      pierceLeft:99, hitSet:new Set(), boomerang:true, t:0, returning:false});
   SFX.shoot();
 }
 function fireNova(){
@@ -1291,7 +1448,7 @@ const BLADE_HIT=0.75;     // hit radius (matches the long blade reach)
 function updateBlades(){
   if(!blades.length) return;
   const spin=performance.now()*0.005;
-  const all=A.boss?A.enemies.concat([A.boss]):A.enemies;
+  const all=allTargets();
   for(const b of blades){
     const a=b.ang+spin;
     b.mesh.position.set(player.pos.x+Math.cos(a)*BLADE_R, player.pos.y+1.0, player.pos.z+Math.sin(a)*BLADE_R);
@@ -1378,9 +1535,12 @@ function damageEnemy(e, dmg, crit){
   if(e.hp<=0) killEnemy(e);
 }
 function killEnemy(e){
+  if(e._killed) return;                 // guard against double-processing in one frame
+  e._killed=true;
   if(e===A.target){ if(tracer) tracer.visible=false; A.target=null; }
   if(e.indEl){ e.indEl.remove(); e.indEl=null; }
-  addShards(1);                      // +1 shard per kill (persists)
+  totalKills++; A.runKills=(A.runKills||0)+1;   // run + all-time kill counters
+  addShards(1);                      // +1 shard per kill (also persists totalKills)
   SFX.kill();
   bumpStreak();
   if(e===A.boss){
@@ -1433,12 +1593,29 @@ function hurtPlayer(d, fromPos){
   setTimeout(()=>f.style.boxShadow='inset 0 0 120px rgba(226,59,59,0)',90);
   if(A.hp<=0){ A.hp=0; arenaDeath(); }
 }
+// continuous melee contact damage — enemies hurt you every frame they touch you,
+// with no hit-and-wait cooldown. e.dmg is treated as damage-per-second.
+let _contactFx=0;
+function contactDamage(e){
+  if(A.dead) return;
+  A.hp -= e.dmg*dt*(1-(A.stats.dodge||0));
+  _contactFx-=dt;
+  if(_contactFx<=0){
+    SFX.hurt(); _contactFx=0.28;
+    const f=D.getElementById('dmgflash');
+    f.style.boxShadow='inset 0 0 120px rgba(226,59,59,.42)';
+    setTimeout(()=>f.style.boxShadow='inset 0 0 120px rgba(226,59,59,0)',90);
+  }
+  if(A.hp<=0){ A.hp=0; arenaDeath(); }
+}
 function arenaDeath(){
   A.active=false; A.dead=true;
   GAME.state='dead';
   recordWave(A.wave);
   stopMusic();
   clearIndicators();
+  clearDmgTexts();
+  hideBossBar();
   if(tracer) tracer.visible=false;
   A.target=null; A._lastTarget=null;
   for(const k in upgradeLevels) delete upgradeLevels[k];
@@ -1490,11 +1667,24 @@ function buildOfferPool(){
   for(const w of WEAPON_UNLOCKS) if(!A.weapons.includes(w.weapon)) out.push(w);
   return out;
 }
+let _offerPool=[];
+function applyUpgradeChoice(u){
+  if(!u || D.getElementById('upgrade').style.display!=='flex') return; // already chosen
+  const isWpn=!!u.weapon;
+  if(isWpn){ A.weapons.push(u.weapon); A.wcd[u.weapon]=0; ensureBlades(); SFX.weapon(); }
+  else { u.apply(A.stats); upgradeLevels[u.id]=(upgradeLevels[u.id]||0)+1; }
+  D.getElementById('upgrade').style.display='none';
+  A.paused=false;
+  setTouchEnabled(true);
+  updateUpgradePanel();
+  if(!isMobile) requestPointerLockSafe(cvs);
+}
 function offerUpgrades(){
   A.paused=true;
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   const pool=buildOfferPool().sort(()=>Math.random()-0.5).slice(0,3);
+  _offerPool=pool;
   const wrap=D.getElementById('cards'); wrap.innerHTML='';
   D.getElementById('upgrade').querySelector('h2').textContent='Level '+A.level;
   for(const u of pool){
@@ -1504,21 +1694,17 @@ function offerUpgrades(){
     const tag = isWpn ? 'WEAPON' : (lv>0?('Owned ×'+lv):'New');
     el.innerHTML=`<div class="ic">${u.ic}</div><div class="nm">${u.nm}</div>
       <div class="ds">${u.ds}</div><div class="lv">${tag}</div>`;
-    onTap(el, ()=>{
-      if(D.getElementById('upgrade').style.display!=='flex') return; // already chosen
-      if(isWpn){ A.weapons.push(u.weapon); A.wcd[u.weapon]=0; ensureBlades(); SFX.weapon(); }
-      else { u.apply(A.stats); upgradeLevels[u.id]=(upgradeLevels[u.id]||0)+1; }
-      D.getElementById('upgrade').style.display='none';
-      A.paused=false;
-      setTouchEnabled(true);
-      updateUpgradePanel();
-      if(!isMobile) requestPointerLockSafe(cvs);
-    });
+    onTap(el, ()=>applyUpgradeChoice(u));
     wrap.appendChild(el);
   }
   updateUpgradePanel();
   D.getElementById('upgrade').style.display='flex';
 }
+// "Random" button: pick one of the offered upgrades for the player
+onTap(D.getElementById('randomUpgrade'), ()=>{
+  if(!_offerPool.length) return;
+  applyUpgradeChoice(_offerPool[(Math.random()*_offerPool.length)|0]);
+});
 
 // left-side panel: weapons owned + each upgrade with count and total % boost
 function updateUpgradePanel(){
@@ -1558,6 +1744,8 @@ function setMode(m){
   D.getElementById('overworldhud').style.display = m==='overworld'?'block':'none';
   D.getElementById('arenahud').style.display = m==='arena'?'block':'none';
   D.getElementById('crosshair').style.display = 'none';
+  // LEAVE button is arena-only and gated further by proximity in updateArena
+  const be=D.getElementById('btnExit'); if(be) be.style.display='none';
 }
 function updateHotbar(){ /* no hotbar in lobby */ }
 function updateOverworldHud(){ /* no inventory in lobby */ }
@@ -1568,7 +1756,9 @@ function updateArenaHud(){
   D.getElementById('lvlbadge').innerHTML='LVL <b style="font-size:18px">'+A.level+'</b>';
   const enemies=A.enemies.length+(A.boss?1:0);
   D.getElementById('wavebox').innerHTML=
-    '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+    '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left'+
+    '<br><span style="opacity:.85;font-size:12px">Kills: '+(A.runKills||0)+' &nbsp;·&nbsp; Total: '+totalKills+'</span>'+
+    '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
   if(A.boss){
     D.getElementById('bossfill').style.width=Math.max(0,A.boss.hp/A.boss.maxhp*100)+'%';
   }
@@ -1686,13 +1876,17 @@ function updateArena(){
   // movement
   collideMove('arena');
 
-  // exit pad: stand near center and press E to leave the run
+  // exit pad: stand near center and press E (or tap LEAVE) to leave the run
   if(A.exitGrace>0) A.exitGrace-=dt;
   const cd=Math.hypot(player.pos.x, player.pos.z);
   if(arenaExitPad) arenaExitPad.material.opacity=0.5+Math.sin(performance.now()*0.005)*0.25;
-  if(cd<2.4 && A.exitGrace<=0){
+  const canLeave = cd<2.4 && A.exitGrace<=0;
+  // the LEAVE button only appears when the player is actually able to leave
+  const btnExit=D.getElementById('btnExit');
+  if(btnExit) btnExit.style.display = (canLeave && isMobile) ? 'flex' : 'none';
+  if(canLeave){
     exitHint.style.display='block';
-    exitHint.textContent='Press E to leave the run';
+    exitHint.textContent = isMobile ? 'Tap LEAVE to exit the run' : 'Press E to leave the run';
     if(keys.KeyE || touch.exit){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
@@ -1700,7 +1894,7 @@ function updateArena(){
   A.waveTime+=dt;
   if(A.toSpawn>0){
     A.spawnAcc+=dt;
-    const interval=Math.max(0.4, 1.0 - A.wave*0.015);   // gentler trickle
+    const interval=Math.max(0.28, 1.0 - A.wave*0.022);   // spawns get faster later
     if(A.spawnAcc>=interval){
       A.spawnAcc=0; A.toSpawn--;
       const r=Math.random();
@@ -1725,12 +1919,14 @@ function updateArena(){
   if(A.invuln>0) A.invuln-=dt;
 
   // enemies chase (grounded, animated, collide with props)
-  const all=A.boss? A.enemies.concat([A.boss]):A.enemies;
+  const all=allTargets();
   for(const e of all){
+    const px=e.mesh.position.x, pz=e.mesh.position.z;   // for stuck detection
     const dx=player.pos.x-e.mesh.position.x, dz=player.pos.z-e.mesh.position.z;
     const dist=Math.hypot(dx,dz);
     const isBoss=(e===A.boss);
     const big = isBoss || e.kind==='tank';   // big ones can't climb
+    if(e._detourT>0) e._detourT-=dt;
     let moved=0;
     if(isBoss && e.dashing>0){
       e.mesh.position.x += e.dashDir.x*16*dt;
@@ -1739,13 +1935,18 @@ function updateArena(){
     } else if(dist>0.001){
       // desired direction + obstacle avoidance steering
       let ax=dx/dist, az=dz/dist;
-      // parkour: if player is well above and out of normal reach, steer toward a stepping-stone prop
-      if(!big && player.pos.y > e.mesh.position.y+1.4){
+      // parkour: if the player is above the enemy, steer toward a stepping-stone prop
+      if(!big && player.pos.y > e.mesh.position.y+1.0){
         const step=parkourTarget(e);
         if(step){ ax=step.x-e.mesh.position.x; az=step.z-e.mesh.position.z;
           const l=Math.hypot(ax,az)||1; ax/=l; az/=l; e.seeking=true; }
         else e.seeking=false;
       } else e.seeking=false;
+      // if recently stuck, commit to a sideways detour for a moment to escape corners
+      if(e._detourT>0){
+        const a=e._detourSide*1.15, ca=Math.cos(a), sa=Math.sin(a);
+        const nx=ax*ca - az*sa, nz=ax*sa + az*ca; ax=nx; az=nz;
+      }
       const av=avoidProps(e, ax, az, big);
       ax+=av.x; az+=av.z;
       const al=Math.hypot(ax,az)||1; ax/=al; az/=al;
@@ -1770,19 +1971,24 @@ function updateArena(){
       let grounded=false;
       if(e.mesh.position.y<=floor){ e.mesh.position.y=floor; e.ev=0; grounded=true; }
       e.baseY=e.mesh.position.y;
-      // jump only when close to the player, or when actively parkouring up to them
+      // jump to climb onto any prop in the way, to parkour up, or to reach the player above
       if(grounded){
-        const near = dist < 3.2;
-        const ahead = jumpableAhead(e);
-        const climbing = e.seeking && jumpableAhead(e);
-        const needUp = player.pos.y > e.mesh.position.y+0.5 && dist < 2.4;
-        if((near && ahead) || climbing || needUp) e.ev=JUMP_V;
+        const ahead = jumpableAhead(e);              // climbable prop blocking the path
+        const needUp = player.pos.y > e.mesh.position.y+0.5 && dist < 3.2;
+        if(ahead || needUp) e.ev=JUMP_V;
       }
     }
 
     // keep in arena
     const rr=Math.hypot(e.mesh.position.x,e.mesh.position.z), BB=ARENA_R-1.5;
     if(rr>BB){ e.mesh.position.x*=BB/rr; e.mesh.position.z*=BB/rr; }
+    // stuck detection: chasing the player but barely moving => break out with a
+    // short, committed sideways detour (escapes corners and prop pockets)
+    const prog=Math.hypot(e.mesh.position.x-px, e.mesh.position.z-pz);
+    const tryingToMove = dist>0.8 && !(isBoss && e.dashing>0);
+    if(tryingToMove && prog < (e.spd*dt)*0.4) e._stuck=(e._stuck||0)+dt;
+    else e._stuck=Math.max(0,(e._stuck||0)-dt*2);
+    if(e._stuck>0.3 && (e._detourT||0)<=0){ e._detourT=0.8; e._detourSide=(Math.random()<0.5?-1:1); e._stuck=0; }
     // face player (model front = +z)
     e.mesh.rotation.y = Math.atan2(dx, dz);
     // walk animation
@@ -1796,7 +2002,7 @@ function updateArena(){
     if(e.hit>0){ e.hit-=dt; e.bodyMat.emissive.setHex(0x884444); }
     else e.bodyMat.emissive.setHex(isBoss? mixDark(e.color,0.3):0x000000);
     // touch damage with knockback (only when at a similar height)
-    if(dist < e.size*0.6+0.7 && Math.abs(e.mesh.position.y-player.pos.y)<1.2){ hurtPlayer(e.dmg, e.mesh.position); }
+    if(dist < e.size*0.6+0.7 && Math.abs(e.mesh.position.y-player.pos.y)<1.2){ contactDamage(e); }
     // boss attack brain
     if(isBoss){
       e.atkCd-=dt;
@@ -1810,25 +2016,30 @@ function updateArena(){
     let remove=false;
     if(p.boomerang){
       p.t+=dt;
-      // fly out for the first half, curve back to the player after
-      if(p.t>1.0){
-        const back=new THREE.Vector3(player.pos.x-p.mesh.position.x,0,player.pos.z-p.mesh.position.z);
-        p.dir.lerp(back.normalize(), 0.06).normalize();
+      const sp=A.stats.projSpeed*0.85;
+      if(!p.returning){
+        // fly outward, then flip to homing after a short arc
+        p.mesh.position.addScaledVector(p.dir, sp*dt);
+        if(p.t>0.55){ p.returning=true; p.hitSet.clear(); }   // re-arm hits on the way back
+      } else {
+        // home straight back to the player until caught
+        let bx=player.pos.x-p.mesh.position.x, bz=player.pos.z-p.mesh.position.z;
+        const bl=Math.hypot(bx,bz)||1;
+        p.mesh.position.x += (bx/bl)*sp*1.05*dt;
+        p.mesh.position.z += (bz/bl)*sp*1.05*dt;
+        if(bl<1.1) remove=true;        // returned to the player
       }
-      p.mesh.position.addScaledVector(p.dir, (A.stats.projSpeed*0.7)*dt);
       p.mesh.position.y=player.pos.y+1.0;
       p.mesh.rotation.z+=dt*22;
       p.life-=dt;
-      // re-arm hits as it loops
-      if(p.t>1.2 && p.mesh.position.distanceTo(player.pos)<1.2){ remove=true; }
-      if(p.life<=0) remove=true;
+      if(p.life<=0) remove=true;       // safety so it can never get lost
     } else {
       p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
       p.life-=dt;
       if(p.life<=0) remove=true;
-      if(!remove && hitsProp(p.mesh.position.x, p.mesh.position.z, 0.2)) remove=true;
+      if(!remove && hitsPropH(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.2)) remove=true;
     }
-    const targets=A.boss? A.enemies.concat([A.boss]):A.enemies;
+    const targets=allTargets();
     for(const e of targets){
       if(p.hitSet.has(e)) continue;
       const ex=p.mesh.position.x-e.mesh.position.x, ez=p.mesh.position.z-e.mesh.position.z;
@@ -1840,7 +2051,7 @@ function updateArena(){
         break;
       }
     }
-    if(remove){ disposeObj(p.mesh); A.projectiles.splice(i,1); }
+    if(remove){ if(p.boomerang) A.boomerangOut=false; disposeObj(p.mesh); A.projectiles.splice(i,1); }
   }
 
   // enemy projectiles (boss); smaller hitbox + vertical gap so you can jump over them
@@ -1851,15 +2062,15 @@ function updateArena(){
     const dx=p.mesh.position.x-player.pos.x, dz=p.mesh.position.z-player.pos.z;
     // player feet at pos.y, head ~1.7; bullet at p.mesh.position.y. Hit only if vertically overlapping.
     const vy=p.mesh.position.y-(player.pos.y+0.9);
-    if(Math.hypot(dx,dz)<0.45 && Math.abs(vy)<0.8){ hurtPlayer(p.dmg, p.mesh.position); p.life=0; }
-    else if(hitsProp(p.mesh.position.x, p.mesh.position.z, 0.18)) p.life=0;
+    if(Math.hypot(dx,dz)<0.45 && Math.abs(vy)<0.9){ hurtPlayer(p.dmg, p.mesh.position); p.life=0; }
+    else if(hitsPropH(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.18)) p.life=0;
     if(p.life<=0){ disposeObj(p.mesh); A.eproj.splice(i,1); }
   }
 
   // orbs (xp pickup with magnet; vacuumed ones fly in from anywhere)
   for(let i=A.orbs.length-1;i>=0;i--){
     const o=A.orbs[i]; o.t+=dt;
-    const to=player.pos.clone().sub(o.mesh.position);
+    const to=_orbV.copy(player.pos).sub(o.mesh.position);
     const d=to.length();
     const pulling = o.vacuum || d<A.stats.pickup;
     if(pulling){
@@ -1886,11 +2097,15 @@ function collectAllXp(){
 const dmgLayer=D.getElementById('dmgLayer');
 const dmgTexts=[];
 const _dv=new THREE.Vector3();
+const DMG_CAP=44;   // hard cap on floating numbers to avoid DOM/GC churn
 function spawnDamageText(x,y,z,val,special,crit){
-  const el=D.createElement('div');
+  let el;
+  if(dmgTexts.length>=DMG_CAP){ el=dmgTexts.shift().el; }   // recycle the oldest node
+  else { el=D.createElement('div'); }
   el.className='dmg '+(special?'special':(crit?'crit':'norm'));
-  el.textContent=(crit?'':'')+val;
-  dmgLayer.appendChild(el);
+  el.textContent=val;
+  if(!el.parentNode) dmgLayer.appendChild(el);
+  el.style.opacity='1';
   dmgTexts.push({el, x:x+(Math.random()-0.5)*0.6, y, z, t:0, vy:1.6});
 }
 function updateDamageTexts(){
@@ -2086,6 +2301,14 @@ function openSettings(){
   D.getElementById('musicVolVal').textContent=settings.musicVol;
   D.getElementById('sfxVol').value=settings.sfxVol;
   D.getElementById('sfxVolVal').textContent=settings.sfxVol;
+  D.getElementById('sensRange').value=Math.round(settings.sens*100);
+  D.getElementById('sensVal').textContent=settings.sens.toFixed(2);
+  D.getElementById('skyCol').value=settings.skyColor;
+  D.getElementById('outlineCol').value=settings.outlineColor;
+  D.getElementById('pcHead').value=settings.playerColors.head;
+  D.getElementById('pcTorso').value=settings.playerColors.torso;
+  D.getElementById('pcArms').value=settings.playerColors.arms;
+  D.getElementById('pcLegs').value=settings.playerColors.legs;
   D.getElementById('changelog').style.display='none';
   D.getElementById('settings').style.display='flex';
 }
@@ -2125,6 +2348,27 @@ D.getElementById('sfxVol').addEventListener('input', e=>{
   settings.sfxVol=+e.target.value;
   D.getElementById('sfxVolVal').textContent=settings.sfxVol;
   applyVolumes(); persist();
+});
+D.getElementById('sensRange').addEventListener('input', e=>{
+  settings.sens=(+e.target.value)/100;
+  D.getElementById('sensVal').textContent=settings.sens.toFixed(2);
+  persist();
+});
+D.getElementById('skyCol').addEventListener('input', e=>{ settings.skyColor=e.target.value; applySky(); persist(); });
+D.getElementById('outlineCol').addEventListener('input', e=>{ settings.outlineColor=e.target.value; applyOutlineColor(); persist(); });
+const pcBind=(id,key)=>D.getElementById(id).addEventListener('input', e=>{ settings.playerColors[key]=e.target.value; applyPlayerColors(); persist(); });
+pcBind('pcHead','head'); pcBind('pcTorso','torso'); pcBind('pcArms','arms'); pcBind('pcLegs','legs');
+D.getElementById('resetColors').addEventListener('click', ()=>{
+  settings.skyColor=DEFAULT_SETTINGS.skyColor;
+  settings.outlineColor=DEFAULT_SETTINGS.outlineColor;
+  settings.playerColors={...DEFAULT_SETTINGS.playerColors};
+  applySky(); applyOutlineColor(); applyPlayerColors(); persist();
+  D.getElementById('skyCol').value=settings.skyColor;
+  D.getElementById('outlineCol').value=settings.outlineColor;
+  D.getElementById('pcHead').value=settings.playerColors.head;
+  D.getElementById('pcTorso').value=settings.playerColors.torso;
+  D.getElementById('pcArms').value=settings.playerColors.arms;
+  D.getElementById('pcLegs').value=settings.playerColors.legs;
 });
 
 // shard HUD + best-wave HUD
@@ -2170,9 +2414,11 @@ function exitArenaCleanupAfterDeath(){
 
 onTap(D.getElementById('startbtn'), beginGame);
 
-scene.background=new THREE.Color(0x9fd0ff);
-scene.fog=new THREE.Fog(0x9fd0ff,60,140);
+scene.fog=new THREE.Fog(0x000000,60,140);
 applyFov();
+applyPlayerColors();
+applyOutlineColor();
+applySky();
 updateShardHud();
 updateBestHud();
 requestAnimationFrame(loop);
