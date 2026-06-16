@@ -173,7 +173,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626</div>
+<div id="version">v061626c</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -262,7 +262,9 @@
     <div class="desc">Version v061626 (June 16, 2026)</div>
     <h3>Performance &amp; stability</h3>
     <ul>
-      <li>Fixed the random freezes on phones — enemies, projectiles, orbs and effects now release their graphics memory when they disappear instead of leaking it</li>
+      <li>Fixed the freeze on iPhone when leveling up (the game was calling a mouse-pointer feature that iPhones don't support, which crashed the frame)</li>
+      <li>The game no longer hard-freezes if an unexpected error happens mid-frame — it recovers and keeps running</li>
+      <li>Enemies, projectiles, orbs and effects now release their graphics memory when they disappear instead of leaking it</li>
       <li>Lower render resolution and lighter shadows on mobile for a smoother, more stable framerate</li>
       <li>The game now recovers gracefully if the device's graphics context is dropped</li>
     </ul>
@@ -681,9 +683,16 @@ addEventListener('keyup', e=>keys[e.code]=false);
 let pointerLocked=false;
 let suppressAutoSettings=false;   // set when WE release the lock to show another overlay
 const cvs = renderer.domElement;
+// iOS Safari on iPhone does NOT implement the Pointer Lock API, so
+// document.exitPointerLock() / element.requestPointerLock() are undefined and
+// calling them throws a TypeError. That throw fired inside offerUpgrades() on
+// every level-up and killed the frame — the real cause of the "random" freezes.
+// Feature-detect before calling so it's a no-op where unsupported.
+function exitPointerLockSafe(){ try{ const f=D.exitPointerLock; if(f) f.call(D); }catch(_){} }
+function requestPointerLockSafe(el){ try{ const f=el&&el.requestPointerLock; if(f) f.call(el); }catch(_){} }
 cvs.addEventListener('click', ()=>{
   if(!isMobile && GAME.state!=='title' && GAME.state!=='dead' && !pointerLocked && !GAME.paused && !A.paused)
-    cvs.requestPointerLock();
+    requestPointerLockSafe(cvs);
 });
 D.addEventListener('pointerlockchange', ()=>{
   pointerLocked = D.pointerLockElement===cvs;
@@ -1434,7 +1443,7 @@ function arenaDeath(){
   A.target=null; A._lastTarget=null;
   for(const k in upgradeLevels) delete upgradeLevels[k];
   for(const b of blades) disposeObj(b.mesh); blades.length=0;
-  suppressAutoSettings=true; D.exitPointerLock();
+  suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   const ov=D.getElementById('overlay');
   ov.querySelector('h1').textContent='YOU DIED';
@@ -1483,7 +1492,7 @@ function buildOfferPool(){
 }
 function offerUpgrades(){
   A.paused=true;
-  suppressAutoSettings=true; D.exitPointerLock();
+  suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   const pool=buildOfferPool().sort(()=>Math.random()-0.5).slice(0,3);
   const wrap=D.getElementById('cards'); wrap.innerHTML='';
@@ -1503,7 +1512,7 @@ function offerUpgrades(){
       A.paused=false;
       setTouchEnabled(true);
       updateUpgradePanel();
-      if(!isMobile) cvs.requestPointerLock();
+      if(!isMobile) requestPointerLockSafe(cvs);
     });
     wrap.appendChild(el);
   }
@@ -2040,7 +2049,7 @@ function updateIndicators(){
 function requestExit(){
   if(settings.skipExitConfirm){ exitArena(); return; }
   GAME.paused=true;
-  suppressAutoSettings=true; D.exitPointerLock();
+  suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('exitDontAsk').checked=false;
   D.getElementById('exitConfirm').style.display='flex';
@@ -2052,7 +2061,7 @@ function closeExitConfirm(){
 }
 onTap(D.getElementById('exitStay'), ()=>{
   closeExitConfirm();
-  if(!isMobile && GAME.state==="arena") cvs.requestPointerLock();
+  if(!isMobile && GAME.state==="arena") requestPointerLockSafe(cvs);
 });
 onTap(D.getElementById('exitLeave'), ()=>{
   if(D.getElementById('exitDontAsk').checked){ settings.skipExitConfirm=true; persist(); }
@@ -2068,7 +2077,7 @@ onTap(D.getElementById('exitLeave'), ()=>{
 function applyFov(){ camera.fov=settings.fov; camera.updateProjectionMatrix(); }
 function openSettings(){
   GAME.paused=true;
-  suppressAutoSettings=true; D.exitPointerLock();
+  suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('fovRange').value=settings.fov;
   D.getElementById('fovVal').textContent=settings.fov;
@@ -2086,7 +2095,7 @@ function closeSettings(){
   GAME.paused=false;
   setTouchEnabled(true);
   persist();
-  if(!isMobile && (GAME.state==='arena'||GAME.state==='overworld')) cvs.requestPointerLock();
+  if(!isMobile && (GAME.state==='arena'||GAME.state==='overworld')) requestPointerLockSafe(cvs);
 }
 onTap(D.getElementById('gear'), openSettings);
 onTap(D.getElementById('settingsClose'), closeSettings);
@@ -2135,7 +2144,7 @@ function beginGame(){
     ov.style.display='none';
     setMode('overworld');
     exitArenaCleanupAfterDeath();
-    if(!isMobile) cvs.requestPointerLock();
+    if(!isMobile) requestPointerLockSafe(cvs);
     return;
   }
   ov.style.display='none';
@@ -2145,7 +2154,7 @@ function beginGame(){
   scene.fog=new THREE.Fog(0x9fd0ff,60,140);
   D.getElementById('shards').style.display='flex';
   D.getElementById('gear').style.display='flex';
-  if(!isMobile) cvs.requestPointerLock();
+  if(!isMobile) requestPointerLockSafe(cvs);
 }
 function exitArenaCleanupAfterDeath(){
   A.active=false; A.dead=false;
