@@ -176,7 +176,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626j · Hard Stop</div>
+<div id="version">v061626k · Damage Control</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -275,6 +275,9 @@
     <div class="row"><label for="trailLowCol">Speed trail (slow)</label><input id="trailLowCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
     <div class="row"><label for="trailHighCol">Speed trail (fast)</label><input id="trailHighCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
     <div class="row"><label for="hitCol">Enemy hit sparks</label><input id="hitCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="dmgCol">Damage numbers</label><input id="dmgCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="critCol">Critical damage</label><input id="critCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="specialCol">Special text (dodge)</label><input id="specialCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
     <div class="actions" style="margin-top:6px">
       <button class="btn-ghost" id="resetColors">Reset colors</button>
     </div>
@@ -292,9 +295,10 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626j · Hard Stop (June 16, 2026)</div>
+    <div class="desc">v061626k · Damage Control (June 16, 2026)</div>
     <ul>
-      <li>Your bunnyhop speed now resets when you bump into a prop or the arena wall, or when an enemy hits you (landing still keeps it)</li>
+      <li>Customizable damage-number colors in Settings (normal, critical, and special/dodge text)</li>
+      <li>Potato mode now actually lowers quality — it renders below native resolution and turns shadows off (previously it did nothing on standard desktops)</li>
     </ul>
     <div class="actions">
       <button class="btn-primary" id="closeChangelog">Back</button>
@@ -318,7 +322,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626j · Hard Stop</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626k · Damage Control</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -345,8 +349,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626j';
-const UPDATE_TITLE = 'Hard Stop';
+const VERSION = 'v061626k';
+const UPDATE_TITLE = 'Damage Control';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -435,6 +439,7 @@ const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50
   sens:1.0, easyBhop:false, potato:false,
   skyColor:'#9fd0ff', outlineColor:'#fff27a',
   trailLow:'#4ad1ff', trailHigh:'#ff4bd0', hitColor:'#fff27a',
+  dmgColor:'#ffffff', critColor:'#ffd84a', specialColor:'#7fe0ff',
   playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' } };
 const DEFAULT_SETTINGS = JSON.parse(JSON.stringify(settings));
 function hexToInt(h){ return parseInt(String(h).replace('#',''),16)||0; }
@@ -463,6 +468,9 @@ function loadSave(){
         if(isHex(s.settings.trailLow)) settings.trailLow = s.settings.trailLow;
         if(isHex(s.settings.trailHigh)) settings.trailHigh = s.settings.trailHigh;
         if(isHex(s.settings.hitColor)) settings.hitColor = s.settings.hitColor;
+        if(isHex(s.settings.dmgColor)) settings.dmgColor = s.settings.dmgColor;
+        if(isHex(s.settings.critColor)) settings.critColor = s.settings.critColor;
+        if(isHex(s.settings.specialColor)) settings.specialColor = s.settings.specialColor;
         if(s.settings.playerColors){ for(const k of ['head','torso','arms','legs']) if(isHex(s.settings.playerColors[k])) settings.playerColors[k]=s.settings.playerColors[k]; }
       }
       if(typeof s.totalKills==='number') totalKills = s.totalKills;
@@ -2208,6 +2216,7 @@ function spawnDamageText(x,y,z,val,special,crit){
   if(dmgTexts.length>=DMG_CAP){ el=dmgTexts.shift().el; }   // recycle the oldest node
   else { el=D.createElement('div'); }
   el.className='dmg '+(special?'special':(crit?'crit':'norm'));
+  el.style.color = special ? settings.specialColor : (crit ? settings.critColor : settings.dmgColor);
   el.textContent=val;
   if(!el.parentNode) dmgLayer.appendChild(el);
   el.style.opacity='1';
@@ -2399,9 +2408,15 @@ function applyFov(){ camera.fov=settings.fov; camera.updateProjectionMatrix(); }
 // quality as mobile (lower resolution, smaller/softer shadows). Mobile is always
 // low regardless, so the toggle has no effect (and is hidden) there.
 function applyQuality(){
+  const potato = !IS_MOBILE && settings.potato;
   const low = IS_MOBILE || settings.potato;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, low?1.5:2));
+  // Potato mode renders BELOW native resolution (a real speed-up on any monitor,
+  // since most desktops are DPR 1 where simply capping the ratio does nothing)
+  // and turns shadows off entirely. Mobile just caps retina DPR.
+  const pr = potato ? Math.min(devicePixelRatio,1)*0.62 : Math.min(devicePixelRatio, low?1.5:2);
+  renderer.setPixelRatio(pr);
   renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = !potato;     // shadows off in potato mode
   renderer.shadowMap.type = low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   const ms = low ? 1024 : 2048;
   if(sun.shadow.mapSize.x !== ms){
@@ -2409,6 +2424,8 @@ function applyQuality(){
     if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; }  // force rebuild at new size
   }
   renderer.shadowMap.needsUpdate = true;
+  // toggling shadowMap.enabled requires materials to recompile to add/drop shadows
+  scene.traverse(o=>{ const m=o.material; if(m){ (Array.isArray(m)?m:[m]).forEach(x=>{ if(x) x.needsUpdate=true; }); } });
 }
 function openSettings(){
   GAME.paused=true;
@@ -2436,6 +2453,9 @@ function openSettings(){
   D.getElementById('trailLowCol').value=settings.trailLow;
   D.getElementById('trailHighCol').value=settings.trailHigh;
   D.getElementById('hitCol').value=settings.hitColor;
+  D.getElementById('dmgCol').value=settings.dmgColor;
+  D.getElementById('critCol').value=settings.critColor;
+  D.getElementById('specialCol').value=settings.specialColor;
   D.getElementById('changelog').style.display='none';
   D.getElementById('settings').style.display='flex';
 }
@@ -2497,12 +2517,18 @@ pcBind('pcHead','head'); pcBind('pcTorso','torso'); pcBind('pcArms','arms'); pcB
 D.getElementById('trailLowCol').addEventListener('input', e=>{ settings.trailLow=e.target.value; applyParticleColors(); persist(); });
 D.getElementById('trailHighCol').addEventListener('input', e=>{ settings.trailHigh=e.target.value; applyParticleColors(); persist(); });
 D.getElementById('hitCol').addEventListener('input', e=>{ settings.hitColor=e.target.value; applyParticleColors(); persist(); });
+D.getElementById('dmgCol').addEventListener('input', e=>{ settings.dmgColor=e.target.value; persist(); });
+D.getElementById('critCol').addEventListener('input', e=>{ settings.critColor=e.target.value; persist(); });
+D.getElementById('specialCol').addEventListener('input', e=>{ settings.specialColor=e.target.value; persist(); });
 D.getElementById('resetColors').addEventListener('click', ()=>{
   settings.skyColor=DEFAULT_SETTINGS.skyColor;
   settings.outlineColor=DEFAULT_SETTINGS.outlineColor;
   settings.trailLow=DEFAULT_SETTINGS.trailLow;
   settings.trailHigh=DEFAULT_SETTINGS.trailHigh;
   settings.hitColor=DEFAULT_SETTINGS.hitColor;
+  settings.dmgColor=DEFAULT_SETTINGS.dmgColor;
+  settings.critColor=DEFAULT_SETTINGS.critColor;
+  settings.specialColor=DEFAULT_SETTINGS.specialColor;
   settings.playerColors={...DEFAULT_SETTINGS.playerColors};
   applySky(); applyOutlineColor(); applyPlayerColors(); applyParticleColors(); persist();
   D.getElementById('skyCol').value=settings.skyColor;
@@ -2510,6 +2536,9 @@ D.getElementById('resetColors').addEventListener('click', ()=>{
   D.getElementById('trailLowCol').value=settings.trailLow;
   D.getElementById('trailHighCol').value=settings.trailHigh;
   D.getElementById('hitCol').value=settings.hitColor;
+  D.getElementById('dmgCol').value=settings.dmgColor;
+  D.getElementById('critCol').value=settings.critColor;
+  D.getElementById('specialCol').value=settings.specialColor;
   D.getElementById('pcHead').value=settings.playerColors.head;
   D.getElementById('pcTorso').value=settings.playerColors.torso;
   D.getElementById('pcArms').value=settings.playerColors.arms;
