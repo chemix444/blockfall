@@ -111,6 +111,7 @@
   /* enemy indicator layer */
   #indicators { position:fixed; inset:0; z-index:4; pointer-events:none; overflow:hidden; }
   .ind { position:absolute; transform:translate(-50%,-50%); will-change:transform; }
+  .ind .elabel { font-size:9px; font-weight:bold; letter-spacing:.5px; text-align:center; text-shadow:0 1px 2px #000; margin-bottom:2px; white-space:nowrap; }
   .ind .ehp { width:42px; height:5px; background:rgba(0,0,0,.55); border-radius:3px; overflow:hidden; margin:0 auto 3px; }
   .ind .ehp i { display:block; height:100%; background:linear-gradient(90deg,#ff5b5b,#ffae5b); }
   .ind .arrow { width:0; height:0; margin:0 auto; }
@@ -176,7 +177,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626k · Damage Control</div>
+<div id="version">v061626l · Recruitment Drive</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -295,10 +296,14 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626k · Damage Control (June 16, 2026)</div>
+    <div class="desc">v061626l · Recruitment Drive (June 16, 2026)</div>
     <ul>
-      <li>Customizable damage-number colors in Settings (normal, critical, and special/dodge text)</li>
-      <li>Potato mode now actually lowers quality — it renders below native resolution and turns shadows off (previously it did nothing on standard desktops)</li>
+      <li>Class system: a new NPC in the lobby lets you buy classes with shards and pick one to play as (Gunner, Ranger, Brute, Mage, Sprinter)</li>
+      <li>New enemy types — Shooter, Dasher and Healer — each labeled with its type above its health bar</li>
+      <li>Every arena map is now a random size</li>
+      <li>New weapons: Seeker (homing missiles) and Pulse (shockwave around you)</li>
+      <li>New upgrades: Berserker, Lethality, Bulwark, Glass Cannon, Momentum, Siphon, Rifling</li>
+      <li>Your bunnyhop speed trail no longer shows on the first hop — only once you start chaining</li>
     </ul>
     <div class="actions">
       <button class="btn-primary" id="closeChangelog">Back</button>
@@ -319,10 +324,23 @@
   </div>
 </div>
 
+<!-- Class shop -->
+<div id="classMenu" class="modal">
+  <div class="panel" style="width:560px;max-width:94vw">
+    <h2>Classes</h2>
+    <div class="desc">Buy classes with shards, then select one to play as. Your choice applies at the start of every run.</div>
+    <div id="classShards" style="font-weight:bold;margin-bottom:14px"></div>
+    <div id="classCards" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center"></div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-primary" id="classClose">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626k · Damage Control</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626l · Recruitment Drive</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -349,8 +367,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626k';
-const UPDATE_TITLE = 'Damage Control';
+const VERSION = 'v061626l';
+const UPDATE_TITLE = 'Recruitment Drive';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -446,6 +464,21 @@ function hexToInt(h){ return parseInt(String(h).replace('#',''),16)||0; }
 let shards = 0;
 let bestWave = 0;
 let totalKills = 0;   // all-time kills across every run (persisted)
+let ownedClasses = ['recruit'];   // classes bought with shards (persisted)
+let selectedClass = 'recruit';
+// Class roster. apply() runs at the start of every run, after base stats are set.
+const CLASSES = [
+  {id:'recruit', name:'Recruit', ic:'🟦', cost:0,   ds:'Balanced. No bonuses.', apply:()=>{}},
+  {id:'gunner',  name:'Gunner',  ic:'🔫', cost:60,  ds:'+1 projectile, +15% attack speed.', apply:()=>{ A.stats.extraProj+=1; A.stats.atkSpeed*=1.15; }},
+  {id:'ranger',  name:'Ranger',  ic:'🏹', cost:120, ds:'Start with Chain Bolt. +35% range, +10% crit.', apply:()=>{ if(!A.weapons.includes('bolt')) A.weapons.push('bolt'); A.stats.range*=1.35; A.stats.crit+=0.10; }},
+  {id:'brute',   name:'Brute',   ic:'🛡️', cost:120, ds:'+80 max HP, +20% damage, slightly slower.', apply:()=>{ A.maxhp+=80; A.hp+=80; A.stats.dmg*=1.2; player.speed*=0.92; }},
+  {id:'mage',    name:'Mage',    ic:'🔮', cost:200, ds:'Start with Frost Nova + Pulse, +20% proj speed.', apply:()=>{ if(!A.weapons.includes('nova')) A.weapons.push('nova'); if(!A.weapons.includes('pulse')) A.weapons.push('pulse'); A.stats.projSpeed*=1.2; }},
+  {id:'sprinter',name:'Sprinter',ic:'👟', cost:200, ds:'+25% move speed, +30% pickup, +10% dodge.', apply:()=>{ player.speed*=1.25; A.stats.pickup*=1.3; A.stats.dodge=Math.min(0.6,(A.stats.dodge||0)+0.10); }},
+];
+function applyClass(){
+  const c=CLASSES.find(c=>c.id===selectedClass);
+  if(c){ try{ c.apply(); }catch(e){} }
+}
 function loadSave(){
   try{
     const raw = localStorage.getItem(SAVE_KEY);
@@ -474,11 +507,14 @@ function loadSave(){
         if(s.settings.playerColors){ for(const k of ['head','torso','arms','legs']) if(isHex(s.settings.playerColors[k])) settings.playerColors[k]=s.settings.playerColors[k]; }
       }
       if(typeof s.totalKills==='number') totalKills = s.totalKills;
+      if(Array.isArray(s.ownedClasses)) ownedClasses = s.ownedClasses.filter(id=>CLASSES.some(c=>c.id===id));
+      if(!ownedClasses.includes('recruit')) ownedClasses.push('recruit');
+      if(typeof s.selectedClass==='string' && ownedClasses.includes(s.selectedClass)) selectedClass = s.selectedClass;
     }
   }catch(e){ /* storage blocked: run without persistence */ }
 }
 function persist(){
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, totalKills, settings })); }
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, totalKills, ownedClasses, selectedClass, settings })); }
   catch(e){ /* ignore */ }
 }
 function addShards(n){ shards += n; updateShardHud(); persist(); }
@@ -584,6 +620,8 @@ function keyOf(x,y,z){ return x+','+y+','+z; }
 
 // ---------- generate the overworld ----------
 let PORTAL_POS = new THREE.Vector3();
+let NPC_POS = new THREE.Vector3();
+let npcMarker;
 const LOBBY_Y = 0;            // floor top surface
 let portalPlane;
 function buildLobby(){
@@ -607,6 +645,23 @@ function buildLobby(){
   const px = 0, pz = -7;
   buildPortalFrame(px, LOBBY_Y, pz);
   PORTAL_POS.set(px, LOBBY_Y + 1.9, pz);
+
+  // class-shop NPC off to the side
+  const nx = 6.5, nz = -1;
+  buildNPC(nx, LOBBY_Y, nz);
+  NPC_POS.set(nx, LOBBY_Y, nz);
+}
+function buildNPC(x, baseY, z){
+  const g=new THREE.Group();
+  const robe=new THREE.MeshLambertMaterial({color:0x3aa0ff});
+  const skin=new THREE.MeshLambertMaterial({color:0xe9d2b0});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.62,1.4,8), robe); body.position.y=0.7; body.castShadow=true; g.add(body);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), skin); head.position.y=1.65; head.castShadow=true; g.add(head);
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.28), new THREE.MeshBasicMaterial({color:0x7df0ff}));
+  gem.position.y=2.45; g.add(gem); npcMarker=gem;
+  const light=new THREE.PointLight(0x7df0ff,5,9); light.position.y=2.2; g.add(light);
+  g.position.set(x, baseY, z); g.rotation.y=Math.PI;   // face spawn
+  overworld.group.add(g);
 }
 
 function buildPortalFrame(px, baseY, pz){
@@ -800,10 +855,12 @@ function applyParticleColors(){
   _trailHi=hexToRGB(settings.trailHigh);
   _hitRGB=hexToRGB(settings.hitColor);
 }
-// character trail: nothing at x1, ramping up in count + color the higher the bhop
+// character trail: nothing on the first hop, then ramps up in count + color the
+// higher the bhop chain climbs (particles begin from the SECOND chained hop)
 function emitTrail(dt){
-  const frac=Math.min(1, Math.max(0, ((player.bhop||1)-1)/(BHOP_MAX-1)));
-  if(frac<=0.001) return;
+  const over=(player.bhop||1)-(1+BHOP_GAIN);   // first well-timed hop = 1+BHOP_GAIN -> still no trail
+  if(over<=0.001) return;
+  const frac=Math.min(1, over/(BHOP_MAX-1-BHOP_GAIN));
   const r=_trailLo[0]+(_trailHi[0]-_trailLo[0])*frac;
   const g=_trailLo[1]+(_trailHi[1]-_trailLo[1])*frac;
   const b=_trailLo[2]+(_trailHi[2]-_trailLo[2])*frac;
@@ -845,6 +902,7 @@ function escapePressed(){
   _escT=now;
   if(GAME.state!=='arena' && GAME.state!=='overworld') return;
   if(A.paused) return;        // level-up menu is open
+  if(D.getElementById('classMenu').style.display==='flex'){ closeClassMenu(); return; }
   const setEl=D.getElementById('settings');
   if(setEl.style.display==='flex'){ closeSettings(); return; }
   if(D.getElementById('upgrade').style.display==='flex') return;
@@ -1168,7 +1226,7 @@ function hitsPropH(x,z,y,r){
 // ============================================================
 //  PORTAL ARENA  (Megabonk-like)
 // ============================================================
-const ARENA_R = 34;
+let ARENA_R = 34;   // randomized per map in buildArenaMap
 const A = {
   active:false, wave:0, waveTime:0, spawnAcc:0, toSpawn:0,
   enemies:[], projectiles:[], orbs:[], boss:null,
@@ -1186,6 +1244,16 @@ let arenaGround, arenaProps=[];
 // array every time — a notable source of GC-driven lag spikes on desktop.
 const _targets=[];
 const _orbV=new THREE.Vector3();   // scratch vector for the orb magnet loop
+const _tmpDir=new THREE.Vector3();  // scratch for enemy aiming
+function healNearby(e){
+  const R=6, ex=e.mesh.position.x, ez=e.mesh.position.z;
+  for(const o of A.enemies){
+    if(o===e || o.hp>=o.maxhp) continue;
+    if(Math.hypot(o.mesh.position.x-ex, o.mesh.position.z-ez)<R)
+      o.hp=Math.min(o.maxhp, o.hp + o.maxhp*0.06 + 4);
+  }
+  for(let i=0;i<6;i++){ const a=Math.random()*Math.PI*2; spawnParticle(ex, (e.top||1)*0.6, ez, Math.cos(a)*2, 1.5, Math.sin(a)*2, 0.4,1,0.5, 0.4); }
+}
 function allTargets(){
   _targets.length=0;
   const es=A.enemies;
@@ -1199,6 +1267,7 @@ function buildArenaMap(seed){
   while(arena.group.children.length) disposeObj(arena.group.children[0]);
   arenaProps=[];
   const rng = mulberry32(seed);
+  ARENA_R = 24 + Math.floor(rng()*26);   // each map is a random size (24..49)
   // pick a palette / biome
   const biomes=[
     {ground:0x5a7a45, prop:0x3f6a32, sky:0x9fd0ff, name:'Meadow'},
@@ -1223,7 +1292,8 @@ function buildArenaMap(seed){
   // scattered blocky props (scenery), sitting on the floor, with collision
   A.props=[];
   const pMat=new THREE.MeshLambertMaterial({color:b.prop});
-  for(let i=0;i<22;i++){
+  const propCount=Math.round(ARENA_R*0.7);   // scale scenery with map size
+  for(let i=0;i<propCount;i++){
     const ang=rng()*Math.PI*2, rad=5+rng()*(ARENA_R-8);
     const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
     if(Math.hypot(x,z)<5) continue; // keep center clear for exit pad
@@ -1264,6 +1334,9 @@ function startArena(){
             pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 };
   A.weapons=['ball']; A.wcd={};
   A.runKills=0; A.boomerangOut=false;
+  player.speed=7.2;
+  applyClass();                 // selected class modifies starting stats/weapons/speed
+  for(const w of A.weapons) A.wcd[w]=0;
   for(const k in upgradeLevels) delete upgradeLevels[k];   // reset owned counts
   ensureBlades();
   streak.count=0; streak.timer=0; D.getElementById('streak').classList.remove('show');
@@ -1273,7 +1346,6 @@ function startArena(){
   player.pos.set(0,0,6); player.vel.set(0,0,0); player.knock=null;
   player.bhop=1; player._jumpPrev=false;
   player.pitch=-0.12;
-  player.speed=7.2;
   A.exitGrace=1.2;
   setMode('arena');
   arena.group.visible=true; overworld.group.visible=false;
@@ -1376,13 +1448,31 @@ function spawnEnemy(kind){
   const spdMul  = 1 + Math.min(0.7, Math.max(0, w-6)*0.03);
   if(kind==='fast'){ hp=(10+w*3)*lateMul; spd=5.4*spdMul; size=0.8; color=0xff6b3b; dmg=14*lateMul; xp=1; }
   else if(kind==='tank'){ hp=(44+w*10)*lateMul; spd=2.5*spdMul; size=1.5; color=0x7a4bff; dmg=30*lateMul; xp=3; }
+  else if(kind==='ranged'){ hp=(12+w*4)*lateMul; spd=3.0*spdMul; size=0.9; color=0x4bd0a0; dmg=10*lateMul; xp=2; }
+  else if(kind==='dasher'){ hp=(13+w*4)*lateMul; spd=4.0*spdMul; size=0.9; color=0xffcf3a; dmg=18*lateMul; xp=2; }
+  else if(kind==='healer'){ hp=(28+w*7)*lateMul; spd=2.8*spdMul; size=1.1; color=0x8a7bff; dmg=8*lateMul; xp=3; }
   else { hp=(16+w*5)*lateMul; spd=3.7*spdMul; size=1.0; color=0xff4b6b; dmg=20*lateMul; xp=1; }
   const mdl=makeEnemyModel(size, color, kind);
   mdl.group.position.set(x, 0, z);
   arena.group.add(mdl.group);
-  A.enemies.push({mesh:mdl.group, hp, maxhp:hp, spd, dmg, xp, size, top:mdl.top,
+  A.enemies.push({mesh:mdl.group, hp, maxhp:hp, spd, dmg, xp, size, top:mdl.top, color,
                   hit:0, kind, outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
-                  phase:Math.random()*6.28, baseY:0, ev:0});
+                  phase:Math.random()*6.28, baseY:0, ev:0,
+                  dashing:0, dashDir:new THREE.Vector3(),
+                  shootCd:1.0+Math.random()*1.2, dashCd:1.4+Math.random()*1.2, healCd:1.0+Math.random()});
+}
+const ENEMY_LABELS={ basic:'Grunt', fast:'Runner', tank:'Tank', ranged:'Shooter', dasher:'Dasher', healer:'Healer' };
+// weighted enemy-kind picker; tougher/odder types unlock as waves climb
+function pickEnemyKind(w){
+  const pool=[ ['basic',1.0], ['fast',0.5+w*0.02] ];
+  if(w>=3) pool.push(['ranged',0.3+w*0.02]);
+  if(w>=4) pool.push(['dasher',0.25+w*0.02]);
+  if(w>=5) pool.push(['tank',0.2+w*0.02]);
+  if(w>=6) pool.push(['healer',0.18]);
+  let tot=0; for(const p of pool) tot+=p[1];
+  let r=Math.random()*tot;
+  for(const p of pool){ r-=p[1]; if(r<=0) return p[0]; }
+  return 'basic';
 }
 const BOSS_PRE=['Grok','Vorn','Mal','Zyx','Throk','Ued','Brak','Nix','Gor','Skarn','Vex','Drûl','Hagg','Olm','Pyre'];
 const BOSS_SUF=['the Render','Hollowmaw','the Unmade','Gravebloom','the Gnashing','Dreadhusk','the Sunderer','Voidtooth','the Coil','Ashwretch','the Devourer','Mournspire'];
@@ -1438,8 +1528,10 @@ const WEAPONS={
   bolt:    { id:'bolt',    ic:'⚡', name:'Bolt',     cd:1.6 },
   boomerang:{id:'boomerang',ic:'🪃', name:'Boomerang',cd:1.3 },
   nova:    { id:'nova',    ic:'❄', name:'Nova',     cd:2.2 },
+  homing:  { id:'homing',  ic:'🛰', name:'Seeker',   cd:1.5 },
+  pulse:   { id:'pulse',   ic:'💥', name:'Pulse',    cd:2.0 },
 };
-const WEAPON_ORDER=['ball','shotgun','blades','bolt','boomerang','nova'];
+const WEAPON_ORDER=['ball','shotgun','blades','bolt','boomerang','nova','homing','pulse'];
 
 function fireBall(target){
   const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
@@ -1494,6 +1586,33 @@ function fireNova(){
     fireProjectile(d, 0.16, 0x9fe6ff, A.stats.dmg*0.45, 0.7);
   }
   SFX.shoot();
+}
+function fireHoming(target){
+  const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
+  const n=1+A.stats.extraProj;
+  for(let i=0;i<n;i++){
+    const spread=(i-(n-1)/2)*0.25;
+    const d=dir.clone().applyAxisAngle(UP, spread);
+    const m=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.42,6), new THREE.MeshBasicMaterial({color:0xff9bff}));
+    m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
+    arena.group.add(m);
+    const crit=Math.random()<A.stats.crit;
+    A.projectiles.push({mesh:m, dir:d, life:2.6, dmg:A.stats.dmg*0.9*(crit?A.stats.critMul:1), crit,
+                        pierceLeft:A.stats.pierce, hitSet:new Set(), homing:true});
+  }
+  SFX.shoot();
+}
+function firePulse(){
+  // shockwave that damages everything around the player
+  const R=4.5 + A.stats.range*0.12;
+  const crit=Math.random()<A.stats.crit;
+  for(const e of allTargets()){
+    const d=Math.hypot(e.mesh.position.x-player.pos.x, e.mesh.position.z-player.pos.z);
+    if(d < R+e.size*0.5) damageEnemy(e, A.stats.dmg*0.8*(crit?A.stats.critMul:1), crit);
+  }
+  // ring of sparks for the blast
+  for(let i=0;i<26;i++){ const a=i/26*Math.PI*2; spawnParticle(player.pos.x, player.pos.y+0.4, player.pos.z, Math.cos(a)*R*1.7, 1.2, Math.sin(a)*R*1.7, 0.75,0.92,1, 0.4); }
+  SFX.hit();
 }
 const UP=new THREE.Vector3(0,1,0);
 const boltLines=[];
@@ -1577,12 +1696,13 @@ function autoFire(){
     if(def.cd<=0) continue;               // passive (blades) handled separately
     A.wcd[w]=(A.wcd[w]||0)-dt;
     if(A.wcd[w]>0) continue;
-    if(w==='nova'){ if(!A.enemies.length && !A.boss){ continue; } fireNova(); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
+    if(w==='nova'||w==='pulse'){ if(!A.enemies.length && !A.boss){ continue; } (w==='nova'?fireNova:firePulse)(); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
     if(!best) continue;
     if(w==='ball') fireBall(best);
     else if(w==='shotgun') fireShotgun(best);
     else if(w==='bolt') fireBolt(best);
     else if(w==='boomerang') fireBoomerang(best);
+    else if(w==='homing') fireHoming(best);
     A.wcd[w]=def.cd/A.stats.atkSpeed;
   }
 }
@@ -1760,6 +1880,13 @@ const UPGRADE_POOL = [
   {id:'armor', ic:'🛡️', nm:'Thick Hide', ds:'+10% max HP & heal', pct:10, apply:s=>{const add=Math.round(A.maxhp*0.1); A.maxhp+=add; A.hp+=add;}},
   {id:'dodge', ic:'🌫️', nm:'Evasion', ds:'+8% dodge chance', pct:8, apply:s=>s.dodge=Math.min(0.6,(s.dodge||0)+0.08)},
   {id:'magnetdmg',ic:'☄️', nm:'Heavy Rounds', ds:'+18% damage', pct:18, apply:s=>s.dmg*=1.18},
+  {id:'berserk', ic:'😤', nm:'Berserker', ds:'+30% attack speed', pct:30, apply:s=>s.atkSpeed*=1.3},
+  {id:'lethal',  ic:'🔪', nm:'Lethality', ds:'+15% crit chance', pct:15, apply:s=>s.crit+=0.15},
+  {id:'bulwark', ic:'🧱', nm:'Bulwark', ds:'+45 max HP & heal', apply:s=>{A.maxhp+=45; A.hp+=45;}},
+  {id:'glass',   ic:'⚗️', nm:'Glass Cannon', ds:'+45% damage, -20% max HP', apply:s=>{s.dmg*=1.45; const cut=Math.round(A.maxhp*0.2); A.maxhp=Math.max(20,A.maxhp-cut); A.hp=Math.min(A.hp,A.maxhp);}},
+  {id:'momentum',ic:'🏃', nm:'Momentum', ds:'+18% move speed', pct:18, apply:s=>{s.moveBonus+=0.18; player.speed*=1.18;}},
+  {id:'siphon',  ic:'🧛', nm:'Siphon', ds:'+6% lifesteal', pct:6, apply:s=>s.lifesteal+=0.06},
+  {id:'rifling', ic:'🌀', nm:'Rifling', ds:'+25% projectile speed', pct:25, apply:s=>s.projSpeed*=1.25},
 ];
 // weapon-unlock "cards" mixed into the level-up pool
 const WEAPON_UNLOCKS=[
@@ -1768,6 +1895,8 @@ const WEAPON_UNLOCKS=[
   {id:'wpn_bolt',    weapon:'bolt',    ic:'⚡', nm:'Chain Bolt',   ds:'New weapon: lightning chains'},
   {id:'wpn_boomerang',weapon:'boomerang',ic:'🪃', nm:'Boomerang', ds:'New weapon: flies out and back'},
   {id:'wpn_nova',    weapon:'nova',    ic:'❄', nm:'Frost Nova',  ds:'New weapon: ring of shards'},
+  {id:'wpn_homing',  weapon:'homing',  ic:'🛰', nm:'Seeker Missiles', ds:'New weapon: homing shots'},
+  {id:'wpn_pulse',   weapon:'pulse',   ic:'💥', nm:'Pulse Wave',  ds:'New weapon: shockwave around you'},
 ];
 const upgradeLevels={};
 function buildOfferPool(){
@@ -1967,18 +2096,28 @@ function updateCamera(){
   sun.target.position.copy(player.pos); sun.target.updateMatrixWorld();
 }
 
+let _npcNear=false;
 function updateOverworld(){
+  if(GAME.paused) return;   // a menu (settings/class shop) is open — freeze the lobby
   collideMove('overworld');
   if(portalPlane){ portalPlane.material.opacity=0.6+Math.sin(performance.now()*0.004)*0.18; }
+  if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.45+Math.sin(performance.now()*0.003)*0.12; }
+  const hint=D.getElementById('hint');
+  // class NPC: opens the shop when you walk up to it
+  const dn=Math.hypot(player.pos.x-NPC_POS.x, player.pos.z-NPC_POS.z);
+  if(dn<2.3){ if(!_npcNear){ _npcNear=true; openClassMenu(); } }
+  else if(dn>3.4) _npcNear=false;
   // portal proximity -> enter arena
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
-  const hint=D.getElementById('hint');
   if(d<1.7){
     startArena();
     hint.style.display='none';
   } else if(d<4.5){
     hint.style.display='block';
     hint.textContent='Step into the portal to enter the arena';
+  } else if(dn<3.4){
+    hint.style.display='block';
+    hint.textContent='Class shop';
   } else hint.style.display='none';
 }
 
@@ -2009,9 +2148,7 @@ function updateArena(){
     const interval=Math.max(0.28, 1.0 - A.wave*0.022);   // spawns get faster later
     if(A.spawnAcc>=interval){
       A.spawnAcc=0; A.toSpawn--;
-      const r=Math.random();
-      const kind = r<0.18+A.wave*0.01 ? 'fast' : (r>0.85? 'tank':'basic');
-      spawnEnemy(kind);
+      spawnEnemy(pickEnemyKind(A.wave));
     }
   }
   // advance wave when cleared -> vacuum up any leftover xp orbs first
@@ -2040,13 +2177,16 @@ function updateArena(){
     const big = isBoss || e.kind==='tank';   // big ones can't climb
     if(e._detourT>0) e._detourT-=dt;
     let moved=0;
-    if(isBoss && e.dashing>0){
-      e.mesh.position.x += e.dashDir.x*16*dt;
-      e.mesh.position.z += e.dashDir.z*16*dt;
-      e.dashing-=dt; moved=16;
+    if(e.dashing>0){
+      const dspd=isBoss?16:20;
+      e.mesh.position.x += e.dashDir.x*dspd*dt;
+      e.mesh.position.z += e.dashDir.z*dspd*dt;
+      e.dashing-=dt; moved=dspd;
     } else if(dist>0.001){
       // everyone heads straight for the player
       let ax=dx/dist, az=dz/dist;
+      // ranged enemies keep their distance: back off when the player gets close
+      if(e.kind==='ranged' && dist<9){ ax=-ax; az=-az; }
       if(big){
         // elites & bosses can't climb, so they steer AROUND obstacles, and
         // break out of corners with a brief committed detour when wedged
@@ -2120,6 +2260,23 @@ function updateArena(){
     if(isBoss){
       e.atkCd-=dt;
       if(e.dashing<=0 && e.atkCd<=0){ bossAttack(e); }
+    } else if(e.kind==='ranged'){
+      // fire bolts at the player from range
+      e.shootCd-=dt;
+      if(e.shootCd<=0 && dist<20 && dist>2){
+        eshot(e.mesh.position.x, e.mesh.position.z, _tmpDir.set(dx,0,dz).normalize(), 13, e.dmg, 0x6fffd0);
+        e.shootCd=1.5;
+      }
+    } else if(e.kind==='dasher'){
+      // periodic lunge toward the player
+      e.dashCd-=dt;
+      if(e.dashing<=0 && e.dashCd<=0 && dist<13 && dist>1.5){
+        e.dashDir.set(dx,0,dz).normalize(); e.dashing=0.4; e.dashCd=2.2;
+      }
+    } else if(e.kind==='healer'){
+      // mend nearby wounded allies
+      e.healCd-=dt;
+      if(e.healCd<=0){ healNearby(e); e.healCd=1.8; }
     }
   }
 
@@ -2147,6 +2304,20 @@ function updateArena(){
       p.life-=dt;
       if(p.life<=0) remove=true;       // safety so it can never get lost
     } else {
+      if(p.homing){
+        // steer toward the nearest enemy it hasn't hit yet
+        let best=null, bd=1e9;
+        for(const e of allTargets()){
+          if(p.hitSet.has(e)) continue;
+          const d=(e.mesh.position.x-p.mesh.position.x)**2+(e.mesh.position.z-p.mesh.position.z)**2;
+          if(d<bd){ bd=d; best=e; }
+        }
+        if(best){
+          _tmpDir.set(best.mesh.position.x-p.mesh.position.x, 0, best.mesh.position.z-p.mesh.position.z).normalize();
+          p.dir.lerp(_tmpDir, 0.12); p.dir.y=0; p.dir.normalize();
+          p.mesh.rotation.y=Math.atan2(p.dir.x,p.dir.z);
+        }
+      }
       p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
       p.life-=dt;
       if(p.life<=0) remove=true;
@@ -2320,7 +2491,7 @@ function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.im
 const indLayer=D.getElementById('indicators');
 function makeIndicator(){
   const el=D.createElement('div'); el.className='ind';
-  el.innerHTML='<div class="ehp"><i></i></div><div class="arrow"></div>';
+  el.innerHTML='<div class="elabel"></div><div class="ehp"><i></i></div><div class="arrow"></div>';
   indLayer.appendChild(el);
   return el;
 }
@@ -2341,13 +2512,19 @@ function updateIndicators(){
     if(behind){ nx=-nx; ny=-ny; }
     let sx=(nx*0.5+0.5)*VW, sy=(-ny*0.5+0.5)*VH;
     const onScreen=!behind && nx>=-1 && nx<=1 && ny>=-1 && ny<=1;
-    const ehp=el.children[0], arrow=el.children[1];
+    const lab=el.children[0], ehp=el.children[1], arrow=el.children[2];
     const hpPct=Math.max(0,e.hp/e.maxhp*100);
     ehp.firstChild.style.width=hpPct+'%';
+    if(e===A.boss){ lab.style.display='none'; }
+    else {
+      lab.textContent=ENEMY_LABELS[e.kind]||e.kind;
+      lab.style.color='#'+(e.color||0xffffff).toString(16).padStart(6,'0');
+    }
     if(onScreen){
       ehp.style.display='block';
+      if(e!==A.boss) lab.style.display='block';
       // bar sits above the head; arrow just under it points down at the enemy
-      el.style.left=sx+'px'; el.style.top=(sy-22)+'px';
+      el.style.left=sx+'px'; el.style.top=(sy-32)+'px';
       arrow.style.borderLeft='5px solid transparent';
       arrow.style.borderRight='5px solid transparent';
       arrow.style.borderTop='7px solid #fff27a';
@@ -2355,7 +2532,7 @@ function updateIndicators(){
       arrow.style.transform='rotate(0deg)';
       arrow.style.margin='3px auto 0';
     } else {
-      ehp.style.display='none';
+      ehp.style.display='none'; lab.style.display='none';
       let dx=sx-cx, dy=sy-cy;
       const sc=Math.max(Math.abs(dx)/(cx-margin), Math.abs(dy)/(cy-margin));
       if(sc>0){ dx/=sc; dy/=sc; }
@@ -2399,6 +2576,46 @@ onTap(D.getElementById('exitLeave'), ()=>{
   setTouchEnabled(true);
   exitArena();
 });
+
+// ----- class shop -----
+function buildClassCards(){
+  const wrap=D.getElementById('classCards'); wrap.innerHTML='';
+  D.getElementById('classShards').innerHTML='Shards: <span style="color:#7df0ff">◆ '+shards+'</span>';
+  for(const c of CLASSES){
+    const owned=ownedClasses.includes(c.id), sel=selectedClass===c.id;
+    const el=D.createElement('div');
+    el.style.cssText='width:165px;background:linear-gradient(160deg,#1a2138,#10182b);border:2px solid '+(sel?'#7df0ff':'rgba(255,255,255,.16)')+';border-radius:12px;padding:12px;cursor:pointer;text-align:center;pointer-events:auto';
+    let btn;
+    if(sel) btn='<div style="margin-top:8px;color:#7df0ff;font-weight:bold">✓ Selected</div>';
+    else if(owned) btn='<div style="margin-top:8px;color:#9be79b;font-weight:bold">Tap to select</div>';
+    else btn='<div style="margin-top:8px;font-weight:bold;color:'+(shards>=c.cost?'#ffd24a':'#888')+'">Buy ◆ '+c.cost+'</div>';
+    el.innerHTML='<div style="font-size:30px">'+c.ic+'</div><div style="font-weight:bold;font-size:15px;margin:4px 0">'+c.name+'</div><div style="font-size:11.5px;opacity:.8;line-height:1.4;min-height:48px">'+c.ds+'</div>'+btn;
+    onTap(el, ()=>classCardTap(c));
+    wrap.appendChild(el);
+  }
+}
+function classCardTap(c){
+  if(ownedClasses.includes(c.id)){
+    selectedClass=c.id; persist(); SFX.weapon(); buildClassCards();
+  } else if(shards>=c.cost){
+    shards-=c.cost; ownedClasses.push(c.id); selectedClass=c.id;
+    updateShardHud(); persist(); SFX.level(); buildClassCards();
+  } else { toast('Not enough shards'); SFX.hurt(); }
+}
+function openClassMenu(){
+  GAME.paused=true;
+  suppressAutoSettings=true; exitPointerLockSafe();
+  setTouchEnabled(false);
+  buildClassCards();
+  D.getElementById('classMenu').style.display='flex';
+}
+function closeClassMenu(){
+  D.getElementById('classMenu').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
+}
+onTap(D.getElementById('classClose'), closeClassMenu);
 
 // ============================================================
 //  SETTINGS MENU + FOV
