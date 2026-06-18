@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726i';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726j';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -247,7 +247,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726i · Hint Lift</div>
+<div id="version">v061726j · Clarity</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -327,6 +327,10 @@
       <label class="switch"><input id="potatoToggle" type="checkbox"><span class="track"></span></label>
     </div>
     <div class="row">
+      <label for="shakeToggle">Screen shake</label>
+      <label class="switch"><input id="shakeToggle" type="checkbox"><span class="track"></span></label>
+    </div>
+    <div class="row">
       <label for="musicVol">Music volume</label>
       <input id="musicVol" type="range" min="0" max="100" step="1">
       <span class="val" id="musicVolVal">50</span>
@@ -377,8 +381,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726i · Hint Lift (June 17, 2026)</div>
+    <div class="desc">v061726j · Clarity (June 17, 2026)</div>
     <ul>
+      <li>Settings panel now always opens scrolled to the top — previously it remembered your scroll position from the last time you had it open, which was annoying when you'd scrolled down to change a color and reopened later expecting to see the top</li>
+      <li>Piercing shots now break Shielder shields: a piercing projectile that hits a Shielder's front shatters the shield for 3 seconds (the shield mesh visibly disappears with a small particle burst), during which frontal hits connect normally. Gives piercing builds a real counter into Shielder comps without trivializing them</li>
+      <li>New "Screen shake" toggle in Settings (on by default). Disabling it mutes all camera-shake effects — useful for motion-sensitive players or anyone who finds the new juice from v061726h disorienting</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726i · Hint Lift (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Moved the contextual hint banner ("Press E to leave the run", "Step into the portal to enter the arena", "Tap SHOP to open the class shop", etc) above the health bar so it's not obscured by it. Previously the hint sat at the same height as the HP bar and the two overlapped, making the hint hard to read at the worst moments</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v061726h · Juice (June 17, 2026)</div>
@@ -467,7 +477,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726i · Hint Lift</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726j · Clarity</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -494,8 +504,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726i';
-const UPDATE_TITLE = 'Hint Lift';
+const VERSION = 'v061726j';
+const UPDATE_TITLE = 'Clarity';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -581,7 +591,7 @@ const GAME = {
 // ---------- persistent save (localStorage, degrades gracefully) ----------
 const SAVE_KEY = 'blockfall_save_v1';
 const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50, sfxVol:80,
-  sens:1.0, easyBhop:false, potato:false,
+  sens:1.0, easyBhop:false, potato:false, screenShake:true,
   skyColor:'#9fd0ff', outlineColor:'#fff27a',
   trailLow:'#4ad1ff', trailHigh:'#ff4bd0', hitColor:'#fff27a',
   dmgColor:'#ffffff', critColor:'#ffd84a', specialColor:'#7fe0ff',
@@ -622,6 +632,7 @@ function loadSave(){
         if(typeof s.settings.sens==='number') settings.sens = Math.max(0.2,Math.min(3,s.settings.sens));
         if(typeof s.settings.easyBhop==='boolean') settings.easyBhop = s.settings.easyBhop;
         if(typeof s.settings.potato==='boolean') settings.potato = s.settings.potato;
+        if(typeof s.settings.screenShake==='boolean') settings.screenShake = s.settings.screenShake;
         const isHex=v=>typeof v==='string' && /^#[0-9a-fA-F]{6}$/.test(v);
         if(isHex(s.settings.skyColor)) settings.skyColor = s.settings.skyColor;
         if(isHex(s.settings.outlineColor)) settings.outlineColor = s.settings.outlineColor;
@@ -2219,23 +2230,64 @@ function updateTargetVisuals(){
   A._lastTarget=A.target;
 }
 
-function damageEnemy(e, dmg, crit, fromPos){
+function damageEnemy(e, dmg, crit, fromPos, opts){
   // Shielder frontal block: if the hit comes from the enemy's front (within
   // a ~100° cone of its facing), the shield absorbs 80% of the damage.
   // fromPos is optional — area/melee sources (Pulse, Blades, Nova, Bolt)
   // bypass the shield because they hit at melee range and that's the
   // intended counterplay (close distance / use AoE).
+  //
+  // Piercing counter: a piercing projectile (opts.pierce=true) that
+  // would be blocked instead BREAKS the shield for 3 seconds — the
+  // shield mesh disappears and frontal hits connect normally during
+  // that window. This gives piercing builds a real answer into Shielder
+  // comps without trivializing them (you still have to land the hit
+  // and the break is temporary).
   if(e.kind==='shielder' && fromPos){
-    const toShot = (e.mesh.rotation.y || 0);
-    // enemy faces +z by default; rotation.y rotates that. Front cone center:
-    const fx = Math.sin(toShot), fz = Math.cos(toShot);
-    const dx = fromPos.x - e.mesh.position.x;
-    const dz = fromPos.z - e.mesh.position.z;
-    const len = Math.hypot(dx,dz) || 1;
-    const dot = (dx/len)*fx + (dz/len)*fz;   // 1 = directly in front
-    if(dot > 0.17){   // ~100° frontal cone (cos(80°) ≈ 0.17)
-      dmg *= 0.2;     // shield eats 80%
-      if(e.shieldMesh) e.shieldMesh.material.emissive.setHex(0xffffff);   // flash
+    // Tick down the shield-broken timer if it's active.
+    if(e.shieldBrokenT > 0){
+      e.shieldBrokenT -= dt;
+      if(e.shieldMesh) e.shieldMesh.visible = false;
+      if(e.shieldBrokenT <= 0){
+        // shield comes back online
+        e.shieldBrokenT = 0;
+        if(e.shieldMesh){
+          e.shieldMesh.visible = true;
+          e.shieldMesh.material.emissive.setHex(0x000000);
+        }
+      }
+    } else if(e.shieldBrokenT === undefined || e.shieldBrokenT === 0){
+      // shield is up — check whether this hit is frontal
+      const toShot = (e.mesh.rotation.y || 0);
+      const fx = Math.sin(toShot), fz = Math.cos(toShot);
+      const dx = fromPos.x - e.mesh.position.x;
+      const dz = fromPos.z - e.mesh.position.z;
+      const len = Math.hypot(dx,dz) || 1;
+      const dot = (dx/len)*fx + (dz/len)*fz;
+      if(dot > 0.17){   // ~100° frontal cone (cos(80°) ≈ 0.17)
+        if(opts && opts.pierce){
+          // PIERCING BREAKS THE SHIELD — full damage passes through
+          // and the shield is disabled for 3 seconds. Visual feedback:
+          // shield mesh disappears + small spark burst.
+          e.shieldBrokenT = 3.0;
+          if(e.shieldMesh){
+            e.shieldMesh.visible = false;
+            // burst of blue sparks where the shield was
+            for(let i=0;i<10;i++){
+              const a=Math.random()*Math.PI*2;
+              const sp=2+Math.random()*2;
+              spawnParticle(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.55, e.mesh.position.z,
+                Math.cos(a)*sp, 1+Math.random()*1.5, Math.sin(a)*sp,
+                0.3, 0.65, 1.0, 0.4);
+            }
+          }
+          // damage passes through unmodified — fall through to the
+          // normal hp subtraction below.
+        } else {
+          dmg *= 0.2;     // shield eats 80%
+          if(e.shieldMesh) e.shieldMesh.material.emissive.setHex(0xffffff);   // flash
+        }
+      }
     }
   }
   e.hp-=dmg; e.hit=0.12;
@@ -2650,7 +2702,13 @@ const _camDir=new THREE.Vector3(), _camFocus=new THREE.Vector3(), _camLook=new T
 // random offset each frame and decays the magnitude toward zero. The
 // offset is applied AFTER camera.lookAt() so it doesn't get overridden.
 let _shakeMag=0;
-function addShake(amount){ _shakeMag=Math.min(1.0, _shakeMag+amount); }
+function addShake(amount){
+  // No-op when the user has disabled screen shake in Settings. We still
+  // accept the call so callers don't need to check — keeps the call
+  // sites clean.
+  if(!settings.screenShake) return;
+  _shakeMag=Math.min(1.0, _shakeMag+amount);
+}
 function updateCamera(){
   const dir=_camDir.set(
     Math.sin(player.yaw)*Math.cos(player.pitch),
@@ -3086,7 +3144,7 @@ function updateArena(){
       const eCenterY = e.mesh.position.y + eTop*0.5;
       const dy = p.mesh.position.y - eCenterY;
       if(Math.hypot(ex,ez) < e.size*0.7+0.3+AIM_ASSIST && Math.abs(dy) < eTop*0.5+0.3+AIM_ASSIST){
-        damageEnemy(e, p.dmg, p.crit, p.mesh.position);
+        damageEnemy(e, p.dmg, p.crit, p.mesh.position, {pierce: p.pierceLeft > 0});
         p.hitSet.add(e);
         if(p.boomerang){ /* pierces all, keeps flying */ }
         else if(p.pierceLeft>0){ p.pierceLeft--; } else { remove=true; }
@@ -3415,6 +3473,7 @@ function openSettings(){
   D.getElementById('fpToggle').checked=settings.firstPerson;
   D.getElementById('easyBhopToggle').checked=settings.easyBhop;
   D.getElementById('potatoToggle').checked=settings.potato;
+  D.getElementById('shakeToggle').checked=settings.screenShake;
   // mobile already runs at this quality, so hide the toggle there
   D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
   D.getElementById('musicVol').value=settings.musicVol;
@@ -3437,6 +3496,15 @@ function openSettings(){
   D.getElementById('specialCol').value=settings.specialColor;
   D.getElementById('changelog').style.display='none';
   D.getElementById('settings').style.display='flex';
+  // Always open the settings panel scrolled to the top — previously
+  // it remembered the scroll position from the last time the user had
+  // it open, which was annoying when you'd scrolled down to change a
+  // color and reopened later expecting to see the top of the panel.
+  // Both the outer modal (#settings) and the inner panel (.panel)
+  // can scroll depending on viewport height, so we reset both.
+  const _panel = D.querySelector('#settings .panel');
+  if(_panel) _panel.scrollTop = 0;
+  D.getElementById('settings').scrollTop = 0;
 }
 function closeSettings(){
   D.getElementById('settings').style.display='none';
@@ -3473,6 +3541,13 @@ D.getElementById('potatoToggle').addEventListener('change', e=>{
   if(isMobile) return;                 // mobile can't change quality
   settings.potato=e.target.checked;
   applyQuality(); persist();
+});
+D.getElementById('shakeToggle').addEventListener('change', e=>{
+  settings.screenShake=e.target.checked;
+  // If the user just turned it off, zero out any in-flight shake so the
+  // camera settles immediately rather than riding out the decay.
+  if(!settings.screenShake) _shakeMag=0;
+  persist();
 });
 D.getElementById('musicVol').addEventListener('input', e=>{
   settings.musicVol=+e.target.value;
