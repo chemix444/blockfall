@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726h';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726i';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -123,7 +123,11 @@
   #overlay button:hover { filter:brightness(1.1); }
   #toast { position:fixed; top:78px; left:50%; transform:translateX(-50%); z-index:8; font-size:14px; background:rgba(0,0,0,.6); padding:7px 16px; border-radius:7px; opacity:0; transition:opacity .3s; pointer-events:none; }
   #dmgflash { position:fixed; inset:0; z-index:7; pointer-events:none; box-shadow:inset 0 0 120px rgba(226,59,59,0); transition:box-shadow .1s; }
-  #hint { position:fixed; bottom:70px; left:50%; transform:translateX(-50%); z-index:6; font-size:14px; background:rgba(20,180,90,.85); padding:8px 18px; border-radius:8px; display:none; text-shadow:0 1px 2px #000; }
+  /* Hint banner sits ABOVE the HP bar so it's not obscured by it.
+     HP bar is at bottom:64px and is 18px tall, so the hint clears it
+     with a small gap at bottom:110px. Pre-v061726i the hint sat at
+     bottom:70px which put it directly on top of the HP bar text. */
+  #hint { position:fixed; bottom:110px; left:50%; transform:translateX(-50%); z-index:6; font-size:14px; background:rgba(20,180,90,.85); padding:8px 18px; border-radius:8px; display:none; text-shadow:0 1px 2px #000; }
 
   /* persistent currency */
   #shards { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:9; display:flex; align-items:center; gap:7px; background:rgba(0,0,0,.5); padding:6px 14px; border-radius:20px; font-size:15px; font-weight:bold; text-shadow:0 1px 2px #000; }
@@ -243,7 +247,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726h · Juice</div>
+<div id="version">v061726i · Hint Lift</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -373,8 +377,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726h · Juice (June 17, 2026)</div>
+    <div class="desc">v061726i · Hint Lift (June 17, 2026)</div>
     <ul>
+      <li>Moved the contextual hint banner ("Press E to leave the run", "Step into the portal to enter the arena", "Tap SHOP to open the class shop", etc) above the health bar so it's not obscured by it. Previously the hint sat at the same height as the HP bar and the two overlapped, making the hint hard to read at the worst moments</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726h · Juice (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Screen shake: the camera now shakes on impact — small when you take damage, medium on boss attacks and boss spawn, big on Bomber explosions. Decays over ~0.4s so it punches without making you seasick</li>
       <li>Muzzle flash: a small spark burst now puffs out of the player's chest every time a projectile fires, tinted to match the projectile's color. Pure juice — no gameplay effect, just feels better to shoot</li>
       <li>Boss intro banner: when a boss spawns (every 10th wave) the screen darkens briefly and a big dramatic banner with the boss's name fades in over ~2s before fading out. Replaces the easy-to-miss toast notification</li>
@@ -459,7 +467,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726h · Juice</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726i · Hint Lift</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -486,8 +494,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726h';
-const UPDATE_TITLE = 'Juice';
+const VERSION = 'v061726i';
+const UPDATE_TITLE = 'Hint Lift';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
