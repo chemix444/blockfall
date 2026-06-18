@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726f';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726g';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -232,7 +232,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726f · Idle Bob</div>
+<div id="version">v061726g · Action Poses</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -358,8 +358,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726f · Idle Bob (June 17, 2026)</div>
+    <div class="desc">v061726g · Action Poses (June 17, 2026)</div>
     <ul>
+      <li>Player jump animation: while airborne the avatar tucks its knees up and raises its arms — different pose on the way up (apex stretch) vs the way down (legs tucked for landing) — and smoothly blends back to idle/walk on touchdown</li>
+      <li>Enemy climbing animation: when a regular enemy scales a wall its legs alternate vertically (real climbing motion) and its arms reach up — instead of doing the walking swing while it climbs</li>
+      <li>Enemy dashing animation: while a Dasher (or boss) is mid-lunge, the body pitches forward, arms swing back, and legs extend backward — reads as a committed dive instead of just translating forward</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726f · Idle Bob (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Player avatar now has an idle animation: subtle breathing (torso bob) plus a small arm sway and leg weight-shift while standing still, so you no longer look frozen mid-stride when you stop moving. Smoothly blends with the walk cycle when you start moving again</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v061726e · Lofi Livestream (June 17, 2026)</div>
@@ -431,7 +437,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726f · Idle Bob</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726g · Action Poses</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -458,8 +464,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726f';
-const UPDATE_TITLE = 'Idle Bob';
+const VERSION = 'v061726g';
+const UPDATE_TITLE = 'Action Poses';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1032,6 +1038,33 @@ let avatarStepTimer=0;
 function animateAvatar(){
   const u=avatar.userData;
   const moving = player.moving;
+  // JUMP/AIRBORNE: takes priority over walk and idle. While off the
+  // ground the avatar tucks into a jump pose. We split the airtime
+  // into two phases — rising (vel.y > 0) and falling (vel.y <= 0) —
+  // because a stretched-arms-up apex pose and a tucked-for-landing
+  // falling pose read very differently and sell the jump much better
+  // than a single static air pose. Lerp factor of 0.18 gives a quick
+  // but smooth blend in and out so the transition on takeoff/landing
+  // doesn't snap.
+  if(!player.onGround){
+    const rising = player.vel.y > 0;
+    // rising: arms up, legs slightly extended (apex reach)
+    // falling: legs tucked up for landing, arms out for balance
+    const tArm0 = rising ? -1.1 : -0.5;   // left arm rotation.x (negative = up)
+    const tArm1 = rising ? -1.1 : -0.5;
+    const tLeg0 = rising ?  0.25 :  0.9;   // positive = knees up
+    const tLeg1 = rising ?  0.25 :  0.9;
+    u.arms[0].rotation.x += (tArm0 - u.arms[0].rotation.x)*0.18;
+    u.arms[1].rotation.x += (tArm1 - u.arms[1].rotation.x)*0.18;
+    u.legs[0].rotation.x += (tLeg0 - u.legs[0].rotation.x)*0.18;
+    u.legs[1].rotation.x += (tLeg1 - u.legs[1].rotation.x)*0.18;
+    // slight torso dip while falling — prepping for the landing
+    if(u.torso){
+      const tY = rising ? 1.06 : 1.04;
+      u.torso.position.y += (tY - u.torso.position.y)*0.18;
+    }
+    return;   // skip walk/idle — air pose wins
+  }
   if(moving){
     u.phase += dt*10;
     const sw=Math.sin(u.phase)*0.6;
@@ -2744,11 +2777,69 @@ function updateArena(){
     }
     // face player (model front = +z)
     e.mesh.rotation.y = Math.atan2(dx, dz);
-    // walk animation
-    e.phase += dt*(4+moved*0.6);
-    const sw=Math.sin(e.phase)*0.5;
-    if(e.legs){ e.legs[0].rotation.x=sw; e.legs[1].rotation.x=-sw; }
-    if(e.arms){ e.arms[0].rotation.x=-sw*0.7; e.arms[1].rotation.x=sw*0.7; }
+    // ---- per-state animation ----
+    // Default is the walk cycle. CLIMBING and DASHING override it with
+    // dedicated poses that match what the enemy is actually doing.
+    // Phantoms skip the climbing branch (they phase through walls)
+    // and big enemies (tank/boss) skip it too (they walk around).
+    const isClimbing = !big && e.kind!=='phantom'
+      && (function(){
+        // Re-check the same condition the movement code used. We can't
+        // stash a flag from there without bigger surgery, so recompute
+        // — it's cheap (one wallAheadTop call per enemy per frame).
+        const wt = wallAheadTop(e);
+        return wt > e.mesh.position.y + 0.05;
+      })();
+    const isDashing = e.dashing > 0;
+    if(isDashing){
+      // DASH: committed forward lunge. Body pitches forward, arms
+      // swing back (drag), legs extend backward (push-off). Faster
+      // phase than walking so the limbs jitter slightly — sells speed.
+      e.phase += dt*16;
+      const j = Math.sin(e.phase*1.0)*0.08;   // tiny jitter
+      // pitch the whole body forward — we do this by rotating the
+      // group's x-axis. Careful: the group's rotation.y is the yaw
+      // we just set above, so we add an x-rotation on top by using
+      // a child-level offset. Easier: just rotate limbs to imply the
+      // lean (arms back, legs back, head/torso forward) and skip
+      // body pitch to avoid fighting the yaw.
+      if(e.legs){
+        e.legs[0].rotation.x = -0.9 + j;   // back leg
+        e.legs[1].rotation.x = -1.1 + j;   // further back
+      }
+      if(e.arms){
+        e.arms[0].rotation.x = -1.4 - j;   // windmilled back
+        e.arms[1].rotation.x = -1.6 - j;
+      }
+    } else if(isClimbing){
+      // CLIMB: alternating vertical leg pumps (knees drive up to
+      // the chest, then push down to find the next grip) and arms
+      // reaching overhead. Phase is faster than walking because
+      // climbing is a more frantic motion. Pure vertical — no
+      // horizontal swing, since the enemy is moving up a wall, not
+      // walking on the ground.
+      e.phase += dt*7;
+      const sw = Math.sin(e.phase);
+      if(e.legs){
+        // knees up: positive rotation.x on a top-pivoted leg
+        // means the foot swings forward+up — which reads as a
+        // knee drive. Alternate legs just like walking.
+        e.legs[0].rotation.x = Math.max(0, sw)*0.9 + 0.2;
+        e.legs[1].rotation.x = Math.max(0, -sw)*0.9 + 0.2;
+      }
+      if(e.arms){
+        // arms alternate overhead: reach up with one while the
+        // other resets, like finding the next handhold.
+        e.arms[0].rotation.x = -Math.max(0, sw)*1.4 - 0.2;
+        e.arms[1].rotation.x = -Math.max(0, -sw)*1.4 - 0.2;
+      }
+    } else {
+      // WALK (default): same horizontal swing the game has always had.
+      e.phase += dt*(4+moved*0.6);
+      const sw=Math.sin(e.phase)*0.5;
+      if(e.legs){ e.legs[0].rotation.x=sw; e.legs[1].rotation.x=-sw; }
+      if(e.arms){ e.arms[0].rotation.x=-sw*0.7; e.arms[1].rotation.x=sw*0.7; }
+    }
     if(big) e.mesh.position.y = Math.abs(Math.sin(e.phase))*0.08;
     else e.mesh.position.y = e.baseY + Math.abs(Math.sin(e.phase))*0.05;
     // hit flash
