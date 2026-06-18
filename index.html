@@ -163,6 +163,7 @@
   #lookPad { position:absolute; right:0; top:64px; bottom:0; width:50%; pointer-events:auto; touch-action:none; }
   #btnJump { position:absolute; right:max(24px,env(safe-area-inset-right)); bottom:40px; width:78px; height:78px; border-radius:50%; background:rgba(125,224,255,.25); border:2px solid rgba(125,224,255,.5); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; touch-action:none; }
   #btnExit { position:absolute; right:max(26px,env(safe-area-inset-right)); bottom:130px; width:72px; height:46px; border-radius:10px; background:rgba(226,59,92,.3); border:2px solid rgba(226,59,92,.55); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; touch-action:none; }
+  #btnShop { position:absolute; right:max(26px,env(safe-area-inset-right)); bottom:130px; width:72px; height:46px; border-radius:10px; background:rgba(80,200,255,.25); border:2px solid rgba(80,200,255,.6); color:#cdf6ff; pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; letter-spacing:1px; touch-action:none; text-shadow:0 1px 2px #000; }
   body.mobile #upgPanel { top:62px; width:150px; transform:scale(.86); transform-origin:top left; }
   body.mobile #gear { z-index:12; }
   /* live speed readout: bottom-left on desktop, lifted above the joystick on mobile */
@@ -177,7 +178,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061626l · Recruitment Drive</div>
+<div id="version">v061726a · Recruiter's Refit</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -185,6 +186,7 @@
   <div id="lookPad"></div>
   <div id="btnJump">JUMP</div>
   <div id="btnExit">LEAVE</div>
+  <div id="btnShop">SHOP</div>
 </div>
 
 <!-- persistent currency -->
@@ -296,8 +298,13 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061626l · Recruitment Drive (June 16, 2026)</div>
+    <div class="desc">v061726a · Recruiter's Refit (June 17, 2026)</div>
     <ul>
+      <li>The class-shop NPC in the lobby is now a full body that turns to face you and idles naturally — and you have to press E (or tap SHOP on mobile) to talk to it instead of the menu popping open on approach</li>
+      <li>Class prices rebalanced upward across the board so buying one feels like a real commitment</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061626l · Recruitment Drive (June 16, 2026)</div>
+    <ul style="opacity:.6">
       <li>Class system: a new NPC in the lobby lets you buy classes with shards and pick one to play as (Gunner, Ranger, Brute, Mage, Sprinter)</li>
       <li>New enemy types — Shooter, Dasher and Healer — each labeled with its type above its health bar</li>
       <li>Every arena map is now a random size</li>
@@ -340,7 +347,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061626l · Recruitment Drive</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726a · Recruiter's Refit</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -367,8 +374,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061626l';
-const UPDATE_TITLE = 'Recruitment Drive';
+const VERSION = 'v061726a';
+const UPDATE_TITLE = "Recruiter's Refit";
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -469,11 +476,11 @@ let selectedClass = 'recruit';
 // Class roster. apply() runs at the start of every run, after base stats are set.
 const CLASSES = [
   {id:'recruit', name:'Recruit', ic:'🟦', cost:0,   ds:'Balanced. No bonuses.', apply:()=>{}},
-  {id:'gunner',  name:'Gunner',  ic:'🔫', cost:60,  ds:'+1 projectile, +15% attack speed.', apply:()=>{ A.stats.extraProj+=1; A.stats.atkSpeed*=1.15; }},
-  {id:'ranger',  name:'Ranger',  ic:'🏹', cost:120, ds:'Start with Chain Bolt. +35% range, +10% crit.', apply:()=>{ if(!A.weapons.includes('bolt')) A.weapons.push('bolt'); A.stats.range*=1.35; A.stats.crit+=0.10; }},
-  {id:'brute',   name:'Brute',   ic:'🛡️', cost:120, ds:'+80 max HP, +20% damage, slightly slower.', apply:()=>{ A.maxhp+=80; A.hp+=80; A.stats.dmg*=1.2; player.speed*=0.92; }},
-  {id:'mage',    name:'Mage',    ic:'🔮', cost:200, ds:'Start with Frost Nova + Pulse, +20% proj speed.', apply:()=>{ if(!A.weapons.includes('nova')) A.weapons.push('nova'); if(!A.weapons.includes('pulse')) A.weapons.push('pulse'); A.stats.projSpeed*=1.2; }},
-  {id:'sprinter',name:'Sprinter',ic:'👟', cost:200, ds:'+25% move speed, +30% pickup, +10% dodge.', apply:()=>{ player.speed*=1.25; A.stats.pickup*=1.3; A.stats.dodge=Math.min(0.6,(A.stats.dodge||0)+0.10); }},
+  {id:'gunner',  name:'Gunner',  ic:'🔫', cost:120, ds:'+1 projectile, +15% attack speed.', apply:()=>{ A.stats.extraProj+=1; A.stats.atkSpeed*=1.15; }},
+  {id:'ranger',  name:'Ranger',  ic:'🏹', cost:240, ds:'Start with Chain Bolt. +35% range, +10% crit.', apply:()=>{ if(!A.weapons.includes('bolt')) A.weapons.push('bolt'); A.stats.range*=1.35; A.stats.crit+=0.10; }},
+  {id:'brute',   name:'Brute',   ic:'🛡️', cost:240, ds:'+80 max HP, +20% damage, slightly slower.', apply:()=>{ A.maxhp+=80; A.hp+=80; A.stats.dmg*=1.2; player.speed*=0.92; }},
+  {id:'mage',    name:'Mage',    ic:'🔮', cost:400, ds:'Start with Frost Nova + Pulse, +20% proj speed.', apply:()=>{ if(!A.weapons.includes('nova')) A.weapons.push('nova'); if(!A.weapons.includes('pulse')) A.weapons.push('pulse'); A.stats.projSpeed*=1.2; }},
+  {id:'sprinter',name:'Sprinter',ic:'👟', cost:400, ds:'+25% move speed, +30% pickup, +10% dodge.', apply:()=>{ player.speed*=1.25; A.stats.pickup*=1.3; A.stats.dodge=Math.min(0.6,(A.stats.dodge||0)+0.10); }},
 ];
 function applyClass(){
   const c=CLASSES.find(c=>c.id===selectedClass);
@@ -651,16 +658,45 @@ function buildLobby(){
   buildNPC(nx, LOBBY_Y, nz);
   NPC_POS.set(nx, LOBBY_Y, nz);
 }
+// Class-shop NPC. Built as a blocky humanoid mirroring the default player
+// avatar (same body parts, same default colors) so it reads as "another person"
+// standing in the lobby instead of a head floating on a table. Limb pivots are
+// stored on npcGroup.userData so updateOverworld() can drive an idle sway, and
+// the whole group rotates each frame to face the player.
+let npcGroup=null;
 function buildNPC(x, baseY, z){
   const g=new THREE.Group();
-  const robe=new THREE.MeshLambertMaterial({color:0x3aa0ff});
-  const skin=new THREE.MeshLambertMaterial({color:0xe9d2b0});
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.62,1.4,8), robe); body.position.y=0.7; body.castShadow=true; g.add(body);
-  const head=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), skin); head.position.y=1.65; head.castShadow=true; g.add(head);
-  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.28), new THREE.MeshBasicMaterial({color:0x7df0ff}));
-  gem.position.y=2.45; g.add(gem); npcMarker=gem;
-  const light=new THREE.PointLight(0x7df0ff,5,9); light.position.y=2.2; g.add(light);
-  g.position.set(x, baseY, z); g.rotation.y=Math.PI;   // face spawn
+  // default playermodel colors (mirrors settings.playerColors defaults)
+  const torsoMat=new THREE.MeshLambertMaterial({color:0x6d8cff});
+  const armMat  =new THREE.MeshLambertMaterial({color:0x6d8cff});
+  const legMat  =new THREE.MeshLambertMaterial({color:0x3a4a8a});
+  const headMat =new THREE.MeshLambertMaterial({color:0xe9d2b0});
+  // torso + head (front = +z, same convention as the player avatar)
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.78,0.36), torsoMat); torso.position.y=1.06; torso.castShadow=true; g.add(torso);
+  const head =new THREE.Mesh(new THREE.BoxGeometry(0.44,0.44,0.44), headMat); head.position.y=1.70; head.castShadow=true; g.add(head);
+  // eyes so you can tell which way it's looking
+  const eyeMat=new THREE.MeshBasicMaterial({color:0x16203a});
+  const eg=new THREE.BoxGeometry(0.07,0.09,0.04);
+  const le=new THREE.Mesh(eg,eyeMat); le.position.set(-0.10,1.74,0.23); g.add(le);
+  const re=new THREE.Mesh(eg,eyeMat); re.position.set( 0.10,1.74,0.23); g.add(re);
+  // limbs with pivots at the top so they can swing for the idle anim
+  const mkLimb=(px,topY,w,h,d,mat)=>{
+    const piv=new THREE.Group(); piv.position.set(px,topY,0);
+    const seg=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); seg.position.y=-h/2; seg.castShadow=true;
+    piv.add(seg); g.add(piv); return piv;
+  };
+  const lLeg=mkLimb(-0.16,0.70,0.26,0.70,0.30,legMat);
+  const rLeg=mkLimb( 0.16,0.70,0.26,0.70,0.30,legMat);
+  const lArm=mkLimb(-0.42,1.44,0.20,0.72,0.24,armMat);
+  const rArm=mkLimb( 0.42,1.44,0.20,0.72,0.24,armMat);
+  // floating shard-gem above the head — kept as npcMarker because the update
+  // loop spins/bobs it to signal "this is a shop".
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshBasicMaterial({color:0x7df0ff}));
+  gem.position.y=2.30; g.add(gem); npcMarker=gem;
+  const light=new THREE.PointLight(0x7df0ff,5,9); light.position.y=2.10; g.add(light);
+  g.position.set(x, baseY, z);
+  g.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], torso, head, baseY, phase:0};
+  npcGroup=g;
   overworld.group.add(g);
 }
 
@@ -943,7 +979,7 @@ addEventListener('mousemove', e=>{
 addEventListener('contextmenu', e=>e.preventDefault());
 
 // ---------- mobile touch controls ----------
-const touch={active:false, mx:0, my:0, jump:false, exit:false};
+const touch={active:false, mx:0, my:0, jump:false, exit:false, shop:false};
 const isMobile = IS_MOBILE;
 // when any menu/overlay is open we must stop the touch layer from eating taps
 // and stop the look-pad/joystick from moving the player behind the menu.
@@ -953,7 +989,7 @@ function setTouchEnabled(on){
   // fully hide the touch layer when a menu is open so it can't intercept taps,
   // and re-show it during play (only on mobile)
   t.style.display = on ? (isMobile?'block':'none') : 'none';
-  for(const id of ['joy','lookPad','btnJump','btnExit']){
+  for(const id of ['joy','lookPad','btnJump','btnExit','btnShop']){
     const el=D.getElementById(id); if(el) el.style.pointerEvents = on?'auto':'none';
   }
   if(!on){ touch.mx=0; touch.my=0; touch.active=false; const nub=D.getElementById('joyNub'); if(nub) nub.style.transform='translate(0,0)'; }
@@ -993,11 +1029,12 @@ if(isMobile){
   lp.addEventListener('touchend', ()=>{ lookId=null; });
   lp.addEventListener('touchcancel', ()=>{ lookId=null; });
   // buttons (use touchend so a tap reliably fires; preventDefault stops the ghost click)
-  const bj=D.getElementById('btnJump'), bx=D.getElementById('btnExit');
+  const bj=D.getElementById('btnJump'), bx=D.getElementById('btnExit'), bs=D.getElementById('btnShop');
   bj.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
   bj.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.jump=true; }, {passive:false});
   bx.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
   bx.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.exit=true; }, {passive:false});
+  if(bs) bs.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.shop=true; }, {passive:false});
 }
 // helper so menu buttons work on the first tap on touch devices (click can be swallowed)
 function onTap(el, fn){
@@ -2101,12 +2138,48 @@ function updateOverworld(){
   if(GAME.paused) return;   // a menu (settings/class shop) is open — freeze the lobby
   collideMove('overworld');
   if(portalPlane){ portalPlane.material.opacity=0.6+Math.sin(performance.now()*0.004)*0.18; }
-  if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.45+Math.sin(performance.now()*0.003)*0.12; }
+  if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.30+Math.sin(performance.now()*0.003)*0.10; }
+  // NPC idle animation + always-face-the-player behavior. The whole group
+  // yaw-rotates to track the player, and the arms/legs get a subtle sway so
+  // the figure feels alive instead of frozen.
+  if(npcGroup){
+    const u=npcGroup.userData;
+    const dx=player.pos.x-npcGroup.position.x;
+    const dz=player.pos.z-npcGroup.position.z;
+    // atan2 of (dx,dz) gives the yaw that rotates +z (the face direction)
+    // toward the player. Lerp for a smooth turn.
+    const targetYaw=Math.atan2(dx,dz);
+    let dYaw=targetYaw-npcGroup.rotation.y;
+    while(dYaw> Math.PI) dYaw-=Math.PI*2;
+    while(dYaw<-Math.PI) dYaw+=Math.PI*2;
+    npcGroup.rotation.y += dYaw*Math.min(1, dt*6);
+    // idle: slow breathing sway on the arms + slight leg counter-sway.
+    u.phase += dt*1.8;
+    const sw=Math.sin(u.phase)*0.10;
+    u.arms[0].rotation.x= sw;        // left arm forward when right goes back
+    u.arms[1].rotation.x=-sw;
+    u.legs[0].rotation.x=-sw*0.5;
+    u.legs[1].rotation.x= sw*0.5;
+    // tiny vertical bob on the torso so the breathing reads
+    u.torso.position.y=1.06 + Math.sin(u.phase*0.5)*0.012;
+  }
   const hint=D.getElementById('hint');
-  // class NPC: opens the shop when you walk up to it
+  // class NPC: requires a button press (E on PC, SHOP on mobile) to open.
+  // We no longer auto-open on approach — the player has to actively engage.
   const dn=Math.hypot(player.pos.x-NPC_POS.x, player.pos.z-NPC_POS.z);
-  if(dn<2.3){ if(!_npcNear){ _npcNear=true; openClassMenu(); } }
-  else if(dn>3.4) _npcNear=false;
+  const canShop = dn<3.0;
+  const btnShop=D.getElementById('btnShop');
+  if(btnShop) btnShop.style.display = (canShop && isMobile && !anyOverlayOpen()) ? 'flex' : 'none';
+  if(canShop){
+    if(keys.KeyE || touch.shop){
+      touch.shop=false;
+      openClassMenu();
+      return;
+    }
+  } else {
+    touch.shop=false;   // clear stale taps if the player backed away
+  }
+  _npcNear = canShop;   // kept for compatibility (used by the hint below)
   // portal proximity -> enter arena
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
   if(d<1.7){
@@ -2115,9 +2188,9 @@ function updateOverworld(){
   } else if(d<4.5){
     hint.style.display='block';
     hint.textContent='Step into the portal to enter the arena';
-  } else if(dn<3.4){
+  } else if(canShop){
     hint.style.display='block';
-    hint.textContent='Class shop';
+    hint.textContent = isMobile ? 'Tap SHOP to open the class shop' : 'Press E to open the class shop';
   } else hint.style.display='none';
 }
 
