@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726d';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726e';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -48,6 +48,11 @@
   } catch(_) {}
 })();
 </script>
+<!-- YouTube IFrame API: loaded async so it doesn't block the page. The API
+     calls window.onYouTubeIframeAPIReady (defined in the main game script)
+     once it's ready to construct a player. Used for the lofi-girl livestream
+     that now replaces the procedural background music. -->
+<script src="https://www.youtube.com/iframe_api" async></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'Trebuchet MS',system-ui,sans-serif; color:#fff; user-select:none; }
@@ -215,13 +220,19 @@
 </style>
 </head>
 <body>
+<!-- Hidden YouTube player for the lofi-girl livestream. Sized 1x1 and
+     positioned offscreen so the audio plays but no video is visible —
+     the user wants background music, not a video window. The YT IFrame
+     API will replace this div with an iframe once onYouTubeIframeAPIReady
+     fires. -->
+<div id="ytPlayer" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;pointer-events:none;opacity:0;"></div>
 <canvas id="c"></canvas>
 <div id="crosshair"></div>
 <div id="dmgflash"></div>
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726d · Hot Reload</div>
+<div id="version">v061726e · Lofi Livestream</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -301,6 +312,9 @@
       <input id="musicVol" type="range" min="0" max="100" step="1">
       <span class="val" id="musicVolVal">50</span>
     </div>
+    <div class="row" style="margin-top:-6px;font-size:11px;opacity:.7">
+      <span id="musicIndicator">Loading livestream…</span>
+    </div>
     <div class="row">
       <label for="sfxVol">Sound volume</label>
       <input id="sfxVol" type="range" min="0" max="100" step="1">
@@ -344,8 +358,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726d · Hot Reload (June 17, 2026)</div>
+    <div class="desc">v061726e · Lofi Livestream (June 17, 2026)</div>
     <ul>
+      <li>Background music is now the Lofi Girl livestream from YouTube instead of the in-engine procedural chords. The hidden YouTube player loads the stream on your first interaction (clicking Play) and the existing Music volume slider in Settings controls the livestream's volume directly</li>
+      <li>Fallback: if the YouTube embed fails to load (network blockers, autoplay restrictions, stream temporarily down), the game automatically falls back to the old procedural music so you're never left in silence</li>
+      <li>A small "now playing" indicator was added under the Music volume slider in Settings so you can see at a glance whether the livestream is active or the fallback is running</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726d · Hot Reload (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Cache-busting: the game now always loads the latest deployed version. On every page load it fetches a tiny version.txt file (cache-busted with a timestamp) and compares it to the version baked into the HTML — if they differ, it force-reloads to pull the fresh deploy. You should never again be stuck playing a stale cached copy after an update goes live</li>
       <li>Added HTTP cache-control meta tags (no-cache, no-store, must-revalidate) so cooperating browsers revalidate the HTML on every visit instead of holding a stale copy</li>
     </ul>
@@ -407,7 +427,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726d · Hot Reload</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726e · Lofi Livestream</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -434,8 +454,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726d';
-const UPDATE_TITLE = 'Hot Reload';
+const VERSION = 'v061726e';
+const UPDATE_TITLE = 'Lofi Livestream';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -601,6 +621,11 @@ function initAudio(){
 function applyVolumes(){
   if(sfxBus) sfxBus.gain.value = settings.sfxVol/100;
   if(musicBus) musicBus.gain.value = settings.musicVol/100 * 0.5;
+  // YouTube livestream volume — only meaningful once the YT player is
+  // ready. setVolume takes 0-100 (matches our slider range directly).
+  if(ytReady && ytPlayer && ytPlayer.setVolume){
+    try{ ytPlayer.setVolume(settings.musicVol); }catch(_){}
+  }
 }
 function blip(freq, dur, type, vol, slideTo){
   if(!AC) return;
@@ -635,7 +660,130 @@ const SFX={
   weapon:()=>{ blip(440,0.1,'triangle',0.14); setTimeout(()=>blip(660,0.1,'triangle',0.14),80); setTimeout(()=>blip(990,0.14,'triangle',0.14),160); },
 };
 
-// ---------- lofi background music (looping chord + bass + soft hat) ----------
+// ---------- background music ----------
+// Primary source: the Lofi Girl YouTube livestream (video ID X4VbdwhkE10).
+// We embed the YT IFrame API (loaded async in <head>) and drive a hidden
+// 1x1 player so only the audio comes through. The existing Music volume
+// slider in Settings controls the livestream volume via player.setVolume().
+//
+// Fallback: if the YT player fails to load within ~8s (network blockers,
+// autoplay policy, stream temporarily down), we spin up the original
+// procedural WebAudio lofi generator so the game is never silent.
+const YT_VIDEO_ID = 'X4VbdwhkE10';   // Lofi Girl livestream
+let ytPlayer = null;
+let ytReady = false;
+let ytFailed = false;
+let ytStartAttempted = false;
+let ytFallbackTimer = null;
+
+// The YT IFrame API calls this global when it's loaded and ready to
+// construct players. Must be on window so the API can find it.
+window.onYouTubeIframeAPIReady = function(){
+  try {
+    ytPlayer = new YT.Player('ytPlayer', {
+      height: '1', width: '1',
+      videoId: YT_VIDEO_ID,
+      playerVars: {
+        autoplay: 0,        // we call playVideo() on user gesture
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+        iv_load_policy: 3   // hide annotations
+      },
+      events: {
+        onReady: onYTReady,
+        onError: onYTError,
+        onStateChange: onYTStateChange
+      }
+    });
+  } catch(e) {
+    onYTError({data: -1});
+  }
+};
+function onYTReady(event){
+  ytReady = true;
+  try { event.target.setVolume(settings.musicVol); } catch(_){}
+  // If startMusic() was already called (user clicked Play before YT
+  // finished loading), kick off playback now that we're ready.
+  if (ytStartAttempted) {
+    try { event.target.playVideo(); } catch(_){}
+  }
+  // Cancel the fallback timer — YT is good to go.
+  if (ytFallbackTimer) { clearTimeout(ytFallbackTimer); ytFallbackTimer = null; }
+  updateMusicIndicator();
+}
+function onYTError(event){
+  ytFailed = true;
+  console.warn('[blockfall] YouTube player error code', event.data,
+               '(101=not embeddable, 150=not embeddable, 100=not found, 2=invalid param, 5=HTML5 error)');
+  // If the player was supposed to be playing, start the procedural
+  // fallback so we're not silent.
+  if (ytStartAttempted && !music.playing) startProceduralMusic();
+  updateMusicIndicator();
+}
+function onYTStateChange(event){
+  // Livestreams shouldn't ENDED, but if they do (brief stream hiccup),
+  // try to restart. Also handle PAUSED in case the browser auto-pauses
+  // when tab is backgrounded — we don't auto-resume there because the
+  // user may have intentionally paused via the YT iframe (which they
+  // can't see, but just in case).
+  if (event.data === YT.PlayerState.ENDED) {
+    try { ytPlayer.seekTo(0); ytPlayer.playVideo(); } catch(_){}
+  }
+  updateMusicIndicator();
+}
+function updateMusicIndicator(){
+  const el = D.getElementById('musicIndicator');
+  if (!el) return;
+  if (ytFailed) {
+    el.textContent = 'Procedural fallback (YouTube unavailable)';
+    el.style.color = '#ffb37a';
+  } else if (ytReady) {
+    el.textContent = 'Lofi Girl livestream (YouTube)';
+    el.style.color = '#9fe6ff';
+  } else {
+    el.textContent = 'Loading livestream…';
+    el.style.color = '';
+  }
+}
+
+function startMusic(){
+  // Called from beginGame() (on the user's Play click) and from
+  // startArena(). The Play click is the user gesture that satisfies
+  // browser autoplay policies, so this is where we actually kick off
+  // the YT player.
+  ytStartAttempted = true;
+  if (ytReady && ytPlayer) {
+    try { ytPlayer.playVideo(); } catch(_){}
+  }
+  // Safety net: if YT hasn't loaded within 8s of the first startMusic
+  // call, fall back to procedural so we're not stuck waiting silently.
+  // Cleared in onYTReady if YT comes good in time.
+  if (!ytFallbackTimer && !ytFailed) {
+    ytFallbackTimer = setTimeout(function(){
+      if (!ytReady && !music.playing) {
+        console.warn('[blockfall] YouTube player not ready after 8s — falling back to procedural music');
+        startProceduralMusic();
+      }
+      ytFallbackTimer = null;
+    }, 8000);
+  }
+  // Also start procedural immediately if YT already failed.
+  if (ytFailed && !music.playing) startProceduralMusic();
+}
+function stopMusic(){
+  // No-op: the user asked for the livestream as continuous background
+  // music, so we keep it playing across arena enter/leave transitions.
+  // (The procedural fallback also keeps running if it started — it has
+  // its own timer that we deliberately don't clear here.)
+}
+
+// ----- procedural fallback (original WebAudio lofi generator) -----
+// Kept verbatim from the pre-v061726e implementation. Only runs if YT
+// fails to load; otherwise the YT livestream is the active source.
 let music={playing:false, timer:null, step:0};
 const CHORDS=[ [220,277,329], [196,247,294], [247,311,370], [174,220,261] ]; // Am F? gentle
 function musicTick(){
@@ -671,8 +819,12 @@ function musicTick(){
   }
   music.step++;
 }
-function startMusic(){ if(music.playing||!AC) return; music.playing=true; music.step=0; musicTick(); music.timer=setInterval(musicTick, 480); }
-function stopMusic(){ music.playing=false; if(music.timer){ clearInterval(music.timer); music.timer=null; } }
+function startProceduralMusic(){
+  if(music.playing||!AC) return;
+  music.playing=true; music.step=0; musicTick();
+  music.timer=setInterval(musicTick, 480);
+  updateMusicIndicator();
+}
 loadSave();
 
 // Persistent overworld block map.  key "x,y,z" -> {mesh, type}
