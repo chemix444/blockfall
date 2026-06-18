@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726g';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726h';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -80,6 +80,17 @@
   #bossbar { position:fixed; top:84px; left:50%; transform:translateX(-50%); width:60%; max-width:520px; height:14px; background:rgba(0,0,0,.5); border:2px solid rgba(255,255,255,.35); border-radius:7px; z-index:6; display:none; overflow:hidden; }
   #bossfill { height:100%; width:100%; background:linear-gradient(90deg,#b14bff,#ff4b9d); }
   #bossname { position:fixed; top:64px; left:50%; transform:translateX(-50%); font-size:13px; font-weight:bold; letter-spacing:1px; z-index:6; display:none; text-shadow:0 2px 4px #000; }
+  /* Boss intro banner: dramatic full-screen flash when a boss spawns.
+     Animates from 0 -> full opacity over 0.3s, holds ~1.4s, then fades
+     out over 0.6s. Total ~2.3s. */
+  #bossIntro { position:fixed; inset:0; z-index:24; display:none; align-items:center; justify-content:center; pointer-events:none; background:rgba(20,0,30,0); transition:background .3s; }
+  #bossIntro.show { display:flex; background:rgba(20,0,30,.55); animation:bossIntroBg 2.3s ease-out forwards; }
+  #bossIntro .inner { text-align:center; transform:scale(.7); opacity:0; animation:bossIntroText 2.3s cubic-bezier(.2,.8,.3,1) forwards; }
+  #bossIntro .label { font-size:14px; letter-spacing:8px; color:#ff7ad0; margin-bottom:6px; text-shadow:0 0 12px rgba(255,80,180,.7); }
+  #bossIntro .name  { font-size:48px; font-weight:bold; letter-spacing:3px; color:#fff; text-shadow:0 4px 24px rgba(255,80,180,.9),0 0 60px rgba(180,80,255,.6); }
+  #bossIntro .wave  { margin-top:10px; font-size:13px; opacity:.7; letter-spacing:2px; }
+  @keyframes bossIntroBg   { 0%{background:rgba(20,0,30,0)} 15%{background:rgba(20,0,30,.55)} 75%{background:rgba(20,0,30,.55)} 100%{background:rgba(20,0,30,0)} }
+  @keyframes bossIntroText { 0%{transform:scale(.7);opacity:0} 20%{transform:scale(1.05);opacity:1} 30%{transform:scale(1);opacity:1} 75%{transform:scale(1);opacity:1} 100%{transform:scale(1.1);opacity:0} }
   /* upgrade overlay */
   #upgrade { position:fixed; inset:0; background:rgba(8,10,20,.92); z-index:20; display:none; flex-direction:column; align-items:center; justify-content:center; overflow:auto; padding:16px; -webkit-overflow-scrolling:touch; }
   #upgrade h2 { font-size:26px; margin-bottom:4px; letter-spacing:1px; }
@@ -232,7 +243,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726g · Action Poses</div>
+<div id="version">v061726h · Juice</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -264,6 +275,10 @@
   <div id="bestwave" class="hud"></div>
   <div id="bossname">BOSS</div>
   <div id="bossbar"><div id="bossfill"></div></div>
+  <!-- Boss intro banner: shown dramatically when a boss spawns. Pure
+       CSS animation via the .show class; JS just toggles it and sets
+       the text content. -->
+  <div id="bossIntro"><div class="inner"><div class="label">B O S S</div><div class="name"></div><div class="wave"></div></div></div>
   <div id="hpbar"><div id="hpfill"></div><div id="hptext"></div></div>
   <div id="xpbar"><div id="xpfill"></div></div>
   <div id="upgPanel" class="hud">
@@ -358,8 +373,15 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726g · Action Poses (June 17, 2026)</div>
+    <div class="desc">v061726h · Juice (June 17, 2026)</div>
     <ul>
+      <li>Screen shake: the camera now shakes on impact — small when you take damage, medium on boss attacks and boss spawn, big on Bomber explosions. Decays over ~0.4s so it punches without making you seasick</li>
+      <li>Muzzle flash: a small spark burst now puffs out of the player's chest every time a projectile fires, tinted to match the projectile's color. Pure juice — no gameplay effect, just feels better to shoot</li>
+      <li>Boss intro banner: when a boss spawns (every 10th wave) the screen darkens briefly and a big dramatic banner with the boss's name fades in over ~2s before fading out. Replaces the easy-to-miss toast notification</li>
+      <li>Run summary on death: the death screen now shows your wave reached, total kills this run, and time survived — so you can see at a glance how the run went before heading back to the lobby</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726g · Action Poses (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Player jump animation: while airborne the avatar tucks its knees up and raises its arms — different pose on the way up (apex stretch) vs the way down (legs tucked for landing) — and smoothly blends back to idle/walk on touchdown</li>
       <li>Enemy climbing animation: when a regular enemy scales a wall its legs alternate vertically (real climbing motion) and its arms reach up — instead of doing the walking swing while it climbs</li>
       <li>Enemy dashing animation: while a Dasher (or boss) is mid-lunge, the body pitches forward, arms swing back, and legs extend backward — reads as a committed dive instead of just translating forward</li>
@@ -437,7 +459,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726g · Action Poses</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726h · Juice</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -464,8 +486,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726g';
-const UPDATE_TITLE = 'Action Poses';
+const VERSION = 'v061726h';
+const UPDATE_TITLE = 'Juice';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1644,6 +1666,7 @@ function startArena(){
             pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 };
   A.weapons=['ball']; A.wcd={};
   A.runKills=0; A.boomerangOut=false;
+  A.runStartTime=performance.now();   // for the run-duration readout on the death screen
   player.speed=7.2;
   applyClass();                 // selected class modifies starting stats/weapons/speed
   for(const w of A.weapons) A.wcd[w]=0;
@@ -1891,7 +1914,30 @@ function spawnBoss(){
   D.getElementById('bossname').style.display='block';
   D.getElementById('bossname').textContent=name.toUpperCase();
   SFX.boss();
-  toast('Wave '+A.wave+': '+name);
+  // Dramatic boss intro banner — replaces the easy-to-miss toast. The
+  // banner is pure CSS animation (see #bossIntro styles in <head>); JS
+  // just sets the text and toggles .show. We re-trigger the animation
+  // by removing the class, forcing reflow, then re-adding.
+  showBossIntro(name, A.wave);
+  // Medium camera shake to punctuate the boss spawn.
+  addShake(0.45);
+}
+function showBossIntro(name, wave){
+  const el=D.getElementById('bossIntro');
+  if(!el) return;
+  el.querySelector('.name').textContent=name.toUpperCase();
+  el.querySelector('.wave').textContent='WAVE '+wave;
+  el.classList.remove('show');
+  // force reflow so the animation restarts when a new boss spawns while
+  // the previous banner is still on screen (shouldn't happen normally
+  // but defensive)
+  void el.offsetWidth;
+  el.classList.add('show');
+  // Auto-clean the class after the animation finishes (~2.3s) so the
+  // element returns to display:none and doesn't intercept any future
+  // pointer events (it has pointer-events:none anyway, but this keeps
+  // the DOM clean).
+  setTimeout(()=>el.classList.remove('show'), 2400);
 }
 function hslHex(h,s,l){
   const c=new THREE.Color(); c.setHSL(h,s,l); return c.getHex();
@@ -2117,6 +2163,18 @@ function fireProjectile(dir, size, color, dmg, lifeMul){
     new THREE.MeshBasicMaterial({color:color||0xfff1a8}));
   m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
   arena.group.add(m);
+  // Muzzle flash: a quick burst of sparks at the barrel (player chest)
+  // tinted to match the projectile color. Pure juice — no gameplay
+  // effect. 4 particles, short life, low velocity. spawnParticle takes
+  // (x,y,z, vx,vy,vz, r,g,b, life) where r/g/b are 0-1 floats.
+  const c = new THREE.Color(color||0xfff1a8);
+  for(let i=0;i<4;i++){
+    const a=Math.random()*Math.PI*2;
+    const sp=1.5+Math.random()*1.5;
+    spawnParticle(player.pos.x, player.pos.y+1.1, player.pos.z,
+                  Math.cos(a)*sp, 0.5+Math.random()*1.0, Math.sin(a)*sp,
+                  c.r, c.g, c.b, 0.18);
+  }
   const crit=Math.random()<A.stats.crit;
   A.projectiles.push({mesh:m, dir:dir.clone(), life:1.6*(lifeMul||1), dmg:(dmg||A.stats.dmg)*(crit?A.stats.critMul:1), crit,
                       pierceLeft:A.stats.pierce, hitSet:new Set()});
@@ -2256,6 +2314,11 @@ function bomberExplode(x, y, z, baseDmg){
     spawnParticle(x, y+0.6, z, Math.cos(a)*sp, 1.5+Math.random()*2, Math.sin(a)*sp, 1.0,0.4,0.1, 0.5);
   }
   SFX.bossShot();   // reuse the boss-shot boom sound
+  // Big camera shake — explosions should punch. Scaled by proximity:
+  // direct hit = full shake, far blast = small shake. Caps so a chain
+  // of bombers doesn't make the screen unreadable.
+  const shakeAmt = Math.max(0.15, 0.7 - dist*0.08);
+  addShake(shakeAmt);
 }
 function spawnOrb(pos, xp, big){
   const s=big?0.5:0.22;
@@ -2283,6 +2346,9 @@ function hurtPlayer(d, fromPos){
   A.hp-=d; A.invuln=0.45;
   player.bhop=1;                 // getting hit kills your bunnyhop speed
   SFX.hurt();
+  // Small camera shake on taking damage — scaled by how big the hit
+  // was, capped so a chunky boss hit doesn't become disorienting.
+  addShake(Math.min(0.45, 0.12 + d*0.012));
   // knockback away from the source
   if(fromPos){
     let kx=player.pos.x-fromPos.x, kz=player.pos.z-fromPos.z;
@@ -2338,9 +2404,24 @@ function arenaDeath(){
   for(const b of blades) disposeObj(b.mesh); blades.length=0;
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
+  // Run summary — show wave/kills/time so the player can see at a
+  // glance how the run went. We compute the duration from A.runStartTime
+  // (set in startArena) and format as M:SS.
+  const runMs = A.runStartTime ? (performance.now() - A.runStartTime) : 0;
+  const totalSec = Math.floor(runMs/1000);
+  const mins = Math.floor(totalSec/60);
+  const secs = totalSec%60;
+  const timeStr = mins+':'+(secs<10?'0':'')+secs;
   const ov=D.getElementById('overlay');
   ov.querySelector('h1').textContent='YOU DIED';
-  ov.querySelector('.tag').innerHTML='You fell on <b>wave '+A.wave+'</b> at <b>level '+A.level+'</b>.<br>Best wave so far: <b>'+bestWave+'</b>. Head back to the lobby and try again.';
+  ov.querySelector('.tag').innerHTML=
+    'You fell on <b>wave '+A.wave+'</b> at <b>level '+A.level+'</b>.<br>'+
+    '<span style="display:inline-block;margin-top:8px;font-size:13px;opacity:.9">'+
+    'Kills this run: <b>'+(A.runKills||0)+'</b> &nbsp;·&nbsp; '+
+    'Time survived: <b>'+timeStr+'</b> &nbsp;·&nbsp; '+
+    'Best wave: <b>'+bestWave+'</b></span><br>'+
+    '<span style="display:inline-block;margin-top:10px;font-size:13px;opacity:.7">'+
+    'Head back to the lobby and try again.</span>';
   ov.querySelector('.ctrls').style.display='none';
   ov.querySelector('#startbtn').textContent='Return to Lobby';
   ov.style.display='flex';
@@ -2555,6 +2636,13 @@ addEventListener('error', e=>reportError(e.error||e.message||'error'));
 addEventListener('unhandledrejection', e=>reportError((e.reason && (e.reason.stack||e.reason.message))||'unhandled promise rejection'));
 
 const _camDir=new THREE.Vector3(), _camFocus=new THREE.Vector3(), _camLook=new THREE.Vector3();
+// ---------- screen shake ----------
+// Decaying camera shake. addShake(amount) adds to the current magnitude
+// (capped at 1.0 so it never gets nauseating); updateCamera() applies a
+// random offset each frame and decays the magnitude toward zero. The
+// offset is applied AFTER camera.lookAt() so it doesn't get overridden.
+let _shakeMag=0;
+function addShake(amount){ _shakeMag=Math.min(1.0, _shakeMag+amount); }
 function updateCamera(){
   const dir=_camDir.set(
     Math.sin(player.yaw)*Math.cos(player.pitch),
@@ -2578,6 +2666,26 @@ function updateCamera(){
     // keep camera above the floor
     if(camera.position.y < 0.6) camera.position.y = 0.6;
     camera.lookAt(focus);
+  }
+  // ---- apply screen shake (after lookAt so it isn't overridden) ----
+  // Magnitude decays exponentially toward zero, giving a quick punch
+  // that fades over ~0.4s. The offset is in camera-local space (right,
+  // up, forward) so it feels like the camera itself is being rattled,
+  // not the world being dragged around. Mobile gets a smaller amplitude
+  // because phones are physically held and a big shake is more
+  // nauseating on a small screen held close to the face.
+  if(_shakeMag > 0.001){
+    const amp = _shakeMag * (isMobile ? 0.18 : 0.35);   // max offset in world units
+    // build a local frame from the camera's current orientation
+    const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+    const up    = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+    const fwd   = new THREE.Vector3(0,0,1).applyQuaternion(camera.quaternion);
+    camera.position.addScaledVector(right, (Math.random()*2-1)*amp);
+    camera.position.addScaledVector(up,    (Math.random()*2-1)*amp);
+    camera.position.addScaledVector(fwd,   (Math.random()*2-1)*amp*0.5);   // less forward shake
+    _shakeMag *= 0.85;   // exponential decay (~0.4s to fall below 1% at 60fps)
+  } else {
+    _shakeMag = 0;
   }
   // sun tracks player for stable shadows
   sun.position.set(player.pos.x+40, 80, player.pos.z+30);
@@ -3112,6 +3220,10 @@ function bossAttack(boss){
     boss.atkCd=0.5; SFX.bossShot();
   } else if(type==='dash'){
     boss.dashDir.copy(toP); boss.dashing=0.45; boss.atkCd=1.8; SFX.boss();
+    // The dash attack is the most visceral boss move — a small shake
+    // when it commits to the lunge sells the windup. Don't shake on
+    // every boss attack or the screen would never stop moving.
+    addShake(0.25);
   } else if(type==='rain'){
     // ring closing in on the player's current spot
     const n=10, R=6;
