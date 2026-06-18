@@ -178,7 +178,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726b · Aim Arc</div>
+<div id="version">v061726c · Roster Expansion</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -298,8 +298,18 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061726b · Aim Arc (June 17, 2026)</div>
+    <div class="actions" style="margin-top:0;margin-bottom:18px">
+      <button class="btn-primary" id="closeChangelog">Back</button>
+    </div>
+    <div class="desc">v061726c · Roster Expansion (June 17, 2026)</div>
     <ul>
+      <li>Six new enemy types: Bomber (explodes on contact or death), Splitter (spawns mini-grunts when killed), Shielder (front shield blocks 80% of frontal damage — flank it), Summoner (spawns basic grunts every few seconds), Phantom (phases through walls), and Leech (heals itself when it damages you)</li>
+      <li>Small aim-assist: shots that just barely miss an enemy still clip it, so bullets that visually pass through the body silhouette reliably register</li>
+      <li>Changelog Back button moved to the top of the panel — you no longer have to scroll past every old entry to close it</li>
+      <li>Previous-version entries all dimmed to a uniform 60% opacity</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726b · Aim Arc (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Player bullets now actually aim at the enemy model in 3D — they climb to hit enemies on top of walls and drop to hit grounded ones, instead of sliding flat along the ground and passing over/under them</li>
       <li>Seeker missiles track the target's full 3D position and pitch up/down to follow it</li>
     </ul>
@@ -308,8 +318,8 @@
       <li>The class-shop NPC in the lobby is now a full body that turns to face you and idles naturally — and you have to press E (or tap SHOP on mobile) to talk to it instead of the menu popping open on approach</li>
       <li>Class prices rebalanced upward across the board so buying one feels like a real commitment</li>
     </ul>
-    <div class="desc" style="margin-top:14px;opacity:.4">v061626l · Recruitment Drive (June 16, 2026)</div>
-    <ul style="opacity:.4">
+    <div class="desc" style="margin-top:14px;opacity:.6">v061626l · Recruitment Drive (June 16, 2026)</div>
+    <ul style="opacity:.6">
       <li>Class system: a new NPC in the lobby lets you buy classes with shards and pick one to play as (Gunner, Ranger, Brute, Mage, Sprinter)</li>
       <li>New enemy types — Shooter, Dasher and Healer — each labeled with its type above its health bar</li>
       <li>Every arena map is now a random size</li>
@@ -317,9 +327,6 @@
       <li>New upgrades: Berserker, Lethality, Bulwark, Glass Cannon, Momentum, Siphon, Rifling</li>
       <li>Your bunnyhop speed trail no longer shows on the first hop — only once you start chaining</li>
     </ul>
-    <div class="actions">
-      <button class="btn-primary" id="closeChangelog">Back</button>
-    </div>
   </div>
 </div>
 
@@ -352,7 +359,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726b · Aim Arc</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726c · Roster Expansion</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -379,8 +386,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726b';
-const UPDATE_TITLE = 'Aim Arc';
+const VERSION = 'v061726c';
+const UPDATE_TITLE = 'Roster Expansion';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1442,8 +1449,11 @@ function outlineFor(mesh, scale){
 }
 function makeEnemyModel(size, color, kind){
   const g=new THREE.Group();
-  const bodyMat=new THREE.MeshLambertMaterial({color});
-  const limbMat=new THREE.MeshLambertMaterial({color:mixDark(color,0.55)});
+  // Phantom gets a translucent body so it reads as ghostly. Other kinds
+  // use the standard opaque lambert.
+  const phantom = (kind==='phantom');
+  const bodyMat = new THREE.MeshLambertMaterial({color, transparent:phantom, opacity:phantom?0.55:1.0});
+  const limbMat = new THREE.MeshLambertMaterial({color:mixDark(color,0.55), transparent:phantom, opacity:phantom?0.55:1.0});
   const legH=size*0.5, bodyH=size*0.85, headH=size*0.6;
   const outlines=[];
   // legs (pivot at hip top so they swing)
@@ -1470,8 +1480,52 @@ function makeEnemyModel(size, color, kind){
   const ez=size*0.36, ey=legH+bodyH+headH*0.55;
   le.position.set(-size*0.16,ey,ez); re.position.set(size*0.16,ey,ez);
   g.add(le); g.add(re);
+  // --- per-kind visual accessories (v061726c) ---
+  let shieldMesh=null;
+  if(kind==='bomber'){
+    // glowing red fuse sphere on top of the head — pulses via emissive in the
+    // update loop when the bomber is close enough to the player to detonate.
+    const fuse=new THREE.Mesh(new THREE.SphereGeometry(size*0.18, 10, 8),
+      new THREE.MeshBasicMaterial({color:0xff2a0a}));
+    fuse.position.y=legH+bodyH+headH+size*0.18;
+    g.add(fuse);
+    g.userData={fuse};   // stashed on the group so the update loop can find it
+  } else if(kind==='shielder'){
+    // wide flat slab in front of the body — the actual blocking hitbox is
+    // computed from the shielder's facing direction in damageEnemy(), but
+    // the visual sells the concept. Slightly emissive so it flashes white
+    // when it absorbs a hit (handled in damageEnemy).
+    const shieldMat=new THREE.MeshLambertMaterial({color:mixDark(color,0.7), emissive:0x000000});
+    shieldMesh=new THREE.Mesh(new THREE.BoxGeometry(size*1.4, size*1.0, size*0.12), shieldMat);
+    shieldMesh.position.set(0, legH+bodyH*0.55, size*0.55);
+    shieldMesh.castShadow=true; g.add(shieldMesh);
+  } else if(kind==='summoner'){
+    // floating purple orb above the head — same "shop indicator" vibe as
+    // the lobby NPC's gem, but purple to match the summoner's body color.
+    const orb=new THREE.Mesh(new THREE.OctahedronGeometry(size*0.22),
+      new THREE.MeshBasicMaterial({color:0xe9b3ff}));
+    orb.position.y=legH+bodyH+headH+size*0.35;
+    g.add(orb);
+    g.userData={orb};
+  } else if(kind==='splitter'){
+    // a subtle crack line down the body — visual telegraph that this one
+    // is going to fracture on death. Implemented as a thin dark box on the
+    // front of the torso.
+    const crack=new THREE.Mesh(new THREE.BoxGeometry(size*0.06, bodyH*0.8, size*0.05),
+      new THREE.MeshBasicMaterial({color:0x4a3520}));
+    crack.position.set(0, legH+bodyH/2, size*0.36);
+    g.add(crack);
+  } else if(kind==='leech'){
+    // little red "blood drop" emblem on the torso — visual identifier so
+    // the player can read at a glance that this one heals on contact.
+    const drop=new THREE.Mesh(new THREE.SphereGeometry(size*0.12, 8, 6),
+      new THREE.MeshBasicMaterial({color:0xff5050}));
+    drop.position.set(0, legH+bodyH*0.55, size*0.36);
+    drop.scale.y=1.4;
+    g.add(drop);
+  }
   const top=legH+bodyH+headH;
-  return {group:g, legs:[lLeg,rLeg], arms:[lArm,rArm], bodyMat, top, outlines};
+  return {group:g, legs:[lLeg,rLeg], arms:[lArm,rArm], bodyMat, top, outlines, shieldMesh};
 }
 function mixDark(hex, f){
   const r=(hex>>16&255)*f, gg=(hex>>8&255)*f, b=(hex&255)*f;
@@ -1493,24 +1547,56 @@ function spawnEnemy(kind){
   else if(kind==='ranged'){ hp=(12+w*4)*lateMul; spd=3.0*spdMul; size=0.9; color=0x4bd0a0; dmg=10*lateMul; xp=2; }
   else if(kind==='dasher'){ hp=(13+w*4)*lateMul; spd=4.0*spdMul; size=0.9; color=0xffcf3a; dmg=18*lateMul; xp=2; }
   else if(kind==='healer'){ hp=(28+w*7)*lateMul; spd=2.8*spdMul; size=1.1; color=0x8a7bff; dmg=8*lateMul; xp=3; }
+  // --- new enemy types (v061726c) ---
+  // Bomber: slow, fragile, but detonates on contact or death. Kill it from
+  // range or get blasted. AoE is 3.5 units and damage falls off with distance.
+  else if(kind==='bomber'){ hp=(14+w*3)*lateMul; spd=2.8*spdMul; size=0.95; color=0xff5a1f; dmg=22*lateMul; xp=2; }
+  // Splitter: medium-walk, medium HP, low damage. On death it fractures into
+  // 2-3 mini-grunts — clearing it without planning the followup gets you
+  // swarmed by its children.
+  else if(kind==='splitter'){ hp=(30+w*7)*lateMul; spd=2.7*spdMul; size=1.25; color=0xc4a76b; dmg=10*lateMul; xp=2; }
+  // Shielder: front shield blocks 80% of frontal damage. Counter-play is to
+  // flank, jump over, or use AoE (Pulse / Nova / Blades / Bolt all bypass).
+  else if(kind==='shielder'){ hp=(26+w*6)*lateMul; spd=2.6*spdMul; size=1.05; color=0x4ba8ff; dmg=12*lateMul; xp=3; }
+  // Summoner: periodically spawns a basic grunt at its position. Slow, low
+  // damage on its own, but left alive it will fill the arena with chaff.
+  else if(kind==='summoner'){ hp=(34+w*8)*lateMul; spd=2.4*spdMul; size=1.15; color=0xb14bff; dmg=8*lateMul; xp=4; }
+  // Phantom: phases through walls. Can't be walled off or kited around
+  // obstacles — its straight-line chase ignores all prop collisions.
+  else if(kind==='phantom'){ hp=(16+w*4)*lateMul; spd=3.6*spdMul; size=0.95; color=0xaaccff; dmg=14*lateMul; xp=2; }
+  // Leech: fast, low HP, but every point of contact damage it deals also
+  // heals it for 50% — so trading hits with one is a losing proposition.
+  else if(kind==='leech'){ hp=(14+w*4)*lateMul; spd=4.6*spdMul; size=0.85; color=0xa02838; dmg=12*lateMul; xp=2; }
   else { hp=(16+w*5)*lateMul; spd=3.7*spdMul; size=1.0; color=0xff4b6b; dmg=20*lateMul; xp=1; }
   const mdl=makeEnemyModel(size, color, kind);
   mdl.group.position.set(x, 0, z);
   arena.group.add(mdl.group);
-  A.enemies.push({mesh:mdl.group, hp, maxhp:hp, spd, dmg, xp, size, top:mdl.top, color,
+  const baseProps = {mesh:mdl.group, hp, maxhp:hp, spd, dmg, xp, size, top:mdl.top, color,
                   hit:0, kind, outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
                   phase:Math.random()*6.28, baseY:0, ev:0,
                   dashing:0, dashDir:new THREE.Vector3(),
-                  shootCd:1.0+Math.random()*1.2, dashCd:1.4+Math.random()*1.2, healCd:1.0+Math.random()});
+                  shootCd:1.0+Math.random()*1.2, dashCd:1.4+Math.random()*1.2, healCd:1.0+Math.random()};
+  // per-kind extra state
+  if(kind==='bomber')  baseProps.fuseLit=false;
+  if(kind==='summoner')baseProps.summonCd=3.5+Math.random()*1.5;
+  if(kind==='shielder')baseProps.shieldMesh=mdl.shieldMesh;   // set by makeEnemyModel
+  A.enemies.push(baseProps);
 }
-const ENEMY_LABELS={ basic:'Grunt', fast:'Runner', tank:'Tank', ranged:'Shooter', dasher:'Dasher', healer:'Healer' };
+const ENEMY_LABELS={ basic:'Grunt', fast:'Runner', tank:'Tank', ranged:'Shooter', dasher:'Dasher', healer:'Healer',
+                     bomber:'Bomber', splitter:'Splitter', shielder:'Shielder', summoner:'Summoner', phantom:'Phantom', leech:'Leech' };
 // weighted enemy-kind picker; tougher/odder types unlock as waves climb
 function pickEnemyKind(w){
   const pool=[ ['basic',1.0], ['fast',0.5+w*0.02] ];
   if(w>=3) pool.push(['ranged',0.3+w*0.02]);
+  if(w>=3) pool.push(['bomber',0.25+w*0.015]);          // new
   if(w>=4) pool.push(['dasher',0.25+w*0.02]);
+  if(w>=4) pool.push(['splitter',0.22+w*0.015]);        // new
+  if(w>=4) pool.push(['phantom',0.18+w*0.012]);         // new
   if(w>=5) pool.push(['tank',0.2+w*0.02]);
+  if(w>=5) pool.push(['shielder',0.18+w*0.01]);         // new
+  if(w>=5) pool.push(['leech',0.18+w*0.012]);           // new
   if(w>=6) pool.push(['healer',0.18]);
+  if(w>=6) pool.push(['summoner',0.14+w*0.008]);        // new
   let tot=0; for(const p of pool) tot+=p[1];
   let r=Math.random()*tot;
   for(const p of pool){ r-=p[1]; if(r<=0) return p[0]; }
@@ -1806,7 +1892,25 @@ function updateTargetVisuals(){
   A._lastTarget=A.target;
 }
 
-function damageEnemy(e, dmg, crit){
+function damageEnemy(e, dmg, crit, fromPos){
+  // Shielder frontal block: if the hit comes from the enemy's front (within
+  // a ~100° cone of its facing), the shield absorbs 80% of the damage.
+  // fromPos is optional — area/melee sources (Pulse, Blades, Nova, Bolt)
+  // bypass the shield because they hit at melee range and that's the
+  // intended counterplay (close distance / use AoE).
+  if(e.kind==='shielder' && fromPos){
+    const toShot = (e.mesh.rotation.y || 0);
+    // enemy faces +z by default; rotation.y rotates that. Front cone center:
+    const fx = Math.sin(toShot), fz = Math.cos(toShot);
+    const dx = fromPos.x - e.mesh.position.x;
+    const dz = fromPos.z - e.mesh.position.z;
+    const len = Math.hypot(dx,dz) || 1;
+    const dot = (dx/len)*fx + (dz/len)*fz;   // 1 = directly in front
+    if(dot > 0.17){   // ~100° frontal cone (cos(80°) ≈ 0.17)
+      dmg *= 0.2;     // shield eats 80%
+      if(e.shieldMesh) e.shieldMesh.material.emissive.setHex(0xffffff);   // flash
+    }
+  }
   e.hp-=dmg; e.hit=0.12;
   SFX.hit();
   emitHit(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z);
@@ -1823,6 +1927,25 @@ function killEnemy(e){
   addShards(1);                      // +1 shard per kill (also persists totalKills)
   SFX.kill();
   bumpStreak();
+  // Bomber explodes on death — same AoE as the contact explosion, so
+  // killing it point-blank still punishes you. Detonates at its current
+  // position, not where the shot came from, so a long-range kill is safe.
+  if(e.kind==='bomber' && !e._exploded){
+    bomberExplode(e.mesh.position.x, e.mesh.position.y, e.mesh.position.z, e.dmg);
+  }
+  // Splitter fractures into 2-3 mini-grunts on death. Minions inherit a
+  // fraction of the splitter's HP and award 1 shard each — same as a basic
+  // grunt — so killing a splitter pays out a small XP cluster.
+  if(e.kind==='splitter' && !e._split){
+    const n = 2 + (Math.random()<0.5 ? 1 : 0);
+    for(let k=0;k<n;k++){
+      const ang = (k/n)*Math.PI*2 + Math.random()*0.5;
+      const r = 0.8;
+      const mx = e.mesh.position.x + Math.cos(ang)*r;
+      const mz = e.mesh.position.z + Math.sin(ang)*r;
+      spawnMinion(mx, mz);
+    }
+  }
   if(e===A.boss){
     addShards(9);                    // bosses are worth a bit more
     disposeObj(e.mesh);
@@ -1835,6 +1958,43 @@ function killEnemy(e){
   }
   const i=A.enemies.indexOf(e);
   if(i>=0){ disposeObj(e.mesh); A.enemies.splice(i,1); spawnOrb(e.mesh.position, e.xp,false); }
+}
+// spawn a half-size basic grunt — used by the Splitter's death split
+// and by the Summoner's periodic minion spawn.
+function spawnMinion(x, z){
+  const w=A.wave;
+  const lateMul = 1 + Math.max(0, w-6)*0.11;
+  const hp=(8+w*2)*lateMul;       // weaker than a full grunt
+  const mdl=makeEnemyModel(0.7, 0xff7a8a, 'basic');
+  mdl.group.position.set(x, 0, z);
+  arena.group.add(mdl.group);
+  A.enemies.push({mesh:mdl.group, hp, maxhp:hp, spd:4.2, dmg:8*lateMul, xp:1, size:0.7, top:mdl.top, color:0xff7a8a,
+                  hit:0, kind:'basic', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
+                  phase:Math.random()*6.28, baseY:0, ev:0,
+                  dashing:0, dashDir:new THREE.Vector3(),
+                  shootCd:99, dashCd:99, healCd:99,
+                  _isMinion:true});
+}
+// Bomber's AoE explosion — damages the player if they're in range, emits
+// a ring of sparks, and pushes the player back from the blast center.
+function bomberExplode(x, y, z, baseDmg){
+  // caller is responsible for setting _exploded=true on the bomber to
+  // prevent re-triggering from the killEnemy path.
+  const dx=player.pos.x-x, dz=player.pos.z-z;
+  const dist=Math.hypot(dx,dz);
+  const R=3.5;
+  if(dist<R && Math.abs(player.pos.y-y)<2.0){
+    // damage falls off linearly from full at the center to 30% at the edge
+    const falloff = 1 - (dist/R)*0.7;
+    hurtPlayer(baseDmg*1.4*falloff, new THREE.Vector3(x, y, z));
+  }
+  // big ring of orange-red sparks
+  for(let i=0;i<28;i++){
+    const a=i/28*Math.PI*2;
+    const sp=4 + Math.random()*3;
+    spawnParticle(x, y+0.6, z, Math.cos(a)*sp, 1.5+Math.random()*2, Math.sin(a)*sp, 1.0,0.4,0.1, 0.5);
+  }
+  SFX.bossShot();   // reuse the boss-shot boom sound
 }
 function spawnOrb(pos, xp, big){
   const s=big?0.5:0.22;
@@ -1880,7 +2040,15 @@ let _contactFx=0;
 function contactDamage(e){
   if(A.dead) return;
   player.bhop=1;                 // getting hit kills your bunnyhop speed
-  A.hp -= e.dmg*dt*(1-(A.stats.dodge||0));
+  const applied = e.dmg*dt*(1-(A.stats.dodge||0));
+  A.hp -= applied;
+  // LEECH: heals itself for 50% of the damage it deals on contact. Trading
+  // hits with one is a losing proposition — its HP bar creeps back up while
+  // yours ticks down. The heal is on a separate per-tick accumulator and is
+  // capped at maxhp so it can't overheal.
+  if(e.kind==='leech'){
+    e.hp = Math.min(e.maxhp, e.hp + applied*0.5);
+  }
   _contactFx-=dt;
   if(_contactFx<=0){
     SFX.hurt(); _contactFx=0.28;
@@ -2305,6 +2473,15 @@ function updateArena(){
       // hard-blocked by every prop, never leaves the ground
       pushOutOfProps(e.mesh.position, e.size*0.5);
       e.baseY=0;
+    } else if(e.kind==='phantom'){
+      // PHANTOM: phases through every prop — no pushOut, no climb, no wall
+      // check. Just gravity + floor clamp so it doesn't fall through the
+      // world. This is what makes walls useless against it.
+      e.ev=(e.ev||0)-22*dt;
+      e.mesh.position.y += e.ev*dt;
+      const floor=0;
+      if(e.mesh.position.y<=floor){ e.mesh.position.y=floor; e.ev=0; }
+      e.baseY=e.mesh.position.y;
     } else {
       // regular enemy: climbs straight up any wall in its path toward the player
       const wallTop=wallAheadTop(e);
@@ -2349,6 +2526,26 @@ function updateArena(){
     // hit flash
     if(e.hit>0){ e.hit-=dt; e.bodyMat.emissive.setHex(0x884444); }
     else e.bodyMat.emissive.setHex(isBoss? mixDark(e.color,0.3):0x000000);
+    // PHANTOM: keep the body translucent even during the hit flash so its
+    // ghostliness reads consistently.
+    if(e.kind==='phantom' && e.bodyMat.opacity!==0.55){ e.bodyMat.opacity=0.55; }
+    // BOMBER: pulse the fuse faster as it gets closer to the player — a
+    // visual warning that you're about to eat an explosion. Also detonate
+    // on contact (in addition to the on-death explosion).
+    if(e.kind==='bomber'){
+      const fuse = e.mesh.userData && e.mesh.userData.fuse;
+      if(fuse){
+        const pulse = 0.5 + 0.5*Math.sin(performance.now()*0.018);
+        fuse.scale.setScalar(0.85 + pulse*0.4);
+      }
+      if(dist < e.size*0.6+0.9 && Math.abs(e.mesh.position.y-player.pos.y)<1.4 && !e._exploded){
+        e._exploded=true;
+        bomberExplode(e.mesh.position.x, e.mesh.position.y, e.mesh.position.z, e.dmg);
+        // suicide: kill the bomber on the spot, but skip its death-explosion
+        // path (already detonated above). Set _exploded before killEnemy.
+        e.hp=0; killEnemy(e);
+      }
+    }
     // touch damage with knockback (only when at a similar height)
     if(dist < e.size*0.6+0.7 && Math.abs(e.mesh.position.y-player.pos.y)<1.2){ contactDamage(e); }
     // boss attack brain
@@ -2372,6 +2569,20 @@ function updateArena(){
       // mend nearby wounded allies
       e.healCd-=dt;
       if(e.healCd<=0){ healNearby(e); e.healCd=1.8; }
+    } else if(e.kind==='summoner'){
+      // SUMMONER: every few seconds, spawn a basic grunt at its position.
+      // Minions are weak (half-size grunts) but they add up — left alive,
+      // a summoner will swamp the arena with chaff.
+      e.summonCd-=dt;
+      if(e.summonCd<=0 && A.enemies.length<40){   // hard cap to avoid runaway
+        spawnMinion(e.mesh.position.x + (Math.random()-0.5)*0.6,
+                    e.mesh.position.z + (Math.random()-0.5)*0.6);
+        e.summonCd = 4.5 + Math.random()*1.5;
+        // little purple spawn-burst so the player can see the minion appear
+        for(let i=0;i<8;i++){ const a=Math.random()*Math.PI*2;
+          spawnParticle(e.mesh.position.x, (e.top||1)*0.5, e.mesh.position.z,
+                        Math.cos(a)*2, 1.5, Math.sin(a)*2, 0.7,0.3,0.9, 0.4); }
+      }
     }
   }
 
@@ -2432,11 +2643,15 @@ function updateArena(){
       // 3D hit check: bullet must overlap the enemy's body vertically too,
       // not just horizontally. Without this, a shot that arced up to reach
       // an elevated enemy would still miss because the old check ignored Y.
+      // Small aim-assist: the radius is bumped a touch so a near-miss that
+      // visually passes through the body silhouette still connects — this
+      // keeps fast/strafing targets from feeling unfair to hit.
+      const AIM_ASSIST = 0.18;
       const eTop = e.top || 1;
       const eCenterY = e.mesh.position.y + eTop*0.5;
       const dy = p.mesh.position.y - eCenterY;
-      if(Math.hypot(ex,ez) < e.size*0.7+0.3 && Math.abs(dy) < eTop*0.5+0.3){
-        damageEnemy(e, p.dmg, p.crit);
+      if(Math.hypot(ex,ez) < e.size*0.7+0.3+AIM_ASSIST && Math.abs(dy) < eTop*0.5+0.3+AIM_ASSIST){
+        damageEnemy(e, p.dmg, p.crit, p.mesh.position);
         p.hitSet.add(e);
         if(p.boomerang){ /* pierces all, keeps flying */ }
         else if(p.pierceLeft>0){ p.pierceLeft--; } else { remove=true; }
