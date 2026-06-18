@@ -178,7 +178,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726a · Recruiter's Refit</div>
+<div id="version">v061726b · Aim Arc</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -298,13 +298,18 @@
 <div id="changelog" class="modal">
   <div class="panel">
     <h2>Changelog</h2>
-    <div class="desc">v061726a · Recruiter's Refit (June 17, 2026)</div>
+    <div class="desc">v061726b · Aim Arc (June 17, 2026)</div>
     <ul>
+      <li>Player bullets now actually aim at the enemy model in 3D — they climb to hit enemies on top of walls and drop to hit grounded ones, instead of sliding flat along the ground and passing over/under them</li>
+      <li>Seeker missiles track the target's full 3D position and pitch up/down to follow it</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726a · Recruiter's Refit (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>The class-shop NPC in the lobby is now a full body that turns to face you and idles naturally — and you have to press E (or tap SHOP on mobile) to talk to it instead of the menu popping open on approach</li>
       <li>Class prices rebalanced upward across the board so buying one feels like a real commitment</li>
     </ul>
-    <div class="desc" style="margin-top:14px;opacity:.6">v061626l · Recruitment Drive (June 16, 2026)</div>
-    <ul style="opacity:.6">
+    <div class="desc" style="margin-top:14px;opacity:.4">v061626l · Recruitment Drive (June 16, 2026)</div>
+    <ul style="opacity:.4">
       <li>Class system: a new NPC in the lobby lets you buy classes with shards and pick one to play as (Gunner, Ranger, Brute, Mage, Sprinter)</li>
       <li>New enemy types — Shooter, Dasher and Healer — each labeled with its type above its health bar</li>
       <li>Every arena map is now a random size</li>
@@ -347,7 +352,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726a · Recruiter's Refit</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726b · Aim Arc</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -374,8 +379,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726a';
-const UPDATE_TITLE = "Recruiter's Refit";
+const VERSION = 'v061726b';
+const UPDATE_TITLE = 'Aim Arc';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1556,6 +1561,19 @@ function findTarget(){
   }
   return best;
 }
+// 3D aim direction from the player's chest (pos.y + PLAYER_SHOT_Y) toward an
+// enemy's vertical center mass (mesh.y + top*0.5). Every aimed weapon uses
+// this so bullets actually arc up/down to reach the target body instead of
+// sliding along the ground and passing over/under it.
+const PLAYER_SHOT_Y = 1.1;   // chest height; matches the projectile spawn Y
+function aimDirAt(target){
+  const eTop = target.top || 1;
+  const tx = target.mesh.position.x - player.pos.x;
+  const ty = (target.mesh.position.y + eTop*0.5) - (player.pos.y + PLAYER_SHOT_Y);
+  const tz = target.mesh.position.z - player.pos.z;
+  const len = Math.hypot(tx, ty, tz) || 1;
+  return new THREE.Vector3(tx/len, ty/len, tz/len);
+}
 // ----- weapons -----
 // each weapon has its own cooldown + fire logic. Player owns one or more.
 const WEAPONS={
@@ -1571,7 +1589,7 @@ const WEAPONS={
 const WEAPON_ORDER=['ball','shotgun','blades','bolt','boomerang','nova','homing','pulse'];
 
 function fireBall(target){
-  const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
+  const dir=aimDirAt(target);
   const n=1+A.stats.extraProj;
   for(let i=0;i<n;i++){
     const spread=(i-(n-1)/2)*A.stats.multishotSpread;
@@ -1581,7 +1599,7 @@ function fireBall(target){
   SFX.shoot();
 }
 function fireShotgun(target){
-  const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
+  const dir=aimDirAt(target);
   for(let i=-3;i<=3;i++){
     const d=dir.clone().applyAxisAngle(UP, i*0.16);
     fireProjectile(d, 0.14, 0xffd27a, A.stats.dmg*0.55, 0.9);
@@ -1625,12 +1643,16 @@ function fireNova(){
   SFX.shoot();
 }
 function fireHoming(target){
-  const dir=target.mesh.position.clone().sub(player.pos); dir.y=0; dir.normalize();
+  const dir=aimDirAt(target);
   const n=1+A.stats.extraProj;
   for(let i=0;i<n;i++){
     const spread=(i-(n-1)/2)*0.25;
     const d=dir.clone().applyAxisAngle(UP, spread);
     const m=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.42,6), new THREE.MeshBasicMaterial({color:0xff9bff}));
+    // default ConeGeometry tip points along +y; rotate so the tip is along
+    // +z (forward), then mesh.lookAt() in the update loop will orient the
+    // missile correctly in 3D as it pitches up/down after the target.
+    m.geometry.rotateX(Math.PI/2);
     m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
     arena.group.add(m);
     const crit=Math.random()<A.stats.crit;
@@ -2386,9 +2408,16 @@ function updateArena(){
           if(d<bd){ bd=d; best=e; }
         }
         if(best){
-          _tmpDir.set(best.mesh.position.x-p.mesh.position.x, 0, best.mesh.position.z-p.mesh.position.z).normalize();
-          p.dir.lerp(_tmpDir, 0.12); p.dir.y=0; p.dir.normalize();
-          p.mesh.rotation.y=Math.atan2(p.dir.x,p.dir.z);
+          // 3D steer: aim at the target's center mass and let the missile
+          // pitch up/down to follow it. Previously this zeroed dir.y and
+          // only yaw-tracked, which left elevated enemies unreachable.
+          const bTop = best.top || 1;
+          const bcx = best.mesh.position.x;
+          const bcy = best.mesh.position.y + bTop*0.5;
+          const bcz = best.mesh.position.z;
+          _tmpDir.set(bcx-p.mesh.position.x, bcy-p.mesh.position.y, bcz-p.mesh.position.z).normalize();
+          p.dir.lerp(_tmpDir, 0.12); p.dir.normalize();
+          p.mesh.lookAt(bcx, bcy, bcz);
         }
       }
       p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
@@ -2400,7 +2429,13 @@ function updateArena(){
     for(const e of targets){
       if(p.hitSet.has(e)) continue;
       const ex=p.mesh.position.x-e.mesh.position.x, ez=p.mesh.position.z-e.mesh.position.z;
-      if(Math.hypot(ex,ez) < e.size*0.7+0.3){
+      // 3D hit check: bullet must overlap the enemy's body vertically too,
+      // not just horizontally. Without this, a shot that arced up to reach
+      // an elevated enemy would still miss because the old check ignored Y.
+      const eTop = e.top || 1;
+      const eCenterY = e.mesh.position.y + eTop*0.5;
+      const dy = p.mesh.position.y - eCenterY;
+      if(Math.hypot(ex,ez) < e.size*0.7+0.3 && Math.abs(dy) < eTop*0.5+0.3){
         damageEnemy(e, p.dmg, p.crit);
         p.hitSet.add(e);
         if(p.boomerang){ /* pierces all, keeps flying */ }
