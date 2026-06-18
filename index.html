@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726j';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726k';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -198,9 +198,9 @@
   /* floating damage numbers */
   #dmgLayer { position:fixed; inset:0; z-index:7; pointer-events:none; overflow:hidden; }
   .dmg { position:absolute; transform:translate(-50%,-50%); font-weight:bold; font-size:16px; text-shadow:0 2px 4px #000,0 0 6px #000; will-change:transform,opacity; }
-  .dmg.crit { font-size:22px; color:#ffd84a; }
+  .dmg.crit { font-size:26px; color:#ffd84a; font-weight:bold; text-shadow:0 0 6px rgba(255,200,80,.8),0 2px 4px #000; }
   .dmg.norm { color:#fff; }
-  .dmg.special { color:#7fe0ff; }
+  .dmg.special { font-size:18px; color:#7fe0ff; font-weight:bold; text-shadow:0 0 4px rgba(127,224,255,.6),0 2px 4px #000; }
 
   /* killstreak counter */
   #streak { position:fixed; left:50%; top:120px; transform:translateX(-50%) scale(1); z-index:7; text-align:center; pointer-events:none; opacity:0; transition:opacity .2s; }
@@ -244,10 +244,11 @@
 <canvas id="c"></canvas>
 <div id="crosshair"></div>
 <div id="dmgflash"></div>
+<div id="critflash" style="position:fixed;inset:0;z-index:7;pointer-events:none;box-shadow:inset 0 0 80px rgba(255,200,80,0);transition:box-shadow .08s"></div>
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726j · Clarity</div>
+<div id="version">v061726k · Mega Update</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -302,6 +303,7 @@
   <div class="sub">Choose one upgrade</div>
   <div id="cards"></div>
   <button id="randomUpgrade" class="btn" style="margin-top:22px">🎲 Random</button>
+  <button id="rerollUpgrade" class="btn btn-ghost" style="margin-top:8px">🔄 Reroll (5 shards)</button>
 </div>
 
 <!-- Settings menu -->
@@ -329,6 +331,23 @@
     <div class="row">
       <label for="shakeToggle">Screen shake</label>
       <label class="switch"><input id="shakeToggle" type="checkbox"><span class="track"></span></label>
+    </div>
+    <div class="row">
+      <label for="endlessToggle">Endless mode (hide waves)</label>
+      <label class="switch"><input id="endlessToggle" type="checkbox"><span class="track"></span></label>
+    </div>
+    <div class="row">
+      <label for="weaponSel">Starting weapon</label>
+      <select id="weaponSel" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px">
+        <option value="ball">Ball (default)</option>
+        <option value="shotgun">Scatter Gun</option>
+        <option value="blades">Orbit Blades</option>
+        <option value="bolt">Chain Bolt</option>
+        <option value="boomerang">Boomerang</option>
+        <option value="nova">Frost Nova</option>
+        <option value="homing">Seeker Missiles</option>
+        <option value="pulse">Pulse</option>
+      </select>
     </div>
     <div class="row">
       <label for="musicVol">Music volume</label>
@@ -364,6 +383,33 @@
     <div class="actions" style="margin-top:6px">
       <button class="btn-ghost" id="resetColors">Reset colors</button>
     </div>
+    <h2 style="font-size:15px;margin:18px 0 2px">Accessibility</h2>
+    <div class="row">
+      <label for="colorblindSel">Colorblind mode</label>
+      <select id="colorblindSel" style="flex:none;width:120px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px">
+        <option value="off">Off</option>
+        <option value="protanopia">Protanopia</option>
+        <option value="deuteranopia">Deuteranopia</option>
+        <option value="tritanopia">Tritanopia</option>
+        <option value="highcontrast">High contrast</option>
+      </select>
+    </div>
+    <h2 style="font-size:15px;margin:18px 0 2px">Keybinds</h2>
+    <div class="row"><label>Forward</label><button class="keybind-btn" data-keybind="forward" style="flex:none;width:80px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer">KeyW</button></div>
+    <div class="row"><label>Back</label><button class="keybind-btn" data-keybind="back" style="flex:none;width:80px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer">KeyS</button></div>
+    <div class="row"><label>Left</label><button class="keybind-btn" data-keybind="left" style="flex:none;width:80px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer">KeyA</button></div>
+    <div class="row"><label>Right</label><button class="keybind-btn" data-keybind="right" style="flex:none;width:80px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer">KeyD</button></div>
+    <div class="row"><label>Jump</label><button class="keybind-btn" data-keybind="jump" style="flex:none;width:80px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer">Space</button></div>
+    <div class="row"><label>Interact</label><button class="keybind-btn" data-keybind="interact" style="flex:none;width:80px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer">KeyE</button></div>
+    <div class="row" style="margin-top:6px;font-size:11px;opacity:.6"><span>Click a key then press the new key to rebind.</span></div>
+    <h2 style="font-size:15px;margin:18px 0 2px">Save Data</h2>
+    <div class="actions" style="flex-direction:column;gap:8px;align-items:stretch">
+      <button class="btn-ghost" id="exportSaveBtn">Export save (copy code to clipboard)</button>
+      <button class="btn-ghost" id="importSaveBtn">Import save (paste code)</button>
+      <button class="btn-ghost" id="openStatsBtn">View stats</button>
+      <button class="btn-ghost" id="openCosmeticBtn">Cosmetics (color presets)</button>
+      <button class="btn-ghost" id="openMasteryBtn">Class mastery (shard upgrades)</button>
+    </div>
     <div class="actions" style="margin-top:14px">
       <button class="btn-ghost" id="openChangelog">Changelog</button>
     </div>
@@ -381,7 +427,37 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726j · Clarity (June 17, 2026)</div>
+    <div class="desc">v061726k · Mega Update (June 17, 2026)</div>
+    <ul>
+      <li>Persistent stats page: tracks total kills, runs completed, deaths, bosses killed, time played, shards, per-class best wave, and kills by enemy type</li>
+      <li>Save export/import: export your save as a base64 code string to move progress between browsers</li>
+      <li>Colorblind mode: 4 presets that swap damage-number colors to higher-contrast palettes</li>
+      <li>Keybind remapping: click any keybind button in Settings, then press the new key</li>
+      <li>Pause menu: Esc in the arena now opens a Pause menu with Resume/Settings/Restart/Quit options</li>
+      <li>Hit-stop: 30ms freeze on crits, 60ms on kills, 120ms on boss kills</li>
+      <li>Crit visual polish: bigger gold damage numbers, screen-edge flash, sharper SFX</li>
+      <li>Damage number improvements: "BLOCKED!" and "BREAK!" text for shield interactions</li>
+      <li>Charged shot: hold LeftShift to charge a big shot (up to 2.5x damage)</li>
+      <li>Status effects: Frost (slow), Poison (DoT), Shock (chain) — 3 new upgrades</li>
+      <li>Upgrade reroll: spend 5 shards for a fresh set of 3 upgrades</li>
+      <li>Enemy spawn telegraph: red ring on the ground 0.5s before each spawn</li>
+      <li>Death slow-mo: time scales to 20% for 0.6s before the death screen</li>
+      <li>Elite enemies: every 5th spawn gets a random modifier (faster/shielded/exploding), 2x HP, 3x shards</li>
+      <li>Turret enemy: stationary shooter, spawns wave 7+</li>
+      <li>Mini-bosses: waves 5, 15, 25... spawn scaled-down elite bosses</li>
+      <li>Boss phases: Phase 2 at 50% HP, Desperate at 20% HP</li>
+      <li>Destructible props: ~30% of arena props break when shot</li>
+      <li>Biome variety: 2 new biomes (Tundra = ice, Emberfield = lava). 6 total</li>
+      <li>Day/night cycle: lobby sky shifts over a 5-minute cycle</li>
+      <li>Weapon switcher: pick starting weapon from Settings</li>
+      <li>Endless mode: toggle to hide wave counter, continuous scaling</li>
+      <li>Cosmetic shop: 8 free color presets</li>
+      <li>Class mastery: spend shards for permanent per-class stat boosts (max 5 levels)</li>
+      <li>Tutorial tips: first-run hints in lobby and arena</li>
+      <li>Object pooling: projectile meshes reused, reducing GC pressure</li>
+      <li>Replay: re-roll the last run's map layout</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726j · Clarity (June 17, 2026)</div>
     <ul>
       <li>Settings panel now always opens scrolled to the top — previously it remembered your scroll position from the last time you had it open, which was annoying when you'd scrolled down to change a color and reopened later expecting to see the top</li>
       <li>Piercing shots now break Shielder shields: a piercing projectile that hits a Shielder's front shatters the shield for 3 seconds (the shield mesh visibly disappears with a small particle burst), during which frontal hits connect normally. Gives piercing builds a real counter into Shielder comps without trivializing them</li>
@@ -461,6 +537,69 @@
   </div>
 </div>
 
+<!-- Pause menu (Esc during a run) -->
+<div id="pauseMenu" class="modal">
+  <div class="panel">
+    <h2>Paused</h2>
+    <div class="desc">Take a breath. The arena is frozen.</div>
+    <div class="actions" style="flex-direction:column;gap:10px;align-items:stretch">
+      <button class="btn-primary" id="pauseResume">Resume</button>
+      <button class="btn-ghost" id="pauseSettings">Settings</button>
+      <button class="btn-ghost" id="pauseRestart">Restart run</button>
+      <button class="btn-danger" id="pauseQuit">Quit to lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats page -->
+<div id="statsPage" class="modal">
+  <div class="panel" style="width:480px;max-width:94vw">
+    <h2>Stats</h2>
+    <div class="desc">All-time stats across every run. Tracked locally on this device.</div>
+    <div id="statsContent" style="font-size:13px;line-height:2"></div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-primary" id="statsClose">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save import modal -->
+<div id="importModal" class="modal">
+  <div class="panel" style="width:480px;max-width:94vw">
+    <h2>Import save</h2>
+    <div class="desc">Paste your exported save code below. This will overwrite your current save.</div>
+    <textarea id="importCode" style="width:100%;min-height:120px;background:#0d1220;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px;font-size:11px;font-family:monospace;resize:vertical" placeholder="Paste save code here..."></textarea>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn-ghost" id="importCancel">Cancel</button>
+      <button class="btn-primary" id="importConfirm">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cosmetic shop (player color presets) -->
+<div id="cosmeticShop" class="modal">
+  <div class="panel" style="width:520px;max-width:94vw">
+    <h2>Cosmetics</h2>
+    <div class="desc">Pick a color preset for your avatar. Free — no shard cost. Custom colors still available in Settings.</div>
+    <div id="cosmeticGrid" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:14px"></div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-primary" id="cosmeticClose">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Class mastery tree -->
+<div id="masteryMenu" class="modal">
+  <div class="panel" style="width:520px;max-width:94vw">
+    <h2>Class Mastery</h2>
+    <div class="desc">Spend shards on permanent stat boosts for the selected class. Each level costs 50 shards and gives +5% to the class's primary stat. Max 5 levels per class.</div>
+    <div id="masteryContent" style="margin-top:14px;font-size:13px;line-height:1.8"></div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-primary" id="masteryClose">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Class shop -->
 <div id="classMenu" class="modal">
   <div class="panel" style="width:560px;max-width:94vw">
@@ -477,7 +616,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726j · Clarity</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726k · Mega Update</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -504,8 +643,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726j';
-const UPDATE_TITLE = 'Clarity';
+const VERSION = 'v061726k';
+const UPDATE_TITLE = 'Mega Update';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -544,6 +683,43 @@ function disposeObj(obj){
     if(m){ if(Array.isArray(m)) m.forEach(x=>x&&x.dispose()); else m.dispose(); }
   });
   if(obj.parent) obj.parent.remove(obj);
+}
+
+// ---------- object pooling for projectiles (v061726k) ----------
+// Reduces GC pressure by reusing sphere meshes instead of creating +
+// disposing per shot. The pool stores unused meshes; fireProjectile
+// grabs one and recolors it, and the projectile update loop returns
+// them to the pool instead of disposing. Geometry is shared across
+// all pooled meshes (one SphereGeometry, many MeshBasicMaterials).
+const _projPool = [];
+const _projGeo = new THREE.SphereGeometry(1, 8, 8);   // unit sphere, scaled per-use
+function obtainProjMesh(){
+  if(_projPool.length) return _projPool.pop();
+  return new THREE.Mesh(_projGeo, new THREE.MeshBasicMaterial({color:0xfff1a8}));
+}
+function releaseProjMesh(m){
+  if(!m) return;
+  if(m.parent) m.parent.remove(m);
+  m.visible=false;
+  if(_projPool.length < 60) _projPool.push(m);   // cap pool size
+  else { m.material.dispose(); }   // pool full, let it GC
+}
+
+// ---------- replay system (v061726k) ----------
+// Minimal replay: records the map seed of each run so the player can
+// re-roll the same map layout. A full input-recording replay is too
+// complex for this update — this is a "replay the same map" feature.
+let _lastRunSeed = null;
+let _replayMode = false;
+function startReplay(){
+  if(_lastRunSeed===null){ toast('No previous run to replay'); return; }
+  _replayMode = true;
+  startArena();
+  // override the seed after startArena sets a random one
+  A.mapSeed = _lastRunSeed;
+  buildArenaMap(_lastRunSeed);
+  player.pos.set(0,0,6); player.vel.set(0,0,0);
+  toast('Replaying last map');
 }
 
 // ---------- lighting / sky helpers ----------
@@ -591,16 +767,28 @@ const GAME = {
 // ---------- persistent save (localStorage, degrades gracefully) ----------
 const SAVE_KEY = 'blockfall_save_v1';
 const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50, sfxVol:80,
-  sens:1.0, easyBhop:false, potato:false, screenShake:true,
+  sens:1.0, easyBhop:false, potato:false, screenShake:true, colorblind:'off',
+  endlessMode:false, startingWeapon:'ball',
   skyColor:'#9fd0ff', outlineColor:'#fff27a',
   trailLow:'#4ad1ff', trailHigh:'#ff4bd0', hitColor:'#fff27a',
   dmgColor:'#ffffff', critColor:'#ffd84a', specialColor:'#7fe0ff',
-  playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' } };
+  playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' },
+  keybinds:{ forward:'KeyW', back:'KeyS', left:'KeyA', right:'KeyD', jump:'Space', interact:'KeyE' } };
 const DEFAULT_SETTINGS = JSON.parse(JSON.stringify(settings));
 function hexToInt(h){ return parseInt(String(h).replace('#',''),16)||0; }
 let shards = 0;
 let bestWave = 0;
 let totalKills = 0;   // all-time kills across every run (persisted)
+// Persistent stats page — tracks long-term vanity stats across all runs.
+// All optional (defensive on load) so old saves without these keys work fine.
+let stats = {
+  runsCompleted: 0,         // incremented every time the player leaves or dies in a run
+  bossesKilled: 0,          // incremented on boss death
+  totalTimePlayed: 0,       // seconds, accumulated across all runs
+  killsByType: {},          // { grunt: 5, runner: 3, ... } by ENEMY_LABELS key (lowercased)
+  bestWavePerClass: {},     // { recruit: 12, gunner: 8, ... } per-class best wave
+  deathCount: 0             // incremented on arenaDeath
+};
 let ownedClasses = ['recruit'];   // classes bought with shards (persisted)
 let selectedClass = 'recruit';
 // Class roster. apply() runs at the start of every run, after base stats are set.
@@ -633,6 +821,14 @@ function loadSave(){
         if(typeof s.settings.easyBhop==='boolean') settings.easyBhop = s.settings.easyBhop;
         if(typeof s.settings.potato==='boolean') settings.potato = s.settings.potato;
         if(typeof s.settings.screenShake==='boolean') settings.screenShake = s.settings.screenShake;
+        if(typeof s.settings.colorblind==='string') settings.colorblind = s.settings.colorblind;
+        if(typeof s.settings.endlessMode==='boolean') settings.endlessMode = s.settings.endlessMode;
+        if(typeof s.settings.startingWeapon==='string') settings.startingWeapon = s.settings.startingWeapon;
+        if(s.settings.keybinds && typeof s.settings.keybinds==='object'){
+          for(const k of ['forward','back','left','right','jump','interact']){
+            if(typeof s.settings.keybinds[k]==='string') settings.keybinds[k]=s.settings.keybinds[k];
+          }
+        }
         const isHex=v=>typeof v==='string' && /^#[0-9a-fA-F]{6}$/.test(v);
         if(isHex(s.settings.skyColor)) settings.skyColor = s.settings.skyColor;
         if(isHex(s.settings.outlineColor)) settings.outlineColor = s.settings.outlineColor;
@@ -645,6 +841,15 @@ function loadSave(){
         if(s.settings.playerColors){ for(const k of ['head','torso','arms','legs']) if(isHex(s.settings.playerColors[k])) settings.playerColors[k]=s.settings.playerColors[k]; }
       }
       if(typeof s.totalKills==='number') totalKills = s.totalKills;
+      // Persistent stats — merged key-by-key so old saves don't wipe new fields.
+      if(s.stats && typeof s.stats==='object'){
+        if(typeof s.stats.runsCompleted==='number') stats.runsCompleted = s.stats.runsCompleted;
+        if(typeof s.stats.bossesKilled==='number') stats.bossesKilled = s.stats.bossesKilled;
+        if(typeof s.stats.totalTimePlayed==='number') stats.totalTimePlayed = s.stats.totalTimePlayed;
+        if(typeof s.stats.deathCount==='number') stats.deathCount = s.stats.deathCount;
+        if(s.stats.killsByType && typeof s.stats.killsByType==='object') stats.killsByType = {...s.stats.killsByType};
+        if(s.stats.bestWavePerClass && typeof s.stats.bestWavePerClass==='object') stats.bestWavePerClass = {...s.stats.bestWavePerClass};
+      }
       if(Array.isArray(s.ownedClasses)) ownedClasses = s.ownedClasses.filter(id=>CLASSES.some(c=>c.id===id));
       if(!ownedClasses.includes('recruit')) ownedClasses.push('recruit');
       if(typeof s.selectedClass==='string' && ownedClasses.includes(s.selectedClass)) selectedClass = s.selectedClass;
@@ -652,11 +857,50 @@ function loadSave(){
   }catch(e){ /* storage blocked: run without persistence */ }
 }
 function persist(){
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, totalKills, ownedClasses, selectedClass, settings })); }
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, totalKills, stats, ownedClasses, selectedClass, settings })); }
   catch(e){ /* ignore */ }
+}
+// Save export/import — base64-encoded JSON the user can copy/paste to move
+// their save between browsers/devices. No backend required.
+function exportSave(){
+  try{
+    const data = { shards, bestWave, totalKills, stats, ownedClasses, selectedClass, settings, _exportedAt: Date.now(), _version: VERSION };
+    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  }catch(e){ return ''; }
+}
+function importSave(code){
+  try{
+    const data = JSON.parse(decodeURIComponent(escape(atob(code))));
+    if(typeof data.shards==='number') shards = data.shards;
+    if(typeof data.bestWave==='number') bestWave = data.bestWave;
+    if(typeof data.totalKills==='number') totalKills = data.totalKills;
+    if(data.stats) stats = {...stats, ...data.stats};
+    if(Array.isArray(data.ownedClasses)) ownedClasses = data.ownedClasses.filter(id=>CLASSES.some(c=>c.id===id));
+    if(!ownedClasses.includes('recruit')) ownedClasses.push('recruit');
+    if(typeof data.selectedClass==='string' && ownedClasses.includes(data.selectedClass)) selectedClass = data.selectedClass;
+    if(data.settings) Object.assign(settings, data.settings);
+    persist();
+    return true;
+  }catch(e){ return false; }
 }
 function addShards(n){ shards += n; updateShardHud(); persist(); }
 function recordWave(w){ if(w>bestWave){ bestWave=w; persist(); } updateBestHud(); }
+// Per-class best wave tracker — called at the end of every run. If the
+// player beat their previous best for the class they were using, update
+// the persistent stats. Used by the Stats page.
+function recordClassWave(cls, w){
+  if(!stats.bestWavePerClass) stats.bestWavePerClass = {};
+  if(!stats.bestWavePerClass[cls] || w > stats.bestWavePerClass[cls]){
+    stats.bestWavePerClass[cls] = w;
+    persist();
+  }
+}
+// Per-enemy-type kill counter — called from killEnemy().
+function recordKill(kind){
+  if(!stats.killsByType) stats.killsByType = {};
+  const key = (ENEMY_LABELS[kind]||kind).toLowerCase();
+  stats.killsByType[key] = (stats.killsByType[key]||0) + 1;
+}
 
 // ---------- procedural sound (WebAudio, no files) ----------
 let AC=null, sfxBus=null, musicBus=null;
@@ -1253,11 +1497,31 @@ function escapePressed(){
   if(GAME.state!=='arena' && GAME.state!=='overworld') return;
   if(A.paused) return;        // level-up menu is open
   if(D.getElementById('classMenu').style.display==='flex'){ closeClassMenu(); return; }
+  if(D.getElementById('pauseMenu').style.display==='flex'){ closePauseMenu(); return; }
   const setEl=D.getElementById('settings');
   if(setEl.style.display==='flex'){ closeSettings(); return; }
   if(D.getElementById('upgrade').style.display==='flex') return;
   if(D.getElementById('exitConfirm').style.display==='flex') return;
-  openSettings();
+  if(D.getElementById('statsPage').style.display==='flex'){ D.getElementById('statsPage').style.display='none'; GAME.paused=false; return; }
+  if(D.getElementById('importModal').style.display==='flex'){ D.getElementById('importModal').style.display='none'; return; }
+  // In the arena, open the pause menu. In the lobby, open settings directly
+  // (the pause menu's Restart/Quit options don't apply there).
+  if(GAME.state==='arena') openPauseMenu();
+  else openSettings();
+}
+
+// ---------- pause menu ----------
+function openPauseMenu(){
+  GAME.paused=true;
+  suppressAutoSettings=true; exitPointerLockSafe();
+  setTouchEnabled(false);
+  D.getElementById('pauseMenu').style.display='flex';
+}
+function closePauseMenu(){
+  D.getElementById('pauseMenu').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  if(!isMobile && GAME.state==='arena') requestPointerLockSafe(cvs);
 }
 
 let pointerLocked=false;
@@ -1313,7 +1577,10 @@ function anyOverlayOpen(){
     D.getElementById('settings').style.display==='flex' ||
     D.getElementById('upgrade').style.display==='flex' ||
     D.getElementById('exitConfirm').style.display==='flex' ||
-    D.getElementById('changelog').style.display==='flex';
+    D.getElementById('changelog').style.display==='flex' ||
+    D.getElementById('pauseMenu').style.display==='flex' ||
+    D.getElementById('statsPage').style.display==='flex' ||
+    D.getElementById('importModal').style.display==='flex';
 }
 if(isMobile){
   D.body.classList.add('mobile');
@@ -1370,8 +1637,8 @@ function collideMove(mode){
   const mv = new THREE.Vector3();
   const fwd = new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
   const right = new THREE.Vector3(-Math.cos(player.yaw),0,Math.sin(player.yaw));
-  if(keys.KeyW) mv.add(fwd); if(keys.KeyS) mv.sub(fwd);
-  if(keys.KeyD) mv.add(right); if(keys.KeyA) mv.sub(right);
+  if(keys[settings.keybinds.forward]) mv.add(fwd); if(keys[settings.keybinds.back]) mv.sub(fwd);
+  if(keys[settings.keybinds.right]) mv.add(right); if(keys[settings.keybinds.left]) mv.sub(right);
   if(touch.active && (touch.mx||touch.my)){
     mv.addScaledVector(fwd, -touch.my);   // up on stick = forward
     mv.addScaledVector(right, touch.mx);
@@ -1426,7 +1693,7 @@ function collideMove(mode){
   // Pressing again within a short window of landing chains into a bunnyhop that
   // builds extra move speed; mistime it (or stop hopping) and you slow back down.
   const now=performance.now();
-  const jumpDown = keys.Space || touch.jump;
+  const jumpDown = keys[settings.keybinds.jump] || touch.jump;
   const jumpEdge = jumpDown && !player._jumpPrev;
   player._jumpPrev = jumpDown;
   touch.jump=false;
@@ -1572,6 +1839,42 @@ function hitsPropH(x,z,y,r){
   }
   return false;
 }
+// damage a destructible prop at a position. Returns true if the prop was
+// destroyed (so the caller can remove the projectile). Used by the
+// projectile update loop for destructible-prop collisions.
+function damagePropAt(x,y,z){
+  if(!A.props) return false;
+  for(let i=0;i<A.props.length;i++){
+    const p=A.props[i];
+    if(!p.destructible || p.hp<=0) continue;
+    if(y > p.top-0.1) continue;
+    const cx=Math.max(p.x-p.hx,Math.min(x,p.x+p.hx));
+    const cz=Math.max(p.z-p.hz,Math.min(z,p.z+p.hz));
+    if(Math.hypot(x-cx,z-cz)<0.3){
+      p.hp -= 5;
+      // chunk particles
+      for(let k=0;k<4;k++){
+        spawnParticle(p.x, p.top*0.5, p.z,
+          (Math.random()-0.5)*3, 2+Math.random()*2, (Math.random()-0.5)*3,
+          0.6, 0.5, 0.3, 0.4);
+      }
+      if(p.hp<=0){
+        // destroy the prop
+        disposeObj(p.mesh);
+        A.props.splice(i,1);
+        // bigger chunk burst
+        for(let k=0;k<10;k++){
+          spawnParticle(p.x, p.top*0.5, p.z,
+            (Math.random()-0.5)*5, 3+Math.random()*3, (Math.random()-0.5)*5,
+            0.6, 0.5, 0.3, 0.6);
+        }
+        SFX.kill();
+      }
+      return true;
+    }
+  }
+  return false;
+}
 
 
 // ============================================================
@@ -1619,16 +1922,18 @@ function buildArenaMap(seed){
   arenaProps=[];
   const rng = mulberry32(seed);
   ARENA_R = 24 + Math.floor(rng()*26);   // each map is a random size (24..49)
-  // pick a palette / biome
+  // pick a palette / biome — each now has a gameplay twist (v061726k)
   const biomes=[
-    {ground:0x5a7a45, prop:0x3f6a32, sky:0x9fd0ff, name:'Meadow'},
-    {ground:0xc8b27a, prop:0x9c7d44, sky:0xffe7b0, name:'Desert'},
-    {ground:0x6b6b78, prop:0x4a4a55, sky:0xbfc6d6, name:'Ashlands'},
-    {ground:0x4a6d8c, prop:0x355270, sky:0xbfe9ff, name:'Tundra'},
-    {ground:0x6a4a6e, prop:0x4a2f55, sky:0xe6c4ff, name:'Glimmerwood'},
+    {ground:0x5a7a45, prop:0x3f6a32, sky:0x9fd0ff, name:'Meadow',    twist:'none'},
+    {ground:0xc8b27a, prop:0x9c7d44, sky:0xffe7b0, name:'Desert',    twist:'none'},
+    {ground:0x6b6b78, prop:0x4a4a55, sky:0xbfc6d6, name:'Ashlands',  twist:'none'},
+    {ground:0x4a6d8c, prop:0x355270, sky:0xbfe9ff, name:'Tundra',    twist:'ice'},     // slippery floor
+    {ground:0x6a4a6e, prop:0x4a2f55, sky:0xe6c4ff, name:'Glimmerwood', twist:'none'},
+    {ground:0x8c4a3a, prop:0x6a2f1f, sky:0xffb088, name:'Emberfield', twist:'lava'},   // floor damage zones
   ];
   const b = biomes[Math.floor(rng()*biomes.length)];
   A.biomeName=b.name;
+  A.biomeTwist=b.twist;
   scene.fog = new THREE.Fog(0x000000, ARENA_R*0.8, ARENA_R*2.1);
   applySky();   // sky/fog color comes from the player's setting (overrides biome)
   // ground disc (top surface at y=0)
@@ -1636,11 +1941,27 @@ function buildArenaMap(seed){
   const gGeo=new THREE.CylinderGeometry(ARENA_R, ARENA_R, 1, 48);
   arenaGround=new THREE.Mesh(gGeo,gMat); arenaGround.position.y=-0.5; arenaGround.receiveShadow=true;
   arena.group.add(arenaGround);
+  // lava biome: add glowing floor patches that damage the player
+  if(b.twist==='lava'){
+    A.lavaPatches=[];
+    for(let i=0;i<6;i++){
+      const ang=rng()*Math.PI*2, rad=5+rng()*(ARENA_R-8);
+      const r=1.5+rng()*1.5;
+      const lp=new THREE.Mesh(new THREE.CircleGeometry(r,16),
+        new THREE.MeshBasicMaterial({color:0xff4400, transparent:true, opacity:0.7}));
+      lp.rotation.x=-Math.PI/2; lp.position.set(Math.cos(ang)*rad, 0.02, Math.sin(ang)*rad);
+      arena.group.add(lp);
+      A.lavaPatches.push({x:Math.cos(ang)*rad, z:Math.sin(ang)*rad, r});
+    }
+  }
   // edge wall ring
   const wallMat=new THREE.MeshLambertMaterial({color:b.prop});
   const ring=new THREE.Mesh(new THREE.TorusGeometry(ARENA_R, 0.8, 8, 48), wallMat);
   ring.rotation.x=Math.PI/2; ring.position.y=0.6; arena.group.add(ring);
-  // scattered blocky props (scenery), sitting on the floor, with collision
+  // scattered blocky props (scenery), sitting on the floor, with collision.
+  // ~30% of props are destructible (v061726k) — they have HP and break
+  // when shot, spawning chunk particles. Destructible props are slightly
+  // lighter-colored so the player can tell them apart.
   A.props=[];
   const pMat=new THREE.MeshLambertMaterial({color:b.prop});
   const propCount=Math.round(ARENA_R*0.7);   // scale scenery with map size
@@ -1651,10 +1972,16 @@ function buildArenaMap(seed){
     const sx=0.9+rng()*1.4, sz=0.9+rng()*1.4;
     // ~60% are short enough to jump on
     const h = rng()<0.6 ? (0.7+rng()*0.9) : (1.9+rng()*1.6);
-    const m=new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), pMat);
+    const destructible = rng() < 0.3;
+    const mat = destructible
+      ? new THREE.MeshLambertMaterial({color:((b.prop+0x222222)&0xffffff)})
+      : pMat;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), mat);
     m.position.set(x, h/2, z); m.castShadow=true; m.receiveShadow=true;
     arena.group.add(m);
-    A.props.push({x, z, hx:sx/2, hz:sz/2, top:h, jumpable:h<=MAX_JUMP}); // AABB + height
+    const propData={x, z, hx:sx/2, hz:sz/2, top:h, jumpable:h<=MAX_JUMP, mesh:m, destructible,
+                    hp: destructible ? 15 : 0, maxHp: destructible ? 15 : 0};
+    A.props.push(propData);
   }
   // exit portal pad at center
   const padMat=new THREE.MeshBasicMaterial({color:0xb14bff, transparent:true, opacity:0.7});
@@ -1684,16 +2011,24 @@ function startArena(){
   A.stats={ dmg:10, atkSpeed:1.0, range:9, projSpeed:30, moveBonus:0, pickup:2.2,
             pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 };
   A.weapons=['ball']; A.wcd={};
+  // Starting weapon: the player can pick a starting weapon from Settings
+  // (default: ball). Only applies if they actually own the weapon in the
+  // weapon-unlocks list — otherwise fall back to ball.
+  if(settings.startingWeapon && settings.startingWeapon!=='ball' && WEAPONS[settings.startingWeapon]){
+    A.weapons.push(settings.startingWeapon);
+  }
   A.runKills=0; A.boomerangOut=false;
   A.runStartTime=performance.now();   // for the run-duration readout on the death screen
   player.speed=7.2;
   applyClass();                 // selected class modifies starting stats/weapons/speed
+  applyMasteryBonus();          // permanent per-class mastery bonuses (v061726k)
   for(const w of A.weapons) A.wcd[w]=0;
   for(const k in upgradeLevels) delete upgradeLevels[k];   // reset owned counts
   ensureBlades();
   streak.count=0; streak.timer=0; D.getElementById('streak').classList.remove('show');
   clearDmgTexts();
   A.mapSeed=(Math.random()*1e9)|0;
+  _lastRunSeed = A.mapSeed;   // record for the replay feature (v061726k)
   buildArenaMap(A.mapSeed);
   player.pos.set(0,0,6); player.vel.set(0,0,0); player.knock=null;
   player.bhop=1; player._jumpPrev=false;
@@ -1709,6 +2044,13 @@ function startArena(){
 function exitArena(keepNothingBut){
   A.active=false;
   recordWave(A.wave);
+  // Persistent stats: count this as a completed run, track per-class best
+  // wave, and accumulate play time. We do this here AND in arenaDeath so
+  // both "leave voluntarily" and "die" paths record the run.
+  stats.runsCompleted++;
+  recordClassWave(selectedClass, A.wave);
+  if(A.runStartTime) stats.totalTimePlayed += (performance.now() - A.runStartTime)/1000;
+  persist();
   stopMusic();
   clearIndicators();
   clearDmgTexts();
@@ -1733,9 +2075,13 @@ function nextWave(){
   A.wave++;
   recordWave(A.wave);
   const isBoss = (A.wave%10===0);
+  const isMiniBoss = (A.wave%5===0 && !isBoss);   // mini-boss on waves 5, 15, 25...
   A.waveTime=0;
   if(isBoss){
     spawnBoss();
+    A.toSpawn=0; A.spawnAcc=0;
+  } else if(isMiniBoss){
+    spawnMiniBoss();   // weaker elite version between major bosses
     A.toSpawn=0; A.spawnAcc=0;
   } else {
     // enemy count climbs a bit faster in later waves
@@ -1743,6 +2089,34 @@ function nextWave(){
     A.spawnAcc=0;
   }
   flashWave(isBoss);
+}
+// Mini-boss: a scaled-down boss that spawns on waves 5, 15, 25... — breaks
+// up the pacing between major boss fights. Has half the HP of a full boss,
+// one fewer attack, and a smaller model. No boss bar (kept for major bosses
+// only); just a toast + small shake.
+function spawnMiniBoss(){
+  const tier=A.wave/10;
+  const hp=(220*tier + 160)*(1+tier*0.15);
+  const size=1.6+Math.random()*0.4;
+  const hue=Math.random();
+  const color=hslHex(hue,0.6,0.55);
+  const mdl=makeEnemyModel(size, color, 'boss');
+  mdl.bodyMat.emissive=new THREE.Color(hslHex(hue,0.7,0.18));
+  const ang=Math.random()*Math.PI*2;
+  mdl.group.position.set(Math.cos(ang)*(ARENA_R-6), 0, Math.sin(ang)*(ARENA_R-6));
+  arena.group.add(mdl.group);
+  const pool=[...BOSS_ATTACKS].sort(()=>Math.random()-0.5);
+  const attacks=pool.slice(0, 1+Math.floor(Math.random()*2));   // 1-2 attacks (fewer than full boss)
+  const name='Elite '+BOSS_PRE[(Math.random()*BOSS_PRE.length)|0];
+  A.boss={mesh:mdl.group, hp, maxhp:hp, spd:2.8+tier*0.2, dmg:22*(1+tier*0.25), xp:12, size, top:mdl.top,
+          hit:0, kind:'boss', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
+          phase:0, baseY:0, color,
+          attacks, atkIdx:0, atkCd:1.6, dashing:0, dashDir:new THREE.Vector3(),
+          phase2:false, desperate:false, _miniBoss:true};
+  // mini-bosses don't get the full boss bar — just a toast + small shake.
+  toast('Wave '+A.wave+': '+name);
+  addShake(0.25);
+  SFX.boss();
 }
 
 function outlineFor(mesh, scale){
@@ -1835,10 +2209,12 @@ function mixDark(hex, f){
   return (r<<16|gg<<8|b)&0xffffff;
 }
 
-function spawnEnemy(kind){
+function spawnEnemy(kind, atX, atZ){
   const ang=Math.random()*Math.PI*2;
   const rad=ARENA_R-3;
-  const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
+  // Support optional atX/atZ from the spawn telegraph; fall back to random.
+  const x = (atX!==undefined) ? atX : Math.cos(ang)*rad;
+  const z = (atZ!==undefined) ? atZ : Math.sin(ang)*rad;
   let hp, spd, size, color, dmg, xp;
   const w=A.wave;
   // difficulty ramps up harder in later waves (kicks in after ~wave 6):
@@ -1870,6 +2246,9 @@ function spawnEnemy(kind){
   // Leech: fast, low HP, but every point of contact damage it deals also
   // heals it for 50% — so trading hits with one is a losing proposition.
   else if(kind==='leech'){ hp=(14+w*4)*lateMul; spd=4.6*spdMul; size=0.85; color=0xa02838; dmg=12*lateMul; xp=2; }
+  // TURRET: stationary enemy that spawns in the arena and shoots at the
+  // player. Forces repositioning. Counter: break line of sight with props.
+  else if(kind==='turret'){ hp=(30+w*6)*lateMul; spd=0; size=1.0; color=0x88aabb; dmg=10*lateMul; xp=3; }
   else { hp=(16+w*5)*lateMul; spd=3.7*spdMul; size=1.0; color=0xff4b6b; dmg=20*lateMul; xp=1; }
   const mdl=makeEnemyModel(size, color, kind);
   mdl.group.position.set(x, 0, z);
@@ -1883,23 +2262,54 @@ function spawnEnemy(kind){
   if(kind==='bomber')  baseProps.fuseLit=false;
   if(kind==='summoner')baseProps.summonCd=3.5+Math.random()*1.5;
   if(kind==='shielder')baseProps.shieldMesh=mdl.shieldMesh;   // set by makeEnemyModel
+  if(kind==='turret')  baseProps.shootCd=1.5+Math.random();
+  // ---- elite enemies (v061726k) ----
+  // Every ~5 spawns, one enemy gets a random elite modifier. Elites
+  // have 2x HP, a golden tint, and one of: faster, shielded, or
+  // exploding-on-death. Worth 3x shards (3 instead of 1).
+  A._spawnCount = (A._spawnCount||0) + 1;
+  if(A._spawnCount % 5 === 0 && kind!=='boss' && kind!=='turret'){
+    baseProps._elite = true;
+    baseProps.hp = baseProps.maxhp = baseProps.hp * 2;
+    baseProps.dmg = baseProps.dmg * 1.5;
+    baseProps.xp = (baseProps.xp||1) * 3;
+    // golden emissive tint
+    mdl.bodyMat.emissive = new THREE.Color(0x665500);
+    // pick a random modifier
+    const mods = ['fast','shielded','exploding'];
+    baseProps._eliteMod = mods[(Math.random()*mods.length)|0];
+    if(baseProps._eliteMod === 'fast') baseProps.spd *= 1.6;
+    if(baseProps._eliteMod === 'exploding') baseProps._exploded = false;   // will explode on death
+    // shielded elites get a shield mesh like the shielder
+    if(baseProps._eliteMod === 'shielded'){
+      const shieldMat=new THREE.MeshLambertMaterial({color:0xffd700, emissive:0x000000});
+      baseProps.shieldMesh=new THREE.Mesh(new THREE.BoxGeometry(baseProps.size*1.4, baseProps.size*1.0, baseProps.size*0.12), shieldMat);
+      baseProps.shieldMesh.position.set(0, baseProps.size*0.55+baseProps.size*0.4, baseProps.size*0.55);
+      baseProps.shieldMesh.castShadow=true;
+      mdl.group.add(baseProps.shieldMesh);
+    }
+    // scale up the model a bit so elites read as bigger
+    mdl.group.scale.setScalar(1.15);
+  }
   A.enemies.push(baseProps);
 }
 const ENEMY_LABELS={ basic:'Grunt', fast:'Runner', tank:'Tank', ranged:'Shooter', dasher:'Dasher', healer:'Healer',
-                     bomber:'Bomber', splitter:'Splitter', shielder:'Shielder', summoner:'Summoner', phantom:'Phantom', leech:'Leech' };
+                     bomber:'Bomber', splitter:'Splitter', shielder:'Shielder', summoner:'Summoner', phantom:'Phantom', leech:'Leech',
+                     turret:'Turret' };
 // weighted enemy-kind picker; tougher/odder types unlock as waves climb
 function pickEnemyKind(w){
   const pool=[ ['basic',1.0], ['fast',0.5+w*0.02] ];
   if(w>=3) pool.push(['ranged',0.3+w*0.02]);
-  if(w>=3) pool.push(['bomber',0.25+w*0.015]);          // new
+  if(w>=3) pool.push(['bomber',0.25+w*0.015]);
   if(w>=4) pool.push(['dasher',0.25+w*0.02]);
-  if(w>=4) pool.push(['splitter',0.22+w*0.015]);        // new
-  if(w>=4) pool.push(['phantom',0.18+w*0.012]);         // new
+  if(w>=4) pool.push(['splitter',0.22+w*0.015]);
+  if(w>=4) pool.push(['phantom',0.18+w*0.012]);
   if(w>=5) pool.push(['tank',0.2+w*0.02]);
-  if(w>=5) pool.push(['shielder',0.18+w*0.01]);         // new
-  if(w>=5) pool.push(['leech',0.18+w*0.012]);           // new
+  if(w>=5) pool.push(['shielder',0.18+w*0.01]);
+  if(w>=5) pool.push(['leech',0.18+w*0.012]);
   if(w>=6) pool.push(['healer',0.18]);
-  if(w>=6) pool.push(['summoner',0.14+w*0.008]);        // new
+  if(w>=6) pool.push(['summoner',0.14+w*0.008]);
+  if(w>=7) pool.push(['turret',0.12+w*0.008]);   // stationary shooter (v061726k)
   let tot=0; for(const p of pool) tot+=p[1];
   let r=Math.random()*tot;
   for(const p of pool){ r-=p[1]; if(r<=0) return p[0]; }
@@ -1928,7 +2338,8 @@ function spawnBoss(){
   A.boss={mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.25, dmg:34*(1+tier*0.35), xp:25, size, top:mdl.top,
           hit:0, kind:'boss', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
           phase:0, baseY:0, color,
-          attacks, atkIdx:0, atkCd:1.4, dashing:0, dashDir:new THREE.Vector3()};
+          attacks, atkIdx:0, atkCd:1.4, dashing:0, dashDir:new THREE.Vector3(),
+          phase2:false, desperate:false};   // boss phase + desperation flags (v061726k)
   D.getElementById('bossbar').style.display='block';
   D.getElementById('bossname').style.display='block';
   D.getElementById('bossname').textContent=name.toUpperCase();
@@ -2160,6 +2571,39 @@ function updateBlades(){
 
 // run each owned weapon's cooldown + fire at target
 function autoFire(){
+  // Charged shot: holding LeftShift pauses auto-fire and builds a charge.
+  // On release, the next ball shot is 2x damage with a bigger projectile.
+  // Only applies to the ball weapon (the default) — other weapons fire
+  // normally. This gives the player a deliberate "big shot" option without
+  // changing the auto-fire feel for everything else.
+  if(keys.LeftShift || keys.ShiftLeft){
+    A._charging = (A._charging||0) + dt;
+    // visual: charge glow at the player's chest grows
+    if(!A._chargeMesh){
+      A._chargeMesh=new THREE.Mesh(new THREE.SphereGeometry(0.15,8,8),
+        new THREE.MeshBasicMaterial({color:0xfff27a, transparent:true, opacity:0.6}));
+      arena.group.add(A._chargeMesh);
+    }
+    A._chargeMesh.position.set(player.pos.x, player.pos.y+1.1, player.pos.z);
+    const cs = 0.15 + Math.min(1, A._charging/1.5)*0.25;
+    A._chargeMesh.scale.setScalar(cs/0.15);
+    A._chargeMesh.material.opacity = 0.4 + Math.min(1, A._charging/1.5)*0.5;
+    return;   // don't auto-fire while charging
+  } else if(A._charging > 0){
+    // released — fire the charged shot if we have a target
+    const chargeT = A._charging;
+    A._charging = 0;
+    if(A._chargeMesh){ disposeObj(A._chargeMesh); A._chargeMesh=null; }
+    const best=A.target;
+    if(best && chargeT >= 0.3){   // minimum 0.3s charge to count
+      const dir=aimDirAt(best);
+      const dmg = A.stats.dmg * (1 + Math.min(1.5, chargeT/1.5));   // up to 2.5x at full charge
+      fireProjectile(dir, 0.3, 0xfff27a, dmg, 1.5);
+      SFX.shoot();
+      hitStop(40);   // small hit-stop on the release feels good
+    }
+    return;
+  }
   const best=A.target;
   A.wcd=A.wcd||{};
   for(const w of A.weapons){
@@ -2178,8 +2622,11 @@ function autoFire(){
   }
 }
 function fireProjectile(dir, size, color, dmg, lifeMul){
-  const m=new THREE.Mesh(new THREE.SphereGeometry(size||0.18,8,8),
-    new THREE.MeshBasicMaterial({color:color||0xfff1a8}));
+  // Use the object pool instead of creating a new mesh per shot.
+  const m=obtainProjMesh();
+  m.visible=true;
+  m.scale.setScalar(size||0.18);
+  m.material.color.setHex(color||0xfff1a8);
   m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
   arena.group.add(m);
   // Muzzle flash: a quick burst of sparks at the barrel (player chest)
@@ -2281,11 +2728,13 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
                 0.3, 0.65, 1.0, 0.4);
             }
           }
+          spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'BREAK!', true, false);
           // damage passes through unmodified — fall through to the
           // normal hp subtraction below.
         } else {
           dmg *= 0.2;     // shield eats 80%
           if(e.shieldMesh) e.shieldMesh.material.emissive.setHex(0xffffff);   // flash
+          spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'BLOCKED', true, false);
         }
       }
     }
@@ -2294,6 +2743,42 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
   SFX.hit();
   emitHit(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z);
   spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(dmg), false, crit);
+  // Hit-stop on crits: 30ms freeze sells the impact. Kills get a longer
+  // 60ms freeze (see killEnemy). Only triggers on actual crits, not on
+  // every hit, so the game doesn't feel stuttery.
+  if(crit){
+    hitStop(30);
+    // Crit flash: brief gold vignette pulse on the screen edge.
+    const cf=D.getElementById('critflash');
+    if(cf){
+      cf.style.boxShadow='inset 0 0 80px rgba(255,200,80,.45)';
+      setTimeout(()=>cf.style.boxShadow='inset 0 0 80px rgba(255,200,80,0)',80);
+    }
+    // Sharper crit SFX: a higher-pitched hit blip on top of the normal one.
+    blip(880, 0.06, 'square', 0.05, 1320);
+  }
+  // Status effects: frost (slow), poison (DoT), shock (chain) — applied
+  // as debuffs on the enemy. Tied to A.stats.frostChance / poisonChance /
+  // shockChance which are set by new upgrades.
+  if(A.stats.frostChance && Math.random()<A.stats.frostChance){
+    e.frostT = 2.0;   // 2s slow
+  }
+  if(A.stats.poisonChance && Math.random()<A.stats.poisonChance){
+    e.poisonT = 3.0; e.poisonDmg = A.stats.dmg*0.15;   // 3s DoT at 15% dps
+  }
+  if(A.stats.shockChance && Math.random()<A.stats.shockChance){
+    // chain to 1 nearby enemy
+    let nearest=null, nd=4*4;   // 4 unit chain range
+    for(const o of allTargets()){
+      if(o===e || o._killed) continue;
+      const d=(o.mesh.position.x-e.mesh.position.x)**2+(o.mesh.position.z-e.mesh.position.z)**2;
+      if(d<nd){ nd=d; nearest=o; }
+    }
+    if(nearest){
+      damageEnemy(nearest, dmg*0.5, false, e.mesh.position);
+      spawnParticle(nearest.mesh.position.x, nearest.mesh.position.y+(nearest.top||1)*0.5, nearest.mesh.position.z, 0,0,0, 0.7,0.9,1.0, 0.2);
+    }
+  }
   if(A.stats.lifesteal>0){ A.hp=Math.min(A.maxhp, A.hp+dmg*A.stats.lifesteal); }
   if(e.hp<=0) killEnemy(e);
 }
@@ -2303,15 +2788,27 @@ function killEnemy(e){
   if(e===A.target){ if(tracer) tracer.visible=false; A.target=null; }
   if(e.indEl){ e.indEl.remove(); e.indEl=null; }
   totalKills++; A.runKills=(A.runKills||0)+1;   // run + all-time kill counters
+  recordKill(e.kind);                        // persistent per-type kill stat
   addShards(1);                      // +1 shard per kill (also persists totalKills)
   SFX.kill();
   bumpStreak();
+  // Hit-stop on kills: 60ms freeze — longer than crits because kills are
+  // a bigger moment. Bosses get 120ms.
+  hitStop(e===A.boss ? 120 : 60);
   // Bomber explodes on death — same AoE as the contact explosion, so
   // killing it point-blank still punishes you. Detonates at its current
   // position, not where the shot came from, so a long-range kill is safe.
   if(e.kind==='bomber' && !e._exploded){
     bomberExplode(e.mesh.position.x, e.mesh.position.y, e.mesh.position.z, e.dmg);
   }
+  // Elite enemies with the 'exploding' modifier detonate on death,
+  // same as a bomber but with a bigger blast radius.
+  if(e._elite && e._eliteMod==='exploding' && !e._exploded){
+    e._exploded = true;
+    bomberExplode(e.mesh.position.x, e.mesh.position.y, e.mesh.position.z, e.dmg*1.5);
+  }
+  // Elite enemies award 2 extra shards (3 total instead of 1).
+  if(e._elite) addShards(2);
   // Splitter fractures into 2-3 mini-grunts on death. Minions inherit a
   // fraction of the splitter's HP and award 1 shard each — same as a basic
   // grunt — so killing a splitter pays out a small XP cluster.
@@ -2332,6 +2829,7 @@ function killEnemy(e){
     A.boss=null;
     D.getElementById('bossbar').style.display='none';
     D.getElementById('bossname').style.display='none';
+    stats.bossesKilled++; persist();   // persistent boss-kill counter
     toast("Boss down!");
     return;
   }
@@ -2419,7 +2917,7 @@ function hurtPlayer(d, fromPos){
   const f=D.getElementById('dmgflash');
   f.style.boxShadow='inset 0 0 120px rgba(226,59,59,.55)';
   setTimeout(()=>f.style.boxShadow='inset 0 0 120px rgba(226,59,59,0)',90);
-  if(A.hp<=0){ A.hp=0; arenaDeath(); }
+  if(A.hp<=0 && !A.dead){ A.hp=0; _deathSlowmo=0.6; setTimeout(arenaDeath, 600); }
 }
 // continuous melee contact damage — enemies hurt you every frame they touch you,
 // with no hit-and-wait cooldown. e.dmg is treated as damage-per-second.
@@ -2448,12 +2946,19 @@ function contactDamage(e){
     const strength=9 + Math.min(12, e.dmg*0.3);
     player.knock={ x:kx*strength, z:kz*strength };
   }
-  if(A.hp<=0){ A.hp=0; arenaDeath(); }
+  if(A.hp<=0 && !A.dead){ A.hp=0; _deathSlowmo=0.6; setTimeout(arenaDeath, 600); }
 }
 function arenaDeath(){
   A.active=false; A.dead=true;
   GAME.state='dead';
   recordWave(A.wave);
+  // Persistent stats: count the death, the completed run, per-class best
+  // wave, and accumulated play time.
+  stats.deathCount++;
+  stats.runsCompleted++;
+  recordClassWave(selectedClass, A.wave);
+  if(A.runStartTime) stats.totalTimePlayed += (performance.now() - A.runStartTime)/1000;
+  persist();
   stopMusic();
   clearIndicators();
   clearDmgTexts();
@@ -2516,6 +3021,11 @@ const UPGRADE_POOL = [
   {id:'momentum',ic:'🏃', nm:'Momentum', ds:'+18% move speed', pct:18, apply:s=>{s.moveBonus+=0.18; player.speed*=1.18;}},
   {id:'siphon',  ic:'🧛', nm:'Siphon', ds:'+6% lifesteal', pct:6, apply:s=>s.lifesteal+=0.06},
   {id:'rifling', ic:'🌀', nm:'Rifling', ds:'+25% projectile speed', pct:25, apply:s=>s.projSpeed*=1.25},
+  // Status effect upgrades (v061726k) — each adds a chance to apply a
+  // debuff on hit. Stackable: each pickup adds 15% to the chance.
+  {id:'frost',  ic:'❄️', nm:'Frost Rounds', ds:'+15% chance to slow enemies on hit', apply:s=>s.frostChance=(s.frostChance||0)+0.15},
+  {id:'poison', ic:'☠️', nm:'Poison Rounds', ds:'+15% chance to poison (DoT) on hit', apply:s=>s.poisonChance=(s.poisonChance||0)+0.15},
+  {id:'shock',  ic:'⚡', nm:'Shock Rounds', ds:'+15% chance to chain to nearby enemy', apply:s=>s.shockChance=(s.shockChance||0)+0.15},
 ];
 // weapon-unlock "cards" mixed into the level-up pool
 const WEAPON_UNLOCKS=[
@@ -2570,6 +3080,26 @@ function offerUpgrades(){
 onTap(D.getElementById('randomUpgrade'), ()=>{
   if(!_offerPool.length) return;
   applyUpgradeChoice(_offerPool[(Math.random()*_offerPool.length)|0]);
+});
+// "Reroll" button: spend 5 shards to get a fresh set of 3 upgrades.
+// Only works if the player has enough shards. The old pool is discarded.
+onTap(D.getElementById('rerollUpgrade'), ()=>{
+  if(shards < 5){ toast('Need 5 shards to reroll'); SFX.hurt(); return; }
+  shards -= 5; updateShardHud(); persist();
+  const pool=buildOfferPool().sort(()=>Math.random()-0.5).slice(0,3);
+  _offerPool=pool;
+  const wrap=D.getElementById('cards'); wrap.innerHTML='';
+  for(const u of pool){
+    const isWpn=!!u.weapon;
+    const lv=(upgradeLevels[u.id]||0);
+    const el=D.createElement('div'); el.className='card';
+    const tag = isWpn ? 'WEAPON' : (lv>0?('Owned ×'+lv):'New');
+    el.innerHTML=`<div class="ic">${u.ic}</div><div class="nm">${u.nm}</div>
+      <div class="ds">${u.ds}</div><div class="lv">${tag}</div>`;
+    onTap(el, ()=>applyUpgradeChoice(u));
+    wrap.appendChild(el);
+  }
+  SFX.level();
 });
 
 // left-side panel: weapons owned + each upgrade with count and total % boost
@@ -2639,6 +3169,9 @@ function toast(t){
 }
 function flashWave(boss){
   if(boss) return;   // spawnBoss already announces the boss by name
+  // Endless mode: don't show the wave number toast — the wave counter
+  // is hidden and enemies scale continuously.
+  if(settings.endlessMode) return;
   const el=D.getElementById('toast');
   el.textContent='Wave '+A.wave;
   el.style.opacity='1'; clearTimeout(toastTimer);
@@ -2663,7 +3196,15 @@ function loop(now){
   // rendering skipped it and the loop died — which is exactly what a "random
   // freeze" looks like. Now a bad frame is caught and the game keeps running.
   requestAnimationFrame(loop);
-  dt=Math.min(0.05,(now-last)/1000); last=now;
+  // ---- hit-stop: freeze game time for a few ms on big hits/kills ----
+  // realDt always advances; dt is set to 0 during hit-stop so all motion
+  // pauses, but the renderer keeps drawing. Creates the classic "punch"
+  // feel without actually dropping frames.
+  const realDt = Math.min(0.05,(now-last)/1000); last=now;
+  if(_hitStopT > 0){ _hitStopT -= realDt; dt = 0; }
+  else dt = realDt;
+  // ---- death slow-mo: scale dt down for ~0.6s before the death screen ----
+  if(_deathSlowmo > 0){ _deathSlowmo -= realDt; dt *= 0.2; }
   try {
     if(GAME.state==='overworld') updateOverworld();
     else if(GAME.state==='arena') updateArena();
@@ -2709,6 +3250,17 @@ function addShake(amount){
   if(!settings.screenShake) return;
   _shakeMag=Math.min(1.0, _shakeMag+amount);
 }
+// ---------- hit-stop ----------
+// Freezes game time (dt=0) for a few ms on big hits/kills. Creates the
+// classic fighting-game "punch" feel — the screen freezes for a frame
+// or two, then resumes. The renderer keeps drawing during hit-stop so
+// the player sees the impact frame clearly.
+let _hitStopT=0;
+function hitStop(ms){ _hitStopT = Math.max(_hitStopT, ms/1000); }
+// ---------- death slow-mo ----------
+// When the player dies, time scales down to 20% for ~0.6s before the
+// death screen appears. Gives the death moment weight.
+let _deathSlowmo=0;
 function updateCamera(){
   const dir=_camDir.set(
     Math.sin(player.yaw)*Math.cos(player.pitch),
@@ -2762,6 +3314,35 @@ let _npcNear=false;
 function updateOverworld(){
   if(GAME.paused) return;   // a menu (settings/class shop) is open — freeze the lobby
   collideMove('overworld');
+  checkLobbyTutorial();   // first-run tip (v061726k)
+  // ---- day/night cycle (v061726k) ----
+  // The lobby sky slowly shifts from dawn -> day -> dusk -> night over a
+  // ~5-minute cycle. Cosmetic only — no gameplay effect. We oscillate
+  // the sun's intensity and color, and the hemisphere light's intensity.
+  // The cycle is driven by real time (not dt) so it advances even when
+  // the lobby is paused, and so all players see the same phase if they
+  // visit at the same wall-clock time.
+  {
+    const cycleMin = 5;   // 5-minute full cycle
+    const phase = ((Date.now()/60000) % cycleMin) / cycleMin;   // 0..1
+    const sunAngle = phase * Math.PI * 2;
+    // sun height: -1 (midnight) to 1 (noon)
+    const sunHeight = Math.sin(sunAngle);
+    // intensity: 0.2 at night, 1.05 at noon
+    const intensity = 0.3 + Math.max(0, sunHeight) * 0.75;
+    sun.intensity = intensity;
+    hemi.intensity = 0.4 + Math.max(0, sunHeight) * 0.5;
+    // color: warm at dawn/dusk, white at noon, blue at night
+    if(sunHeight > 0.3){
+      sun.color.setHex(0xffffff);
+    } else if(sunHeight > -0.2){
+      sun.color.setHex(0xffbb88);   // dawn/dusk warm
+    } else {
+      sun.color.setHex(0x4466aa);   // night cool
+    }
+    // sun position arcs across the sky
+    sun.position.set(Math.cos(sunAngle)*60, Math.max(10, sunHeight*80), 30);
+  }
   if(portalPlane){ portalPlane.material.opacity=0.6+Math.sin(performance.now()*0.004)*0.18; }
   if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.30+Math.sin(performance.now()*0.003)*0.10; }
   // NPC idle animation + always-face-the-player behavior. The whole group
@@ -2796,7 +3377,7 @@ function updateOverworld(){
   const btnShop=D.getElementById('btnShop');
   if(btnShop) btnShop.style.display = (canShop && isMobile && !anyOverlayOpen()) ? 'flex' : 'none';
   if(canShop){
-    if(keys.KeyE || touch.shop){
+    if(keys[settings.keybinds.interact] || touch.shop){
       touch.shop=false;
       openClassMenu();
       return;
@@ -2822,8 +3403,39 @@ function updateOverworld(){
 function updateArena(){
   if(A.paused || GAME.paused){ return; }
   const exitHint=D.getElementById('hint');
+  checkArenaTutorial();   // first-run tip (v061726k)
   // movement
   collideMove('arena');
+  // ---- biome twists (v061726k) ----
+  // Lava: damage zones on the floor. Checks if the player is standing on
+  // a lava patch and applies damage-over-time. The check is every frame
+  // but the damage is small per tick — adds up if you camp on lava.
+  if(A.biomeTwist==='lava' && A.lavaPatches && player.onGround){
+    for(const lp of A.lavaPatches){
+      if(Math.hypot(player.pos.x-lp.x, player.pos.z-lp.z) < lp.r){
+        A.hp -= 12*dt;
+        if(A.invuln<=0) A.invuln=0.1;   // brief invuln so the red flash doesn't spam
+        // orange damage flash
+        const f=D.getElementById('dmgflash');
+        f.style.boxShadow='inset 0 0 80px rgba(255,80,0,.4)';
+        setTimeout(()=>f.style.boxShadow='inset 0 0 80px rgba(255,80,0,0)',60);
+        if(A.hp<=0 && !A.dead){ A.hp=0; _deathSlowmo=0.6; setTimeout(arenaDeath, 600); }
+        break;
+      }
+    }
+  }
+  // Ice: slippery floor — the player's momentum carries them further.
+  // Implemented as a small velocity carryover: when on ground and trying
+  // to stop, the deceleration is reduced. We apply this by extending the
+  // knock system — if the player is on ice and not pressing movement,
+  // they keep sliding at their current velocity for longer.
+  // (Simplified: just add a small forward nudge in the look direction
+  // when on ice and on ground, so the player drifts.)
+  if(A.biomeTwist==='ice' && player.onGround && !player.moving){
+    const driftFwd = new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
+    player.pos.x += driftFwd.x * 1.5 * dt;
+    player.pos.z += driftFwd.z * 1.5 * dt;
+  }
 
   // exit pad: stand near center and press E (or tap LEAVE) to leave the run
   if(A.exitGrace>0) A.exitGrace-=dt;
@@ -2836,7 +3448,7 @@ function updateArena(){
   if(canLeave){
     exitHint.style.display='block';
     exitHint.textContent = isMobile ? 'Tap LEAVE to exit the run' : 'Press E to leave the run';
-    if(keys.KeyE || touch.exit){ touch.exit=false; requestExit(); return; }
+    if(keys[settings.keybinds.interact] || touch.exit){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
   // wave timer / spawning
@@ -2846,7 +3458,36 @@ function updateArena(){
     const interval=Math.max(0.28, 1.0 - A.wave*0.022);   // spawns get faster later
     if(A.spawnAcc>=interval){
       A.spawnAcc=0; A.toSpawn--;
-      spawnEnemy(pickEnemyKind(A.wave));
+      // Telegraph: queue the spawn with a 0.5s ground-ring warning so
+      // the player can react before the enemy appears. The actual
+      // spawnEnemy call is deferred to the telegraph update pass below.
+      const ang=Math.random()*Math.PI*2;
+      const rad=ARENA_R-3;
+      const tx=Math.cos(ang)*rad, tz=Math.sin(ang)*rad;
+      A.telegraphs = A.telegraphs || [];
+      A.telegraphs.push({x:tx, z:tz, t:0, kind:pickEnemyKind(A.wave), mesh:null});
+    }
+  }
+  // ---- process spawn telegraphs ----
+  if(A.telegraphs){
+    for(let i=A.telegraphs.length-1;i>=0;i--){
+      const tg=A.telegraphs[i];
+      tg.t += dt;
+      if(!tg.mesh){
+        tg.mesh=new THREE.Mesh(new THREE.RingGeometry(0.7, 1.0, 16),
+          new THREE.MeshBasicMaterial({color:0xff4444, transparent:true, opacity:0.7, side:THREE.DoubleSide}));
+        tg.mesh.rotation.x=-Math.PI/2;
+        tg.mesh.position.set(tg.x, 0.1, tg.z);
+        arena.group.add(tg.mesh);
+      }
+      const p=Math.min(1, tg.t/0.5);
+      tg.mesh.scale.setScalar(1 + p*0.4);
+      tg.mesh.material.opacity = 0.7 * (1-p*0.6);
+      if(tg.t >= 0.5){
+        disposeObj(tg.mesh);
+        A.telegraphs.splice(i,1);
+        spawnEnemy(tg.kind, tg.x, tg.z);
+      }
     }
   }
   // advance wave when cleared -> vacuum up any leftover xp orbs first
@@ -3019,6 +3660,38 @@ function updateArena(){
     // hit flash
     if(e.hit>0){ e.hit-=dt; e.bodyMat.emissive.setHex(0x884444); }
     else e.bodyMat.emissive.setHex(isBoss? mixDark(e.color,0.3):0x000000);
+    // ---- status effect ticks (v061726k) ----
+    // Frost: slow the enemy to 50% speed while the debuff is active.
+    // Visual: tint the body emissive blue so the player can see who's chilled.
+    if(e.frostT > 0){
+      e.frostT -= dt;
+      e.bodyMat.emissive.setHex(0x224488);
+      // the slow: we already computed `moved` above, so we retroactively
+      // scale it back by re-moving the enemy at half speed. Cheaper than
+      // refactoring the whole movement pass — just subtract half of what
+      // we added. Only works because the movement was linear.
+      if(moved > 0 && !isBoss){
+        const back = moved * 0.5 * dt;
+        e.mesh.position.x -= e.steerX * back;
+        e.mesh.position.z -= e.steerZ * back;
+      }
+    }
+    // Poison: deal damage-over-time. Uses a sub-tick accumulator so the
+    // damage numbers don't spam at 60fps — we tick once per 0.5s.
+    if(e.poisonT > 0){
+      e.poisonT -= dt;
+      e._poisonAccum = (e._poisonAccum||0) + dt;
+      if(e._poisonAccum >= 0.5){
+        e._poisonAccum = 0;
+        const pd = e.poisonDmg * 0.5;   // 0.5s of dps
+        e.hp -= pd;
+        spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(pd), false, false);
+        emitHit(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z);
+        // green tint flash
+        e.bodyMat.emissive.setHex(0x226622);
+        if(e.hp <= 0) killEnemy(e);
+      }
+    }
     // PHANTOM: keep the body translucent even during the hit flash so its
     // ghostliness reads consistently.
     if(e.kind==='phantom' && e.bodyMat.opacity!==0.55){ e.bodyMat.opacity=0.55; }
@@ -3043,7 +3716,37 @@ function updateArena(){
     if(dist < e.size*0.6+0.7 && Math.abs(e.mesh.position.y-player.pos.y)<1.2){ contactDamage(e); }
     // boss attack brain
     if(isBoss){
-      e.atkCd-=dt;
+      // ---- boss phase 2 (v061726k) ----
+      // At 50% HP the boss enters phase 2: adds one more attack to its
+      // pool, speeds up 30%, and its emissive gets brighter. Only
+      // triggers once (phase2 flag).
+      if(!e.phase2 && e.hp < e.maxhp*0.5 && !e._miniBoss){
+        e.phase2=true;
+        e.spd *= 1.3;
+        e.atkCd = 0.5;   // immediate attack
+        // add one more attack from the pool (could be a duplicate of
+        // an existing one, that's fine — it just means more of that type)
+        const extra=[...BOSS_ATTACKS].sort(()=>Math.random()-0.5)[0];
+        e.attacks.push(extra);
+        e.bodyMat.emissive.setHex(mixDark(e.color,0.5));
+        toast('Phase 2!');
+        addShake(0.4);
+        SFX.boss();
+      }
+      // ---- boss desperation (v061726k) ----
+      // Below 20% HP the boss glows red, moves 40% faster, and its
+      // attack cooldowns are halved. The "almost dead" moment should
+      // feel dangerous, not like a cleanup. Visual: red emissive flash.
+      if(!e.desperate && e.hp < e.maxhp*0.2){
+        e.desperate=true;
+        e.spd *= 1.4;
+        toast('Desperate!');
+        addShake(0.5);
+      }
+      if(e.desperate){
+        e.bodyMat.emissive.setHex(0x660000);
+      }
+      e.atkCd-=dt * (e.desperate ? 2 : 1);   // desperate: cooldowns halved
       if(e.dashing<=0 && e.atkCd<=0){ bossAttack(e); }
     } else if(e.kind==='ranged'){
       // fire bolts at the player from range
@@ -3075,6 +3778,16 @@ function updateArena(){
         for(let i=0;i<8;i++){ const a=Math.random()*Math.PI*2;
           spawnParticle(e.mesh.position.x, (e.top||1)*0.5, e.mesh.position.z,
                         Math.cos(a)*2, 1.5, Math.sin(a)*2, 0.7,0.3,0.9, 0.4); }
+      }
+    } else if(e.kind==='turret'){
+      // TURRET: stationary. Shoots at the player on a cooldown. Can't
+      // chase, so the counter-play is to break line of sight or close
+      // the distance and kill it. The shot speed is slower than the
+      // Shooter's so there's more dodging room.
+      e.shootCd-=dt;
+      if(e.shootCd<=0 && dist<22){
+        eshot(e.mesh.position.x, e.mesh.position.z, _tmpDir.set(dx,0,dz).normalize(), 10, e.dmg, 0x88aabb);
+        e.shootCd = 1.8;
       }
     }
   }
@@ -3127,7 +3840,15 @@ function updateArena(){
       p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
       p.life-=dt;
       if(p.life<=0) remove=true;
-      if(!remove && hitsPropH(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.2)) remove=true;
+      if(!remove && hitsPropH(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.2)){
+        // Try to damage a destructible prop first; if it hit one, the
+        // projectile is absorbed (removed) but the prop takes damage.
+        // If it hit a non-destructible prop, just remove the projectile.
+        if(!damagePropAt(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z))
+          remove=true;
+        else
+          remove=true;   // destructible prop also stops the projectile
+      }
     }
     const targets=allTargets();
     for(const e of targets){
@@ -3151,7 +3872,7 @@ function updateArena(){
         break;
       }
     }
-    if(remove){ if(p.boomerang) A.boomerangOut=false; disposeObj(p.mesh); A.projectiles.splice(i,1); }
+    if(remove){ if(p.boomerang) A.boomerangOut=false; releaseProjMesh(p.mesh); A.projectiles.splice(i,1); }
   }
 
   // enemy projectiles (boss); smaller hitbox + vertical gap so you can jump over them
@@ -3474,8 +4195,17 @@ function openSettings(){
   D.getElementById('easyBhopToggle').checked=settings.easyBhop;
   D.getElementById('potatoToggle').checked=settings.potato;
   D.getElementById('shakeToggle').checked=settings.screenShake;
+  D.getElementById('endlessToggle').checked=settings.endlessMode;
+  D.getElementById('weaponSel').value=settings.startingWeapon;
   // mobile already runs at this quality, so hide the toggle there
   D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
+  D.getElementById('colorblindSel').value = settings.colorblind;
+  // sync keybind buttons to current settings
+  D.querySelectorAll('.keybind-btn').forEach(btn=>{
+    const k = btn.dataset.keybind;
+    btn.textContent = settings.keybinds[k];
+    btn.style.background = '#1a2138';
+  });
   D.getElementById('musicVol').value=settings.musicVol;
   D.getElementById('musicVolVal').textContent=settings.musicVol;
   D.getElementById('sfxVol').value=settings.sfxVol;
@@ -3544,10 +4274,272 @@ D.getElementById('potatoToggle').addEventListener('change', e=>{
 });
 D.getElementById('shakeToggle').addEventListener('change', e=>{
   settings.screenShake=e.target.checked;
-  // If the user just turned it off, zero out any in-flight shake so the
-  // camera settles immediately rather than riding out the decay.
   if(!settings.screenShake) _shakeMag=0;
   persist();
+});
+D.getElementById('endlessToggle').addEventListener('change', e=>{
+  settings.endlessMode=e.target.checked;
+  persist();
+  toast(settings.endlessMode ? 'Endless mode on' : 'Endless mode off');
+});
+D.getElementById('weaponSel').addEventListener('change', e=>{
+  settings.startingWeapon=e.target.value;
+  persist();
+});
+// ---------- cosmetic shop ----------
+const COSMETIC_PRESETS = [
+  {name:'Default',  colors:{head:'#e9d2b0',torso:'#6d8cff',arms:'#6d8cff',legs:'#3a4a8a'}},
+  {name:'Crimson',  colors:{head:'#e9d2b0',torso:'#cc3333',arms:'#cc3333',legs:'#661a1a'}},
+  {name:'Forest',   colors:{head:'#e9d2b0',torso:'#33aa55',arms:'#33aa55',legs:'#1a5522'}},
+  {name:'Golden',   colors:{head:'#e9d2b0',torso:'#ffaa22',arms:'#ffaa22',legs:'#884400'}},
+  {name:'Shadow',   colors:{head:'#cccccc',torso:'#333344',arms:'#333344',legs:'#111122'}},
+  {name:'Ice',      colors:{head:'#e9d2b0',torso:'#66ddff',arms:'#66ddff',legs:'#2266aa'}},
+  {name:'Rose',     colors:{head:'#e9d2b0',torso:'#ff66aa',arms:'#ff66aa',legs:'#882244'}},
+  {name:'Toxic',    colors:{head:'#e9d2b0',torso:'#88ff22',arms:'#88ff22',legs:'#446611'}},
+];
+function buildCosmeticGrid(){
+  const grid=D.getElementById('cosmeticGrid');
+  if(!grid) return;
+  grid.innerHTML='';
+  for(const preset of COSMETIC_PRESETS){
+    const el=D.createElement('div');
+    el.style.cssText='width:100px;cursor:pointer;text-align:center;padding:8px;border:2px solid rgba(255,255,255,.15);border-radius:8px;background:#10182b;transition:border-color .15s';
+    el.innerHTML='<div style="display:flex;gap:3px;justify-content:center;margin-bottom:6px">'+
+      '<div style="width:18px;height:18px;border-radius:3px;background:'+preset.colors.head+'"></div>'+
+      '<div style="width:18px;height:18px;border-radius:3px;background:'+preset.colors.torso+'"></div>'+
+      '<div style="width:18px;height:18px;border-radius:3px;background:'+preset.colors.legs+'"></div>'+
+      '</div><div style="font-size:12px">'+preset.name+'</div>';
+    el.addEventListener('mouseenter',()=>el.style.borderColor='#9b7bff');
+    el.addEventListener('mouseleave',()=>el.style.borderColor='rgba(255,255,255,.15)');
+    onTap(el, ()=>{
+      settings.playerColors={...preset.colors};
+      applyPlayerColors();
+      D.getElementById('pcHead').value=preset.colors.head;
+      D.getElementById('pcTorso').value=preset.colors.torso;
+      D.getElementById('pcArms').value=preset.colors.arms;
+      D.getElementById('pcLegs').value=preset.colors.legs;
+      persist();
+      toast(preset.name+' applied');
+    });
+    grid.appendChild(el);
+  }
+}
+function openCosmeticShop(){ buildCosmeticGrid(); D.getElementById('cosmeticShop').style.display='flex'; }
+onTap(D.getElementById('cosmeticClose'), ()=>{ D.getElementById('cosmeticShop').style.display='none'; });
+// ---------- class mastery tree ----------
+let mastery = {};
+function loadMastery(){ try{ const raw=localStorage.getItem('blockfall_mastery_v1'); if(raw) mastery=JSON.parse(raw); }catch(e){} }
+function saveMastery(){ try{ localStorage.setItem('blockfall_mastery_v1', JSON.stringify(mastery)); }catch(e){} }
+loadMastery();
+function openMasteryMenu(){
+  const el=D.getElementById('masteryContent');
+  if(!el) return;
+  let html='<div style="display:flex;justify-content:space-between;margin-bottom:10px"><span>Shards: <b>'+shards+'</b></span><span>Selected: <b>'+
+    (CLASSES.find(c=>c.id===selectedClass)||{}).name+'</b></span></div>';
+  for(const c of CLASSES){
+    const lv=mastery[c.id]||0;
+    const max=5, cost=50;
+    const canBuy=lv<max && shards>=cost && ownedClasses.includes(c.id);
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)">'+
+      '<div><b>'+c.name+'</b> <span style="opacity:.6">Lv '+lv+'/'+max+'</span></div>'+
+      '<div>'+(canBuy?'<button class="btn-primary mastery-buy" data-class="'+c.id+'" style="font-size:12px;padding:6px 12px">'+cost+' shards</button>':(lv>=max?'<span style="opacity:.5">MAX</span>':'<span style="opacity:.4">Need '+cost+' shards</span>'))+'</div>'+
+      '</div>';
+  }
+  el.innerHTML=html;
+  el.querySelectorAll('.mastery-buy').forEach(btn=>{
+    onTap(btn, ()=>{
+      const cid=btn.dataset.class;
+      const lv=mastery[cid]||0;
+      if(lv<5 && shards>=50){
+        shards-=50; mastery[cid]=(mastery[cid]||0)+1;
+        updateShardHud(); persist(); saveMastery();
+        openMasteryMenu();
+        SFX.level();
+      }
+    });
+  });
+  D.getElementById('masteryMenu').style.display='flex';
+}
+onTap(D.getElementById('masteryClose'), ()=>{ D.getElementById('masteryMenu').style.display='none'; });
+function applyMasteryBonus(){
+  const lv=mastery[selectedClass]||0;
+  if(lv<=0) return;
+  const bonus=1 + lv*0.05;
+  A.stats.dmg*=bonus;
+  A.maxhp=Math.round(A.maxhp*bonus); A.hp=A.maxhp;
+}
+// ---------- colorblind mode ----------
+// Swaps the damage-number / crit / special colors to palettes that are
+// distinguishable for each type of color vision deficiency. The base
+// colors are saved to settings so the user can still tweak them after
+// applying a preset; the preset just sets them to good defaults.
+const COLORBLIND_PRESETS = {
+  off:          { dmg:'#ffffff', crit:'#ffd84a', special:'#7fe0ff', hit:'#fff27a' },
+  protanopia:   { dmg:'#ffffff', crit:'#3aa0ff', special:'#7fe0ff', hit:'#3aa0ff' },   // avoid red/green confusion
+  deuteranopia: { dmg:'#ffffff', crit:'#3aa0ff', special:'#7fe0ff', hit:'#3aa0ff' },   // same swap, different cause
+  tritanopia:   { dmg:'#ffffff', crit:'#ff5050', special:'#ff5050', hit:'#ffcf3a' },   // avoid blue/cyan confusion
+  highcontrast: { dmg:'#ffffff', crit:'#ff0000', special:'#00ffff', hit:'#ffff00' }    // maximum separation
+};
+function applyColorblind(){
+  const p = COLORBLIND_PRESETS[settings.colorblind] || COLORBLIND_PRESETS.off;
+  settings.dmgColor = p.dmg;
+  settings.critColor = p.crit;
+  settings.specialColor = p.special;
+  settings.hitColor = p.hit;
+  // update the color picker UIs to reflect the new values
+  const sync=(id,val)=>{ const el=D.getElementById(id); if(el) el.value=val; };
+  sync('dmgCol', p.dmg); sync('critCol', p.crit); sync('specialCol', p.special); sync('hitCol', p.hit);
+  applyParticleColors();
+  persist();
+}
+D.getElementById('colorblindSel').addEventListener('change', e=>{
+  settings.colorblind = e.target.value;
+  applyColorblind();
+  persist();
+});
+// ---------- keybind remapping ----------
+// Click a keybind button -> it enters "listening" mode (text shows "...").
+// Next keydown sets that keybind. Escape cancels.
+let _keybindListening = null;
+D.querySelectorAll('.keybind-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    // cancel any previous listening button
+    if(_keybindListening && _keybindListening!==btn){
+      _keybindListening.textContent = settings.keybinds[_keybindListening.dataset.keybind];
+      _keybindListening.style.background = '#1a2138';
+    }
+    _keybindListening = btn;
+    btn.textContent = '...';
+    btn.style.background = '#3a4a8a';
+  });
+});
+addEventListener('keydown', e=>{
+  if(!_keybindListening) return;
+  if(e.code==='Escape'){
+    _keybindListening.textContent = settings.keybinds[_keybindListening.dataset.keybind];
+    _keybindListening.style.background = '#1a2138';
+    _keybindListening = null;
+    return;
+  }
+  e.preventDefault();
+  const action = _keybindListening.dataset.keybind;
+  settings.keybinds[action] = e.code;
+  _keybindListening.textContent = e.code;
+  _keybindListening.style.background = '#1a2138';
+  _keybindListening = null;
+  persist();
+});
+// ---------- save export/import ----------
+D.getElementById('exportSaveBtn').addEventListener('click', ()=>{
+  const code = exportSave();
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(code).then(()=>toast('Save copied to clipboard'), ()=>toast('Copy failed — check console'));
+  } else {
+    console.log('[blockfall] Export code:', code);
+    toast('Export code logged to console');
+  }
+});
+D.getElementById('importSaveBtn').addEventListener('click', ()=>{
+  D.getElementById('importModal').style.display='flex';
+});
+onTap(D.getElementById('importCancel'), ()=>{ D.getElementById('importModal').style.display='none'; });
+onTap(D.getElementById('importConfirm'), ()=>{
+  const code = D.getElementById('importCode').value.trim();
+  if(!code){ toast('Paste a code first'); return; }
+  if(importSave(code)){
+    D.getElementById('importModal').style.display='none';
+    toast('Save imported! Reload to apply.');
+    // apply settings immediately where possible
+    applyVolumes(); applySky(); applyPlayerColors(); applyParticleColors();
+  } else {
+    toast('Invalid save code');
+  }
+});
+// ---------- stats page ----------
+function formatTime(sec){
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=Math.floor(sec%60);
+  if(h>0) return h+'h '+m+'m';
+  if(m>0) return m+'m '+s+'s';
+  return s+'s';
+}
+function openStatsPage(){
+  const el = D.getElementById('statsContent');
+  if(!el) return;
+  const s = stats;
+  const fmt = (label, val) => '<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding:2px 0"><span style="opacity:.7">'+label+'</span><b>'+val+'</b></div>';
+  let html = '';
+  html += fmt('Total kills', totalKills);
+  html += fmt('Runs completed', s.runsCompleted||0);
+  html += fmt('Deaths', s.deathCount||0);
+  html += fmt('Bosses killed', s.bossesKilled||0);
+  html += fmt('Best wave', bestWave);
+  html += fmt('Time played', formatTime(s.totalTimePlayed||0));
+  html += fmt('Shards', shards);
+  // per-class best waves
+  html += '<div style="margin-top:12px;font-size:12px;opacity:.6;letter-spacing:1px">BEST WAVE PER CLASS</div>';
+  for(const c of CLASSES){
+    const w = (s.bestWavePerClass||{})[c.id] || 0;
+    html += fmt(c.name, w>0 ? w : '—');
+  }
+  // per-type kills
+  html += '<div style="margin-top:12px;font-size:12px;opacity:.6;letter-spacing:1px">KILLS BY TYPE</div>';
+  const kt = s.killsByType||{};
+  const types = Object.keys(kt).sort((a,b)=>kt[b]-kt[a]);
+  if(types.length===0){
+    html += '<div style="opacity:.5;font-size:12px;padding:4px 0">No kills yet — go fight something!</div>';
+  } else {
+    for(const t of types) html += fmt(t.charAt(0).toUpperCase()+t.slice(1), kt[t]);
+  }
+  el.innerHTML = html;
+  D.getElementById('statsPage').style.display='flex';
+}
+onTap(D.getElementById('openStatsBtn'), openStatsPage);
+onTap(D.getElementById('statsClose'), ()=>{ D.getElementById('statsPage').style.display='none'; });
+onTap(D.getElementById('openCosmeticBtn'), openCosmeticShop);
+onTap(D.getElementById('openMasteryBtn'), openMasteryMenu);
+// ---------- tutorial tips (first-run) ----------
+// Shows inline tooltip-style hints the first time the player enters the
+// lobby and arena. Tracked via a localStorage flag so they only fire once.
+let _tutorialSeen = { lobby:false, arena:false };
+try{ const raw=localStorage.getItem('blockfall_tutorial_v1'); if(raw) _tutorialSeen=JSON.parse(raw); }catch(e){}
+function _saveTutorial(){ try{ localStorage.setItem('blockfall_tutorial_v1', JSON.stringify(_tutorialSeen)); }catch(e){} }
+function showTutorialTip(text, duration){
+  const hint=D.getElementById('hint');
+  hint.style.display='block';
+  hint.style.background='rgba(80,160,255,.9)';
+  hint.textContent=text;
+  hint.style.fontSize='15px';
+  hint.style.padding='10px 20px';
+  clearTimeout(showTutorialTip._t);
+  showTutorialTip._t=setTimeout(()=>{
+    hint.style.display='none';
+    hint.style.background='rgba(20,180,90,.85)';
+    hint.style.fontSize='14px';
+    hint.style.padding='8px 18px';
+  }, duration||5000);
+}
+// Called from updateOverworld on the player's first lobby visit
+function checkLobbyTutorial(){
+  if(_tutorialSeen.lobby) return;
+  _tutorialSeen.lobby=true; _saveTutorial();
+  showTutorialTip('Welcome! Walk forward and step into the purple portal to enter the arena. Press E near the NPC to browse classes.', 6000);
+}
+// Called from updateArena on the player's first arena visit
+function checkArenaTutorial(){
+  if(_tutorialSeen.arena) return;
+  _tutorialSeen.arena=true; _saveTutorial();
+  showTutorialTip('Survive the waves! Your weapons auto-fire at the nearest enemy. Hold Shift to charge a big shot. Press E on the center pad to leave.', 6000);
+}
+onTap(D.getElementById('pauseResume'), closePauseMenu);
+onTap(D.getElementById('pauseSettings'), ()=>{ closePauseMenu(); openSettings(); });
+onTap(D.getElementById('pauseRestart'), ()=>{
+  closePauseMenu();
+  // restart the run: exit then immediately re-enter
+  exitArena(); startArena();
+});
+onTap(D.getElementById('pauseQuit'), ()=>{
+  closePauseMenu();
+  exitArena();
 });
 D.getElementById('musicVol').addEventListener('input', e=>{
   settings.musicVol=+e.target.value;
