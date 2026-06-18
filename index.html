@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726e';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726f';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -232,7 +232,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726e · Lofi Livestream</div>
+<div id="version">v061726f · Idle Bob</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -358,8 +358,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726e · Lofi Livestream (June 17, 2026)</div>
+    <div class="desc">v061726f · Idle Bob (June 17, 2026)</div>
     <ul>
+      <li>Player avatar now has an idle animation: subtle breathing (torso bob) plus a small arm sway and leg weight-shift while standing still, so you no longer look frozen mid-stride when you stop moving. Smoothly blends with the walk cycle when you start moving again</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726e · Lofi Livestream (June 17, 2026)</div>
+    <ul style="opacity:.6">
       <li>Background music is now the Lofi Girl livestream from YouTube instead of the in-engine procedural chords. The hidden YouTube player loads the stream on your first interaction (clicking Play) and the existing Music volume slider in Settings controls the livestream's volume directly</li>
       <li>Fallback: if the YouTube embed fails to load (network blockers, autoplay restrictions, stream temporarily down), the game automatically falls back to the old procedural music so you're never left in silence</li>
       <li>A small "now playing" indicator was added under the Music volume slider in Settings so you can see at a glance whether the livestream is active or the fallback is running</li>
@@ -427,7 +431,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726e · Lofi Livestream</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726f · Idle Bob</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -454,8 +458,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726e';
-const UPDATE_TITLE = 'Lofi Livestream';
+const VERSION = 'v061726f';
+const UPDATE_TITLE = 'Idle Bob';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1000,7 +1004,7 @@ const avatar = new THREE.Group();
   const rLeg=mkLimb(0.16,0.7,0.26,0.7,0.3,legMat);
   const lArm=mkLimb(-0.42,1.44,0.2,0.72,0.24,armMat);
   const rArm=mkLimb(0.42,1.44,0.2,0.72,0.24,armMat);
-  avatar.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], phase:0,
+  avatar.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], torso, phase:0,
                    mats:{head:headMat, torso:torsoMat, arms:armMat, legs:legMat}};
 })();
 scene.add(avatar);
@@ -1036,9 +1040,33 @@ function animateAvatar(){
     // footstep tick
     avatarStepTimer-=dt;
     if(avatarStepTimer<=0 && GAME.state==='arena'){ SFX.step(); avatarStepTimer=0.32; }
+    // while walking, ease the torso back to its rest Y so the idle
+    // bob doesn't accumulate on top of the walk cycle
+    if(u.torso) u.torso.position.y += (1.06 - u.torso.position.y)*0.18;
   } else {
-    for(const l of u.legs) l.rotation.x*=0.8;
-    for(const a of u.arms) a.rotation.x*=0.8;
+    // IDLE: subtle breathing + a small weight-shift so the avatar
+    // reads as standing relaxed instead of frozen mid-stride. The
+    // lerp factor of 0.12 gives a smooth blend from the walk cycle
+    // — same idea as the old `*=0.8` decay, but toward a moving
+    // idle target instead of toward zero. Matches the NPC's idle
+    // tuning (see updateOverworld) so player and shopkeeper share
+    // the same "alive" feel.
+    u.phase += dt*1.6;
+    const breath = Math.sin(u.phase);
+    // arms sway slightly with the breath cycle (opposite directions,
+    // like the chest expanding and relaxing)
+    const tArm0 =  breath*0.06;
+    const tArm1 = -breath*0.06;
+    // subtle weight shift: legs alternate a tiny amount — barely
+    // visible but it sells the "standing" pose
+    const tLeg0 = -breath*0.025;
+    const tLeg1 =  breath*0.025;
+    u.arms[0].rotation.x += (tArm0 - u.arms[0].rotation.x)*0.12;
+    u.arms[1].rotation.x += (tArm1 - u.arms[1].rotation.x)*0.12;
+    u.legs[0].rotation.x += (tLeg0 - u.legs[0].rotation.x)*0.12;
+    u.legs[1].rotation.x += (tLeg1 - u.legs[1].rotation.x)*0.12;
+    // tiny breathing bob on the torso — the chest rises and falls
+    if(u.torso) u.torso.position.y += ((1.06 + breath*0.015) - u.torso.position.y)*0.12;
   }
 }
 
