@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726l';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726m';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -227,6 +227,11 @@
   #btnJump { position:absolute; right:max(24px,env(safe-area-inset-right)); bottom:40px; width:78px; height:78px; border-radius:50%; background:rgba(125,224,255,.25); border:2px solid rgba(125,224,255,.5); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; touch-action:none; }
   #btnExit { position:absolute; right:max(26px,env(safe-area-inset-right)); bottom:130px; width:72px; height:46px; border-radius:10px; background:rgba(226,59,92,.3); border:2px solid rgba(226,59,92,.55); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; touch-action:none; }
   #btnShop { position:absolute; right:max(26px,env(safe-area-inset-right)); bottom:130px; width:72px; height:46px; border-radius:10px; background:rgba(80,200,255,.25); border:2px solid rgba(80,200,255,.6); color:#cdf6ff; pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; letter-spacing:1px; touch-action:none; text-shadow:0 1px 2px #000; }
+  #btnCharge { position:absolute; left:max(24px,env(safe-area-inset-left)); bottom:130px; width:78px; height:78px; border-radius:50%; background:rgba(255,180,80,.25); border:2px solid rgba(255,180,80,.6); color:#ffe0b0; pointer-events:auto; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; letter-spacing:1px; touch-action:none; text-shadow:0 1px 2px #000; }
+  /* Charge meter — shows while charging on both desktop and mobile */
+  #chargeMeter { position:fixed; left:50%; bottom:170px; transform:translateX(-50%); width:160px; height:14px; background:rgba(0,0,0,.5); border:2px solid rgba(255,180,80,.5); border-radius:7px; z-index:6; display:none; overflow:hidden; }
+  #chargeFill { height:100%; width:0%; background:linear-gradient(90deg,#ffd84a,#ff8a1f); transition:width .05s; }
+  #chargeLabel { position:absolute; inset:0; text-align:center; font-size:10px; line-height:10px; font-weight:bold; text-shadow:0 1px 2px #000; padding-top:2px; }
   body.mobile #upgPanel { top:62px; width:150px; transform:scale(.86); transform-origin:top left; }
   body.mobile #gear { z-index:12; }
   /* live speed readout: bottom-left on desktop, lifted above the joystick on mobile */
@@ -248,7 +253,8 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726l · Endless Portal</div>
+<div id="version">v061726m · Refinements</div>
+<div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -257,6 +263,7 @@
   <div id="btnJump">JUMP</div>
   <div id="btnExit">LEAVE</div>
   <div id="btnShop">SHOP</div>
+  <div id="btnCharge">CHARGE</div>
 </div>
 
 <!-- persistent currency -->
@@ -403,8 +410,6 @@
       <button class="btn-ghost" id="exportSaveBtn">Export save (copy code to clipboard)</button>
       <button class="btn-ghost" id="importSaveBtn">Import save (paste code)</button>
       <button class="btn-ghost" id="openStatsBtn">View stats</button>
-      <button class="btn-ghost" id="openCosmeticBtn">Cosmetics (color presets)</button>
-      <button class="btn-ghost" id="openMasteryBtn">Class mastery (shard upgrades)</button>
     </div>
     <div class="actions" style="margin-top:14px">
       <button class="btn-ghost" id="openChangelog">Changelog</button>
@@ -423,7 +428,15 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726l · Endless Portal (June 17, 2026)</div>
+    <div class="desc">v061726m · Refinements (June 17, 2026)</div>
+    <ul>
+      <li>Colorblind mode now applies a CSS filter overlay on the canvas instead of swapping your color settings — your custom colors stay intact, and the filter (protanopia/deuteranopia/tritanopia/high-contrast) is applied as a real-time visual layer on top</li>
+      <li>New Cosmetics NPC in the lobby (mirrors the class NPC) — walk up and press E to open the cosmetic shop. Removed the cosmetics button from Settings since it now has its own NPC</li>
+      <li>Class Mastery is now a tab inside the Classes menu instead of a separate modal — switch between "Classes" and "Mastery" tabs at the top of the class shop</li>
+      <li>Charge shot GUI: a charge meter appears at the bottom-center of the screen when you hold Shift (or the new CHARGE button on mobile), showing the charge level from 0 to 100%. On mobile, a new CHARGE button appears next to JUMP — hold it to charge</li>
+      <li>Homing missiles reworked: now fire out of your BACK, fly backward briefly, then turn around and home toward the enemy with prop avoidance. Also have 2x your attack range so they can reach far targets</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726l · Endless Portal (June 17, 2026)</div>
     <ul>
       <li>Endless mode is now a separate orange portal in the lobby (next to the purple arena portal) instead of a settings toggle. Step through it to enter a pure survival mode: enemies of all types spawn continuously, a boss appears every 3 minutes, and there's no wave counter — just survive as long as you can. The HUD shows "ENDLESS" in orange with a boss countdown timer</li>
     </ul>
@@ -603,10 +616,23 @@
 <!-- Class shop -->
 <div id="classMenu" class="modal">
   <div class="panel" style="width:560px;max-width:94vw">
-    <h2>Classes</h2>
-    <div class="desc">Buy classes with shards, then select one to play as. Your choice applies at the start of every run.</div>
-    <div id="classShards" style="font-weight:bold;margin-bottom:14px"></div>
-    <div id="classCards" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center"></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:10px">
+      <button class="btn-primary classTab" data-tab="classes" id="tabClasses" style="flex:1">Classes</button>
+      <button class="btn-ghost classTab" data-tab="mastery" id="tabMastery" style="flex:1">Mastery</button>
+    </div>
+    <div id="classTabContent">
+      <div id="tabClassesContent">
+        <h2>Classes</h2>
+        <div class="desc">Buy classes with shards, then select one to play as. Your choice applies at the start of every run.</div>
+        <div id="classShards" style="font-weight:bold;margin-bottom:14px"></div>
+        <div id="classCards" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center"></div>
+      </div>
+      <div id="tabMasteryContent" style="display:none">
+        <h2>Class Mastery</h2>
+        <div class="desc">Spend shards on permanent stat boosts for each class. Each level costs 50 shards and gives +5% damage and HP. Max 5 levels per class.</div>
+        <div id="masteryContent" style="margin-top:14px;font-size:13px;line-height:1.8"></div>
+      </div>
+    </div>
     <div class="actions" style="margin-top:18px">
       <button class="btn-primary" id="classClose">Done</button>
     </div>
@@ -616,7 +642,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726l · Endless Portal</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726m · Refinements</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -643,8 +669,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726l';
-const UPDATE_TITLE = 'Endless Portal';
+const VERSION = 'v061726m';
+const UPDATE_TITLE = 'Refinements';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1136,7 +1162,9 @@ function keyOf(x,y,z){ return x+','+y+','+z; }
 let PORTAL_POS = new THREE.Vector3();
 let ENDLESS_PORTAL_POS = new THREE.Vector3();   // endless-mode portal (v061726l)
 let NPC_POS = new THREE.Vector3();
+let COSMETIC_NPC_POS = new THREE.Vector3();   // cosmetics NPC (v061726m)
 let npcMarker;
+let cosmeticNpcMarker;
 const LOBBY_Y = 0;            // floor top surface
 let portalPlane;
 let portalPlaneEndless;   // endless-mode portal glow plane (v061726l)
@@ -1172,6 +1200,14 @@ function buildLobby(){
   const nx = 6.5, nz = -1;
   buildNPC(nx, LOBBY_Y, nz);
   NPC_POS.set(nx, LOBBY_Y, nz);
+
+  // cosmetics NPC off to the left, near the endless portal.
+  // Uses the same blocky-humanoid template as the class NPC but with
+  // a different marker color (pink instead of cyan) so the player can
+  // tell them apart at a glance.
+  const cnx = -6.5, cnz = -1;
+  buildCosmeticNPC(cnx, LOBBY_Y, cnz);
+  COSMETIC_NPC_POS.set(cnx, LOBBY_Y, cnz);
 }
 // Class-shop NPC. Built as a blocky humanoid mirroring the default player
 // avatar (same body parts, same default colors) so it reads as "another person"
@@ -1212,6 +1248,41 @@ function buildNPC(x, baseY, z){
   g.position.set(x, baseY, z);
   g.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], torso, head, baseY, phase:0};
   npcGroup=g;
+  overworld.group.add(g);
+}
+// Cosmetics NPC — same body template as the class NPC but with a pink
+// marker gem instead of cyan, so the player can tell them apart. The
+// body uses a "fashionable" purple/pink color scheme to read as a
+// stylist/cosmetologist character.
+let cosmeticNpcGroup=null;
+function buildCosmeticNPC(x, baseY, z){
+  const g=new THREE.Group();
+  const torsoMat=new THREE.MeshLambertMaterial({color:0xff66aa});
+  const armMat  =new THREE.MeshLambertMaterial({color:0xff66aa});
+  const legMat  =new THREE.MeshLambertMaterial({color:0x882244});
+  const headMat =new THREE.MeshLambertMaterial({color:0xe9d2b0});
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.78,0.36), torsoMat); torso.position.y=1.06; torso.castShadow=true; g.add(torso);
+  const head =new THREE.Mesh(new THREE.BoxGeometry(0.44,0.44,0.44), headMat); head.position.y=1.70; head.castShadow=true; g.add(head);
+  const eyeMat=new THREE.MeshBasicMaterial({color:0x16203a});
+  const eg=new THREE.BoxGeometry(0.07,0.09,0.04);
+  const le=new THREE.Mesh(eg,eyeMat); le.position.set(-0.10,1.74,0.23); g.add(le);
+  const re=new THREE.Mesh(eg,eyeMat); re.position.set( 0.10,1.74,0.23); g.add(re);
+  const mkLimb=(px,topY,w,h,d,mat)=>{
+    const piv=new THREE.Group(); piv.position.set(px,topY,0);
+    const seg=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); seg.position.y=-h/2; seg.castShadow=true;
+    piv.add(seg); g.add(piv); return piv;
+  };
+  const lLeg=mkLimb(-0.16,0.70,0.26,0.70,0.30,legMat);
+  const rLeg=mkLimb( 0.16,0.70,0.26,0.70,0.30,legMat);
+  const lArm=mkLimb(-0.42,1.44,0.20,0.72,0.24,armMat);
+  const rArm=mkLimb( 0.42,1.44,0.20,0.72,0.24,armMat);
+  // pink marker gem above the head
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshBasicMaterial({color:0xff7ad0}));
+  gem.position.y=2.30; g.add(gem); cosmeticNpcMarker=gem;
+  const light=new THREE.PointLight(0xff7ad0,5,9); light.position.y=2.10; g.add(light);
+  g.position.set(x, baseY, z);
+  g.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], torso, head, baseY, phase:0};
+  cosmeticNpcGroup=g;
   overworld.group.add(g);
 }
 
@@ -1572,7 +1643,7 @@ addEventListener('mousemove', e=>{
 addEventListener('contextmenu', e=>e.preventDefault());
 
 // ---------- mobile touch controls ----------
-const touch={active:false, mx:0, my:0, jump:false, exit:false, shop:false};
+const touch={active:false, mx:0, my:0, jump:false, exit:false, shop:false, cosmetic:false, charge:false};
 const isMobile = IS_MOBILE;
 // when any menu/overlay is open we must stop the touch layer from eating taps
 // and stop the look-pad/joystick from moving the player behind the menu.
@@ -1582,7 +1653,7 @@ function setTouchEnabled(on){
   // fully hide the touch layer when a menu is open so it can't intercept taps,
   // and re-show it during play (only on mobile)
   t.style.display = on ? (isMobile?'block':'none') : 'none';
-  for(const id of ['joy','lookPad','btnJump','btnExit','btnShop']){
+  for(const id of ['joy','lookPad','btnJump','btnExit','btnShop','btnCharge']){
     const el=D.getElementById(id); if(el) el.style.pointerEvents = on?'auto':'none';
   }
   if(!on){ touch.mx=0; touch.my=0; touch.active=false; const nub=D.getElementById('joyNub'); if(nub) nub.style.transform='translate(0,0)'; }
@@ -1595,7 +1666,9 @@ function anyOverlayOpen(){
     D.getElementById('changelog').style.display==='flex' ||
     D.getElementById('pauseMenu').style.display==='flex' ||
     D.getElementById('statsPage').style.display==='flex' ||
-    D.getElementById('importModal').style.display==='flex';
+    D.getElementById('importModal').style.display==='flex' ||
+    D.getElementById('cosmeticShop').style.display==='flex' ||
+    D.getElementById('masteryMenu').style.display==='flex';
 }
 if(isMobile){
   D.body.classList.add('mobile');
@@ -1625,12 +1698,20 @@ if(isMobile){
   lp.addEventListener('touchend', ()=>{ lookId=null; });
   lp.addEventListener('touchcancel', ()=>{ lookId=null; });
   // buttons (use touchend so a tap reliably fires; preventDefault stops the ghost click)
-  const bj=D.getElementById('btnJump'), bx=D.getElementById('btnExit'), bs=D.getElementById('btnShop');
+  const bj=D.getElementById('btnJump'), bx=D.getElementById('btnExit'), bs=D.getElementById('btnShop'), bc=D.getElementById('btnCharge');
   bj.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
   bj.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.jump=true; }, {passive:false});
   bx.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
   bx.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.exit=true; }, {passive:false});
   if(bs) bs.addEventListener('touchend', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.shop=true; }, {passive:false});
+  // CHARGE button: touchstart sets charge=true, touchend sets charge=false.
+  // This mirrors holding Shift on desktop — the player holds to charge
+  // and releases to fire.
+  if(bc){
+    bc.addEventListener('touchstart', e=>{ e.preventDefault(); if(!anyOverlayOpen()) touch.charge=true; }, {passive:false});
+    bc.addEventListener('touchend', e=>{ e.preventDefault(); touch.charge=false; }, {passive:false});
+    bc.addEventListener('touchcancel', e=>{ touch.charge=false; }, {passive:false});
+  }
 }
 // helper so menu buttons work on the first tap on touch devices (click can be swallowed)
 function onTap(el, fn){
@@ -2501,11 +2582,29 @@ function fireNova(){
   SFX.shoot();
 }
 function fireHoming(target){
-  const dir=aimDirAt(target);
+  // Homing missiles (v061726m rework):
+  // - Fire out of the player's BACK (opposite the aim direction)
+  // - Fly backward briefly, then turn around and home toward the enemy
+  // - Have 2x the player's attack range so they can reach far targets
+  // - Avoid props as they fly (steer around obstacles)
+  // If target is null (called from autoFire with no range-limited target),
+  // do our own 2x-range target search.
+  if(!target){
+    const r2 = (A.stats.range*2)*(A.stats.range*2);
+    const all = A.boss ? A.enemies.concat([A.boss]) : A.enemies;
+    for(const e of all){
+      const d=(e.mesh.position.x-player.pos.x)**2+(e.mesh.position.z-player.pos.z)**2;
+      if(d<r2){ r2=d; target=e; }   // find closest within 2x range
+    }
+    if(!target) return;   // nobody in range — don't fire
+  }
+  const fwd=aimDirAt(target);
   const n=1+A.stats.extraProj;
   for(let i=0;i<n;i++){
     const spread=(i-(n-1)/2)*0.25;
-    const d=dir.clone().applyAxisAngle(UP, spread);
+    const d=fwd.clone().applyAxisAngle(UP, spread);
+    // reverse direction to fire out the back
+    const backDir = d.clone().negate();
     const m=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.42,6), new THREE.MeshBasicMaterial({color:0xff9bff}));
     // default ConeGeometry tip points along +y; rotate so the tip is along
     // +z (forward), then mesh.lookAt() in the update loop will orient the
@@ -2514,8 +2613,10 @@ function fireHoming(target){
     m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
     arena.group.add(m);
     const crit=Math.random()<A.stats.crit;
-    A.projectiles.push({mesh:m, dir:d, life:2.6, dmg:A.stats.dmg*0.9*(crit?A.stats.critMul:1), crit,
-                        pierceLeft:A.stats.pierce, hitSet:new Set(), homing:true});
+    // life is longer (2x range) so the missile has time to turn around and reach far targets
+    A.projectiles.push({mesh:m, dir:backDir, life:4.0, dmg:A.stats.dmg*0.9*(crit?A.stats.critMul:1), crit,
+                        pierceLeft:A.stats.pierce, hitSet:new Set(), homing:true,
+                        _turnPhase:0, _turnT:0});   // _turnPhase: 0=backward, 1=turning, 2=homing
   }
   SFX.shoot();
 }
@@ -2606,12 +2707,12 @@ function updateBlades(){
 
 // run each owned weapon's cooldown + fire at target
 function autoFire(){
-  // Charged shot: holding LeftShift pauses auto-fire and builds a charge.
-  // On release, the next ball shot is 2x damage with a bigger projectile.
-  // Only applies to the ball weapon (the default) — other weapons fire
-  // normally. This gives the player a deliberate "big shot" option without
-  // changing the auto-fire feel for everything else.
-  if(keys.LeftShift || keys.ShiftLeft){
+  // Charged shot: holding LeftShift (or the CHARGE button on mobile)
+  // pauses auto-fire and builds a charge. On release, the next ball
+  // shot is 2x damage with a bigger projectile. Only applies to the
+  // ball weapon (the default) — other weapons fire normally.
+  const charging = keys.LeftShift || keys.ShiftLeft || touch.charge;
+  if(charging){
     A._charging = (A._charging||0) + dt;
     // visual: charge glow at the player's chest grows
     if(!A._chargeMesh){
@@ -2623,12 +2724,23 @@ function autoFire(){
     const cs = 0.15 + Math.min(1, A._charging/1.5)*0.25;
     A._chargeMesh.scale.setScalar(cs/0.15);
     A._chargeMesh.material.opacity = 0.4 + Math.min(1, A._charging/1.5)*0.5;
+    // ---- charge meter UI (v061726m) ----
+    const pct = Math.min(100, Math.round(Math.min(1, A._charging/1.5)*100));
+    const meter=D.getElementById('chargeMeter');
+    if(meter){
+      meter.style.display='block';
+      D.getElementById('chargeFill').style.width=pct+'%';
+      D.getElementById('chargeLabel').textContent='CHARGE '+pct+'%';
+    }
     return;   // don't auto-fire while charging
   } else if(A._charging > 0){
     // released — fire the charged shot if we have a target
     const chargeT = A._charging;
     A._charging = 0;
     if(A._chargeMesh){ disposeObj(A._chargeMesh); A._chargeMesh=null; }
+    // hide the charge meter
+    const meter=D.getElementById('chargeMeter');
+    if(meter) meter.style.display='none';
     const best=A.target;
     if(best && chargeT >= 0.3){   // minimum 0.3s charge to count
       const dir=aimDirAt(best);
@@ -2639,6 +2751,9 @@ function autoFire(){
     }
     return;
   }
+  // hide the charge meter when not charging
+  const meter=D.getElementById('chargeMeter');
+  if(meter && meter.style.display==='block') meter.style.display='none';
   const best=A.target;
   A.wcd=A.wcd||{};
   for(const w of A.weapons){
@@ -2648,11 +2763,14 @@ function autoFire(){
     if(A.wcd[w]>0) continue;
     if(w==='nova'||w==='pulse'){ if(!A.enemies.length && !A.boss){ continue; } (w==='nova'?fireNova:firePulse)(); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
     if(!best) continue;
+    // Homing missiles have 2x range — they do their own target search
+    // with the extended range inside fireHoming, so we skip the normal
+    // range-limited target here and let fireHoming find one.
+    if(w==='homing'){ fireHoming(null); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
     if(w==='ball') fireBall(best);
     else if(w==='shotgun') fireShotgun(best);
     else if(w==='bolt') fireBolt(best);
     else if(w==='boomerang') fireBoomerang(best);
-    else if(w==='homing') fireHoming(best);
     A.wcd[w]=def.cd/A.stats.atkSpeed;
   }
 }
@@ -3394,6 +3512,7 @@ function updateOverworld(){
   if(portalPlane){ portalPlane.material.opacity=0.6+Math.sin(performance.now()*0.004)*0.18; }
   if(portalPlaneEndless){ portalPlaneEndless.material.opacity=0.6+Math.sin(performance.now()*0.005+1.5)*0.18; }
   if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.30+Math.sin(performance.now()*0.003)*0.10; }
+  if(cosmeticNpcMarker){ cosmeticNpcMarker.rotation.y-=dt*1.6; cosmeticNpcMarker.position.y=2.30+Math.sin(performance.now()*0.003+1.5)*0.10; }
   // NPC idle animation + always-face-the-player behavior. The whole group
   // yaw-rotates to track the player, and the arms/legs get a subtle sway so
   // the figure feels alive instead of frozen.
@@ -3418,6 +3537,24 @@ function updateOverworld(){
     // tiny vertical bob on the torso so the breathing reads
     u.torso.position.y=1.06 + Math.sin(u.phase*0.5)*0.012;
   }
+  // cosmetics NPC idle animation + face-the-player (mirrors the class NPC)
+  if(cosmeticNpcGroup){
+    const u=cosmeticNpcGroup.userData;
+    const dx=player.pos.x-cosmeticNpcGroup.position.x;
+    const dz=player.pos.z-cosmeticNpcGroup.position.z;
+    const targetYaw=Math.atan2(dx,dz);
+    let dYaw=targetYaw-cosmeticNpcGroup.rotation.y;
+    while(dYaw> Math.PI) dYaw-=Math.PI*2;
+    while(dYaw<-Math.PI) dYaw+=Math.PI*2;
+    cosmeticNpcGroup.rotation.y += dYaw*Math.min(1, dt*6);
+    u.phase += dt*1.8;
+    const sw=Math.sin(u.phase)*0.10;
+    u.arms[0].rotation.x= sw;
+    u.arms[1].rotation.x=-sw;
+    u.legs[0].rotation.x=-sw*0.5;
+    u.legs[1].rotation.x= sw*0.5;
+    u.torso.position.y=1.06 + Math.sin(u.phase*0.5)*0.012;
+  }
   const hint=D.getElementById('hint');
   // class NPC: requires a button press (E on PC, SHOP on mobile) to open.
   // We no longer auto-open on approach — the player has to actively engage.
@@ -3435,6 +3572,20 @@ function updateOverworld(){
     touch.shop=false;   // clear stale taps if the player backed away
   }
   _npcNear = canShop;   // kept for compatibility (used by the hint below)
+  // cosmetics NPC (v061726m): same interaction pattern as the class NPC.
+  // Press E (or tap SHOP) when near to open the cosmetic shop. We reuse
+  // the shop button on mobile since the player is only ever near one
+  // shop NPC at a time (they're on opposite sides of the lobby).
+  const dcn=Math.hypot(player.pos.x-COSMETIC_NPC_POS.x, player.pos.z-COSMETIC_NPC_POS.z);
+  const canCosmetic = dcn<3.0;
+  if(btnShop) btnShop.style.display = (btnShop.style.display==='flex') ? btnShop.style.display : ((canCosmetic && isMobile && !anyOverlayOpen()) ? 'flex' : 'none');
+  if(canCosmetic){
+    if(keys[settings.keybinds.interact] || touch.shop){
+      touch.shop=false;
+      openCosmeticShop();
+      return;
+    }
+  }
   // portal proximity -> enter arena or endless mode
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
   const de=Math.hypot(player.pos.x-ENDLESS_PORTAL_POS.x, player.pos.z-ENDLESS_PORTAL_POS.z);
@@ -3453,6 +3604,9 @@ function updateOverworld(){
   } else if(canShop){
     hint.style.display='block';
     hint.textContent = isMobile ? 'Tap SHOP to open the class shop' : 'Press E to open the class shop';
+  } else if(canCosmetic){
+    hint.style.display='block';
+    hint.textContent = isMobile ? 'Tap SHOP to open cosmetics' : 'Press E to open cosmetics';
   } else hint.style.display='none';
 }
 
@@ -3501,6 +3655,9 @@ function updateArena(){
   // the LEAVE button only appears when the player is actually able to leave
   const btnExit=D.getElementById('btnExit');
   if(btnExit) btnExit.style.display = (canLeave && isMobile) ? 'flex' : 'none';
+  // CHARGE button: always visible on mobile during arena play
+  const btnCharge=D.getElementById('btnCharge');
+  if(btnCharge) btnCharge.style.display = isMobile ? 'flex' : 'none';
   if(canLeave){
     exitHint.style.display='block';
     exitHint.textContent = isMobile ? 'Tap LEAVE to exit the run' : 'Press E to leave the run';
@@ -3906,24 +4063,64 @@ function updateArena(){
       if(p.life<=0) remove=true;       // safety so it can never get lost
     } else {
       if(p.homing){
-        // steer toward the nearest enemy it hasn't hit yet
-        let best=null, bd=1e9;
-        for(const e of allTargets()){
-          if(p.hitSet.has(e)) continue;
-          const d=(e.mesh.position.x-p.mesh.position.x)**2+(e.mesh.position.z-p.mesh.position.z)**2;
-          if(d<bd){ bd=d; best=e; }
+        // ---- 3-phase homing flight (v061726m) ----
+        // Phase 0: fly backward (out of the player's back) for ~0.4s
+        // Phase 1: turn around over ~0.3s (lerp dir from back to target)
+        // Phase 2: home toward the nearest enemy with prop avoidance
+        p._turnT = (p._turnT||0) + dt;
+        if(p._turnPhase===0 && p._turnT > 0.4){
+          p._turnPhase = 1; p._turnT = 0;
+        } else if(p._turnPhase===1 && p._turnT > 0.3){
+          p._turnPhase = 2; p._turnT = 0;
         }
-        if(best){
-          // 3D steer: aim at the target's center mass and let the missile
-          // pitch up/down to follow it. Previously this zeroed dir.y and
-          // only yaw-tracked, which left elevated enemies unreachable.
-          const bTop = best.top || 1;
-          const bcx = best.mesh.position.x;
-          const bcy = best.mesh.position.y + bTop*0.5;
-          const bcz = best.mesh.position.z;
-          _tmpDir.set(bcx-p.mesh.position.x, bcy-p.mesh.position.y, bcz-p.mesh.position.z).normalize();
-          p.dir.lerp(_tmpDir, 0.12); p.dir.normalize();
-          p.mesh.lookAt(bcx, bcy, bcz);
+        if(p._turnPhase < 2){
+          // phases 0 and 1: just fly in the current (backward) direction.
+          // During phase 1 we start blending toward the target so the
+          // turn looks smooth instead of a hard snap.
+          if(p._turnPhase===1){
+            let best=null, bd=1e9;
+            for(const e of allTargets()){
+              if(p.hitSet.has(e)) continue;
+              const d=(e.mesh.position.x-p.mesh.position.x)**2+(e.mesh.position.z-p.mesh.position.z)**2;
+              if(d<bd){ bd=d; best=e; }
+            }
+            if(best){
+              const bTop = best.top || 1;
+              _tmpDir.set(best.mesh.position.x-p.mesh.position.x, best.mesh.position.y+bTop*0.5-p.mesh.position.y, best.mesh.position.z-p.mesh.position.z).normalize();
+              p.dir.lerp(_tmpDir, 0.08); p.dir.normalize();
+            }
+          }
+          // face the direction of travel
+          p.mesh.lookAt(p.mesh.position.x+p.dir.x, p.mesh.position.y+p.dir.y, p.mesh.position.z+p.dir.z);
+        } else {
+          // Phase 2: full homing with prop avoidance
+          let best=null, bd=1e9;
+          for(const e of allTargets()){
+            if(p.hitSet.has(e)) continue;
+            const d=(e.mesh.position.x-p.mesh.position.x)**2+(e.mesh.position.z-p.mesh.position.z)**2;
+            if(d<bd){ bd=d; best=e; }
+          }
+          if(best){
+            const bTop = best.top || 1;
+            const bcx = best.mesh.position.x;
+            const bcy = best.mesh.position.y + bTop*0.5;
+            const bcz = best.mesh.position.z;
+            _tmpDir.set(bcx-p.mesh.position.x, bcy-p.mesh.position.y, bcz-p.mesh.position.z).normalize();
+            // prop avoidance: if there's a prop directly ahead, steer
+            // the missile around it by adding a perpendicular nudge.
+            const aheadX = p.mesh.position.x + p.dir.x*1.5;
+            const aheadZ = p.mesh.position.z + p.dir.z*1.5;
+            const aheadY = p.mesh.position.y + p.dir.y*1.5;
+            if(hitsPropH(aheadX, aheadZ, aheadY, 0.3)){
+              // nudge perpendicular to the current dir (rotate 90° in XZ)
+              const perpX = -p.dir.z, perpZ = p.dir.x;
+              _tmpDir.x += perpX * 0.6;
+              _tmpDir.z += perpZ * 0.6;
+              _tmpDir.normalize();
+            }
+            p.dir.lerp(_tmpDir, 0.15); p.dir.normalize();
+            p.mesh.lookAt(bcx, bcy, bcz);
+          }
         }
       }
       p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
@@ -4237,6 +4434,7 @@ function openClassMenu(){
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   buildClassCards();
+  switchClassTab('classes');   // always open on the Classes tab
   D.getElementById('classMenu').style.display='flex';
 }
 function closeClassMenu(){
@@ -4245,7 +4443,28 @@ function closeClassMenu(){
   setTouchEnabled(true);
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 }
+function switchClassTab(tab){
+  // toggle the two tab content divs and update button styles
+  const classesBtn=D.getElementById('tabClasses');
+  const masteryBtn=D.getElementById('tabMastery');
+  const classesContent=D.getElementById('tabClassesContent');
+  const masteryContent=D.getElementById('tabMasteryContent');
+  if(tab==='classes'){
+    if(classesBtn) classesBtn.className='btn-primary classTab';
+    if(masteryBtn) masteryBtn.className='btn-ghost classTab';
+    if(classesContent) classesContent.style.display='block';
+    if(masteryContent) masteryContent.style.display='none';
+  } else {
+    if(classesBtn) classesBtn.className='btn-ghost classTab';
+    if(masteryBtn) masteryBtn.className='btn-primary classTab';
+    if(classesContent) classesContent.style.display='none';
+    if(masteryContent) masteryContent.style.display='block';
+    openMasteryMenu();   // populate the mastery content
+  }
+}
 onTap(D.getElementById('classClose'), closeClassMenu);
+onTap(D.getElementById('tabClasses'), ()=>switchClassTab('classes'));
+onTap(D.getElementById('tabMastery'), ()=>switchClassTab('mastery'));
 
 // ============================================================
 //  SETTINGS MENU + FOV
@@ -4436,12 +4655,14 @@ function openMasteryMenu(){
       if(lv<5 && shards>=50){
         shards-=50; mastery[cid]=(mastery[cid]||0)+1;
         updateShardHud(); persist(); saveMastery();
-        openMasteryMenu();
+        openMasteryMenu();   // refresh the list
         SFX.level();
       }
     });
   });
-  D.getElementById('masteryMenu').style.display='flex';
+  // No longer opening a separate modal — masteryContent is inside the
+  // class menu's Mastery tab. The modal #masteryMenu is kept for
+  // backwards compat but no longer used.
 }
 onTap(D.getElementById('masteryClose'), ()=>{ D.getElementById('masteryMenu').style.display='none'; });
 function applyMasteryBonus(){
@@ -4452,28 +4673,26 @@ function applyMasteryBonus(){
   A.maxhp=Math.round(A.maxhp*bonus); A.hp=A.maxhp;
 }
 // ---------- colorblind mode ----------
-// Swaps the damage-number / crit / special colors to palettes that are
-// distinguishable for each type of color vision deficiency. The base
-// colors are saved to settings so the user can still tweak them after
-// applying a preset; the preset just sets them to good defaults.
-const COLORBLIND_PRESETS = {
-  off:          { dmg:'#ffffff', crit:'#ffd84a', special:'#7fe0ff', hit:'#fff27a' },
-  protanopia:   { dmg:'#ffffff', crit:'#3aa0ff', special:'#7fe0ff', hit:'#3aa0ff' },   // avoid red/green confusion
-  deuteranopia: { dmg:'#ffffff', crit:'#3aa0ff', special:'#7fe0ff', hit:'#3aa0ff' },   // same swap, different cause
-  tritanopia:   { dmg:'#ffffff', crit:'#ff5050', special:'#ff5050', hit:'#ffcf3a' },   // avoid blue/cyan confusion
-  highcontrast: { dmg:'#ffffff', crit:'#ff0000', special:'#00ffff', hit:'#ffff00' }    // maximum separation
+// Applies a CSS filter to the canvas element instead of swapping the
+// player's color settings. This keeps all custom colors intact while
+// applying a real-time visual filter that helps with color vision
+// deficiencies. The filter is applied to #c (the canvas) only, so UI
+// elements (HUD, menus) stay at their normal colors.
+const COLORBLIND_FILTERS = {
+  off:          'none',
+  // Protanopia (red-blind): boost red/green separation via hue rotation
+  protanopia:   'hue-rotate(-20deg) saturate(1.3) contrast(1.1)',
+  // Deuteranopia (green-blind): similar hue shift, opposite direction
+  deuteranopia: 'hue-rotate(20deg) saturate(1.3) contrast(1.1)',
+  // Tritanopia (blue-blind): shift away from blue/cyan confusion
+  tritanopia:   'hue-rotate(180deg) saturate(1.2) contrast(1.1)',
+  // High contrast: max separation, no hue rotation
+  highcontrast: 'contrast(1.4) saturate(1.5) brightness(1.1)'
 };
 function applyColorblind(){
-  const p = COLORBLIND_PRESETS[settings.colorblind] || COLORBLIND_PRESETS.off;
-  settings.dmgColor = p.dmg;
-  settings.critColor = p.crit;
-  settings.specialColor = p.special;
-  settings.hitColor = p.hit;
-  // update the color picker UIs to reflect the new values
-  const sync=(id,val)=>{ const el=D.getElementById(id); if(el) el.value=val; };
-  sync('dmgCol', p.dmg); sync('critCol', p.crit); sync('specialCol', p.special); sync('hitCol', p.hit);
-  applyParticleColors();
-  persist();
+  const filter = COLORBLIND_FILTERS[settings.colorblind] || 'none';
+  const canvas = D.getElementById('c');
+  if(canvas) canvas.style.filter = filter;
 }
 D.getElementById('colorblindSel').addEventListener('change', e=>{
   settings.colorblind = e.target.value;
@@ -4724,6 +4943,7 @@ applyPlayerColors();
 applyOutlineColor();
 applySky();
 applyParticleColors();
+applyColorblind();   // apply CSS filter on load (v061726m)
 updateShardHud();
 updateBestHud();
 requestAnimationFrame(loop);
