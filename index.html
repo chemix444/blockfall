@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061926a';   // keep in sync with VERSION below
+  var BUNDLED = 'v061926b';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061926a · June 19 Pass</div>
+<div id="version">v061926b · XP Fix & Difficulty Prompt</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -350,15 +350,6 @@
         <option value="nova">Frost Nova</option>
         <option value="homing">Seeker Missiles</option>
         <option value="pulse">Pulse</option>
-      </select>
-    </div>
-    <div class="row">
-      <label for="difficultySel">Difficulty</label>
-      <select id="difficultySel" style="flex:none;width:120px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px">
-        <option value="easy">Easy</option>
-        <option value="normal">Normal</option>
-        <option value="hard">Hard</option>
-        <option value="nightmare">Nightmare</option>
       </select>
     </div>
     <div class="row">
@@ -459,7 +450,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061926a · June 19 Pass (June 19, 2026)</div>
+    <div class="desc">v061926b · XP Fix & Difficulty Prompt (June 19, 2026)</div>
+    <ul>
+      <li>Fixed XP orbs getting stuck orbiting the player at high pickup range — orb speed is now capped and no longer scales with pickup range. The range upgrade only affects when orbs start being pulled, not how fast they move</li>
+      <li>Difficulty selection is now a per-run prompt instead of a setting — when you step into either portal, a difficulty picker appears (Easy / Normal / Hard / Nightmare). Removed the difficulty dropdown from Settings</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061926a · June 19 Pass (June 19, 2026)</div>
     <ul>
       <li>Fixed the version date — it's actually June 19, not June 17. I'll check the date before each update from now on</li>
       <li>Removed the "Press E to end run" hint + interaction in endless mode (the End Run button in the pause menu replaces it)</li>
@@ -669,6 +665,31 @@
   </div>
 </div>
 
+<!-- Difficulty selection (per-run prompt, v061926b) -->
+<div id="difficultyMenu" class="modal">
+  <div class="panel" style="width:420px;max-width:94vw;text-align:center">
+    <h2 id="difficultyTitle">Choose Difficulty</h2>
+    <div class="desc" id="difficultyMode">Wave Mode</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px">
+      <button class="btn-ghost difficultyBtn" data-diff="easy" style="font-size:15px;padding:12px">
+        <span style="font-size:20px">🌱</span> Easy<br><span style="font-size:11px;opacity:.6">70% HP, 70% damage, slower spawns</span>
+      </button>
+      <button class="btn-primary difficultyBtn" data-diff="normal" style="font-size:15px;padding:12px">
+        <span style="font-size:20px">⚔️</span> Normal<br><span style="font-size:11px;opacity:.6">Balanced — the default experience</span>
+      </button>
+      <button class="btn-ghost difficultyBtn" data-diff="hard" style="font-size:15px;padding:12px">
+        <span style="font-size:20px">🔥</span> Hard<br><span style="font-size:11px;opacity:.6">140% HP, 140% damage, faster spawns</span>
+      </button>
+      <button class="btn-ghost difficultyBtn" data-diff="nightmare" style="font-size:15px;padding:12px">
+        <span style="font-size:20px">💀</span> Nightmare<br><span style="font-size:11px;opacity:.6">200% HP, 200% damage, relentless spawns</span>
+      </button>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn-ghost" id="difficultyCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- XP pickup range upgrade NPC menu (v061726q) -->
 <div id="xpMenu" class="modal">
   <div class="panel" style="width:460px;max-width:94vw">
@@ -710,7 +731,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926a · June 19 Pass</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926b · XP Fix & Difficulty Prompt</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -737,8 +758,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061926a';
-const UPDATE_TITLE = 'June 19 Pass';
+const VERSION = 'v061926b';
+const UPDATE_TITLE = 'XP Fix & Difficulty Prompt';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1720,6 +1741,7 @@ function escapePressed(){
   if(D.getElementById('classMenu').style.display==='flex'){ closeClassMenu(); return; }
   if(D.getElementById('cosmeticShop').style.display==='flex'){ closeCosmeticShop(); return; }
   if(D.getElementById('xpMenu').style.display==='flex'){ D.getElementById('xpMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
+  if(D.getElementById('difficultyMenu').style.display==='flex'){ D.getElementById('difficultyMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('colorsMenu').style.display==='flex'){ D.getElementById('colorsMenu').style.display='none'; return; }
   if(D.getElementById('pauseMenu').style.display==='flex'){ closePauseMenu(); return; }
   const setEl=D.getElementById('settings');
@@ -1808,7 +1830,8 @@ function anyOverlayOpen(){
     D.getElementById('cosmeticShop').style.display==='flex' ||
     D.getElementById('colorsMenu').style.display==='flex' ||
     D.getElementById('classMenu').style.display==='flex' ||
-    D.getElementById('xpMenu').style.display==='flex';
+    D.getElementById('xpMenu').style.display==='flex' ||
+    D.getElementById('difficultyMenu').style.display==='flex';
 }
 if(isMobile){
   D.body.classList.add('mobile');
@@ -2281,6 +2304,38 @@ function startArena(){
   toast("Entered the portal. "+A.biomeName+(diff!=='normal'?' ('+diff+')':''));
 }
 let DIFFICULTY = {hp:1, dmg:1, spawn:1};   // difficulty multipliers
+let _pendingMode = 'wave';   // which mode the difficulty prompt is for
+// Show the difficulty selection prompt (v061926b). Called when the player
+// steps into either portal. Stores which mode they chose, then opens the
+// difficulty picker. When a difficulty button is clicked, it starts the
+// run with the chosen difficulty.
+function showDifficultyPrompt(mode){
+  _pendingMode = mode;
+  GAME.paused=true;
+  suppressAutoSettings=true; exitPointerLockSafe();
+  setTouchEnabled(false);
+  D.getElementById('difficultyMode').textContent = mode==='endless' ? 'Endless Mode' : 'Wave Mode';
+  D.getElementById('difficultyMenu').style.display='flex';
+}
+// wire up difficulty buttons
+D.querySelectorAll('.difficultyBtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const diff = btn.dataset.diff;
+    settings.difficulty = diff;   // store for this run
+    persist();
+    D.getElementById('difficultyMenu').style.display='none';
+    GAME.paused=false;
+    setTouchEnabled(true);
+    if(_pendingMode==='endless') startEndless();
+    else startArena();
+  });
+});
+onTap(D.getElementById('difficultyCancel'), ()=>{
+  D.getElementById('difficultyMenu').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
+});
 // ---------- endless mode (v061726l) ----------
 // A separate game mode entered through the orange portal. Instead of
 // discrete waves, enemies of ALL types spawn continuously to maintain
@@ -3757,10 +3812,11 @@ function updateOverworld(){
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
   const de=Math.hypot(player.pos.x-ENDLESS_PORTAL_POS.x, player.pos.z-ENDLESS_PORTAL_POS.z);
   if(d<1.7){
-    startArena();
+    // Show difficulty prompt instead of immediately starting (v061926b)
+    showDifficultyPrompt('wave');
     hint.style.display='none';
   } else if(de<1.7){
-    startEndless();
+    showDifficultyPrompt('endless');
     hint.style.display='none';
   } else if(d<4.5){
     hint.style.display='block';
@@ -4375,7 +4431,16 @@ function updateArena(){
     const d=to.length();
     const pulling = o.vacuum || d<A.stats.pickup;
     if(pulling){
-      const speed = o.vacuum ? (14 + o.t*22) : 9*(1+(A.stats.pickup-d));
+      // Orb speed: vacuumed orbs accelerate over time (end-of-wave cleanup).
+      // Normal pulled orbs use a fixed base speed with a small proximity
+      // boost, CAPPED so they don't fly so fast they orbit the player.
+      // Previously the speed scaled with A.stats.pickup, which meant high
+      // pickup-range upgrades made orbs fly at insane speeds — they'd
+      // overshoot the player, get pulled back, overshoot again, and never
+      // get close enough to trigger the d<0.8 pickup. Now the range only
+      // affects WHEN pulling starts (the d<A.stats.pickup check above),
+      // not how fast the orb moves. (v061926b)
+      const speed = o.vacuum ? (14 + o.t*22) : Math.min(14, 9*(1+Math.max(0,3-d)*0.3));
       o.mesh.position.addScaledVector(to.normalize(), speed*dt);
     }
     o.mesh.rotation.y+=dt*3;
@@ -4732,7 +4797,6 @@ function openSettings(){
   D.getElementById('potatoToggle').checked=settings.potato;
   D.getElementById('shakeToggle').checked=settings.screenShake;
   D.getElementById('weaponSel').value=settings.startingWeapon;
-  D.getElementById('difficultySel').value=settings.difficulty;
   // mobile already runs at this quality, so hide the toggle there
   D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
   D.getElementById('colorblindSel').value = settings.colorblind;
@@ -4834,11 +4898,6 @@ D.getElementById('shakeToggle').addEventListener('change', e=>{
 D.getElementById('weaponSel').addEventListener('change', e=>{
   settings.startingWeapon=e.target.value;
   persist();
-});
-D.getElementById('difficultySel').addEventListener('change', e=>{
-  settings.difficulty=e.target.value;
-  persist();
-  toast('Difficulty: '+e.target.value);
 });
 // ---------- cosmetic shop ----------
 const COSMETIC_PRESETS = [
