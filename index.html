@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726n';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726o';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726n · UX Pass</div>
+<div id="version">v061726o · Bugfixes</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -450,7 +450,13 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726n · UX Pass (June 17, 2026)</div>
+    <div class="desc">v061726o · Bugfixes (June 17, 2026)</div>
+    <ul>
+      <li>Fixed class mastery tab not working — tab buttons now use standard click handlers instead of the touch-oriented onTap wrapper</li>
+      <li>Fixed cosmetics NPC not releasing the pointer lock — opening the cosmetic shop now properly exits pointer lock, pauses the game, and disables touch controls (same as the class NPC)</li>
+      <li>Fixed being able to open other menus while the cosmetics or colors menus were open — Escape now properly closes them, and the overlay-open check includes them</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726n · UX Pass (June 17, 2026)</div>
     <ul>
       <li>Bigger default bullet size — the uncharged ball was too small to see clearly</li>
       <li>Removed the exit portal from the center of the arena (the End Run button replaces it)</li>
@@ -677,7 +683,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726n · UX Pass</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726o · Bugfixes</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -704,8 +710,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726n';
-const UPDATE_TITLE = 'UX Pass';
+const VERSION = 'v061726o';
+const UPDATE_TITLE = 'Bugfixes';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1627,6 +1633,8 @@ function escapePressed(){
   if(GAME.state!=='arena' && GAME.state!=='overworld') return;
   if(A.paused) return;        // level-up menu is open
   if(D.getElementById('classMenu').style.display==='flex'){ closeClassMenu(); return; }
+  if(D.getElementById('cosmeticShop').style.display==='flex'){ closeCosmeticShop(); return; }
+  if(D.getElementById('colorsMenu').style.display==='flex'){ D.getElementById('colorsMenu').style.display='none'; return; }
   if(D.getElementById('pauseMenu').style.display==='flex'){ closePauseMenu(); return; }
   const setEl=D.getElementById('settings');
   if(setEl.style.display==='flex'){ closeSettings(); return; }
@@ -1712,7 +1720,9 @@ function anyOverlayOpen(){
     D.getElementById('statsPage').style.display==='flex' ||
     D.getElementById('importModal').style.display==='flex' ||
     D.getElementById('cosmeticShop').style.display==='flex' ||
-    D.getElementById('masteryMenu').style.display==='flex';
+    D.getElementById('masteryMenu').style.display==='flex' ||
+    D.getElementById('colorsMenu').style.display==='flex' ||
+    D.getElementById('classMenu').style.display==='flex';
 }
 if(isMobile){
   D.body.classList.add('mobile');
@@ -4542,8 +4552,11 @@ function switchClassTab(tab){
   }
 }
 onTap(D.getElementById('classClose'), closeClassMenu);
-onTap(D.getElementById('tabClasses'), ()=>switchClassTab('classes'));
-onTap(D.getElementById('tabMastery'), ()=>switchClassTab('mastery'));
+// Tab buttons: use addEventListener('click') instead of onTap — onTap's
+// touch-detection logic was eating the click on desktop browsers, so the
+// Mastery tab wasn't switching. (v061726o)
+D.getElementById('tabClasses').addEventListener('click', ()=>switchClassTab('classes'));
+D.getElementById('tabMastery').addEventListener('click', ()=>switchClassTab('mastery'));
 
 // ============================================================
 //  SETTINGS MENU + FOV
@@ -4723,8 +4736,24 @@ function buildCosmeticGrid(){
     grid.appendChild(el);
   }
 }
-function openCosmeticShop(){ buildCosmeticGrid(); D.getElementById('cosmeticShop').style.display='flex'; }
-onTap(D.getElementById('cosmeticClose'), ()=>{ D.getElementById('cosmeticShop').style.display='none'; });
+// Cosmetics shop open/close — must mirror openClassMenu/closeClassMenu
+// pattern: pause the game, release pointer lock, disable touch controls.
+// Previously this just showed the modal without any of that, which left
+// the pointer locked and the game running behind the menu. (v061726o)
+function openCosmeticShop(){
+  GAME.paused=true;
+  suppressAutoSettings=true; exitPointerLockSafe();
+  setTouchEnabled(false);
+  buildCosmeticGrid();
+  D.getElementById('cosmeticShop').style.display='flex';
+}
+function closeCosmeticShop(){
+  D.getElementById('cosmeticShop').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
+}
+onTap(D.getElementById('cosmeticClose'), closeCosmeticShop);
 // ---------- class mastery tree ----------
 let mastery = {};
 function loadMastery(){ try{ const raw=localStorage.getItem('blockfall_mastery_v1'); if(raw) mastery=JSON.parse(raw); }catch(e){} }
