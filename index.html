@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726k';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726l';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -248,7 +248,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726k · Mega Update</div>
+<div id="version">v061726l · Endless Portal</div>
 
 <!-- mobile touch controls -->
 <div id="touch">
@@ -331,10 +331,6 @@
     <div class="row">
       <label for="shakeToggle">Screen shake</label>
       <label class="switch"><input id="shakeToggle" type="checkbox"><span class="track"></span></label>
-    </div>
-    <div class="row">
-      <label for="endlessToggle">Endless mode (hide waves)</label>
-      <label class="switch"><input id="endlessToggle" type="checkbox"><span class="track"></span></label>
     </div>
     <div class="row">
       <label for="weaponSel">Starting weapon</label>
@@ -427,7 +423,11 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726k · Mega Update (June 17, 2026)</div>
+    <div class="desc">v061726l · Endless Portal (June 17, 2026)</div>
+    <ul>
+      <li>Endless mode is now a separate orange portal in the lobby (next to the purple arena portal) instead of a settings toggle. Step through it to enter a pure survival mode: enemies of all types spawn continuously, a boss appears every 3 minutes, and there's no wave counter — just survive as long as you can. The HUD shows "ENDLESS" in orange with a boss countdown timer</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726k · Mega Update (June 17, 2026)</div>
     <ul>
       <li>Persistent stats page: tracks total kills, runs completed, deaths, bosses killed, time played, shards, per-class best wave, and kills by enemy type</li>
       <li>Save export/import: export your save as a base64 code string to move progress between browsers</li>
@@ -616,7 +616,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726k · Mega Update</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726l · Endless Portal</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -643,8 +643,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726k';
-const UPDATE_TITLE = 'Mega Update';
+const VERSION = 'v061726l';
+const UPDATE_TITLE = 'Endless Portal';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1134,10 +1134,12 @@ function keyOf(x,y,z){ return x+','+y+','+z; }
 
 // ---------- generate the overworld ----------
 let PORTAL_POS = new THREE.Vector3();
+let ENDLESS_PORTAL_POS = new THREE.Vector3();   // endless-mode portal (v061726l)
 let NPC_POS = new THREE.Vector3();
 let npcMarker;
 const LOBBY_Y = 0;            // floor top surface
 let portalPlane;
+let portalPlaneEndless;   // endless-mode portal glow plane (v061726l)
 function buildLobby(){
   // flat circular floor
   const floorMat = new THREE.MeshLambertMaterial({ color:0x2a2f45 });
@@ -1155,12 +1157,18 @@ function buildLobby(){
   wall.rotation.x = Math.PI/2; wall.position.y = LOBBY_Y + 0.4;
   overworld.group.add(wall);
 
-  // portal stands a few steps in front of spawn
+  // arena portal stands a few steps in front of spawn
   const px = 0, pz = -7;
-  buildPortalFrame(px, LOBBY_Y, pz);
+  buildPortalFrame(px, LOBBY_Y, pz, 0xb14bff);   // purple = arena
   PORTAL_POS.set(px, LOBBY_Y + 1.9, pz);
 
-  // class-shop NPC off to the side
+  // endless portal off to the left — orange to distinguish from the
+  // purple arena portal. Same frame geometry, different glow color.
+  const ex = -6.5, ez = -7;
+  buildPortalFrame(ex, LOBBY_Y, ez, 0xff6a1f);   // orange = endless
+  ENDLESS_PORTAL_POS.set(ex, LOBBY_Y + 1.9, ez);
+
+  // class-shop NPC off to the right
   const nx = 6.5, nz = -1;
   buildNPC(nx, LOBBY_Y, nz);
   NPC_POS.set(nx, LOBBY_Y, nz);
@@ -1207,7 +1215,9 @@ function buildNPC(x, baseY, z){
   overworld.group.add(g);
 }
 
-function buildPortalFrame(px, baseY, pz){
+function buildPortalFrame(px, baseY, pz, glowColor){
+  // glowColor defaults to purple (arena) for backwards compat
+  glowColor = glowColor || 0xb14bff;
   // dark frame slabs forming an upright doorway
   const frameMat = new THREE.MeshLambertMaterial({ color:0x241a33 });
   const add=(x,y,z,sx,sy,sz)=>{
@@ -1223,11 +1233,16 @@ function buildPortalFrame(px, baseY, pz){
 
   // glowing portal plane in the opening (faces along z)
   const pg = new THREE.PlaneGeometry(2.6, 3.4);
-  const pmat = new THREE.MeshBasicMaterial({ color:0xb14bff, transparent:true, opacity:0.78, side:THREE.DoubleSide });
-  portalPlane = new THREE.Mesh(pg, pmat);
-  portalPlane.position.set(px, baseY + 2.0, pz);
-  overworld.group.add(portalPlane);
-  const plight = new THREE.PointLight(0xb14bff, 9, 16);
+  const pmat = new THREE.MeshBasicMaterial({ color:glowColor, transparent:true, opacity:0.78, side:THREE.DoubleSide });
+  const plane = new THREE.Mesh(pg, pmat);
+  plane.position.set(px, baseY + 2.0, pz);
+  overworld.group.add(plane);
+  // store the plane so updateOverworld can animate its opacity.
+  // The arena portal uses the global portalPlane; the endless portal
+  // uses portalPlaneEndless.
+  if(glowColor === 0xb14bff) portalPlane = plane;
+  else portalPlaneEndless = plane;
+  const plight = new THREE.PointLight(glowColor, 9, 16);
   plight.position.set(px, baseY + 2.0, pz); overworld.group.add(plight);
 }
 
@@ -2003,6 +2018,7 @@ function clearDmgTexts(){
 }
 function startArena(){
   A.active=true; A.dead=false;
+  A.endless=false;   // reset — startEndless() sets this true after calling us
   hideBossBar();
   A.wave=0; A.waveTime=0; A.spawnAcc=0; A.toSpawn=0;
   A.enemies.length=0; A.projectiles.length=0; A.orbs.length=0; A.boss=null;
@@ -2041,8 +2057,27 @@ function startArena(){
   nextWave();
   toast("Entered the portal. "+A.biomeName);
 }
+// ---------- endless mode (v061726l) ----------
+// A separate game mode entered through the orange portal. Instead of
+// discrete waves, enemies of ALL types spawn continuously to maintain
+// a target on-screen count. A boss spawns every 3 minutes. No wave
+// counter — pure survival. The wave HUD shows "ENDLESS" + a boss timer.
+function startEndless(){
+  startArena();   // reuse the setup (stats, weapons, map, etc.)
+  A.endless = true;
+  A.endlessBossTimer = 180;   // 3 minutes until first boss
+  A.endlessSpawnAcc = 0;
+  A.endlessTime = 0;
+  // In endless mode we don't use the wave system. Clear the wave state
+  // that startArena/nextWave set up so updateArena's endless branch
+  // takes over spawning instead.
+  A.toSpawn = 0;
+  A.wave = 0;
+  toast("Endless mode — survive as long as you can!");
+}
 function exitArena(keepNothingBut){
   A.active=false;
+  A.endless=false;   // reset endless flag on exit
   recordWave(A.wave);
   // Persistent stats: count this as a completed run, track per-class best
   // wave, and accumulate play time. We do this here AND in arenaDeath so
@@ -2950,6 +2985,7 @@ function contactDamage(e){
 }
 function arenaDeath(){
   A.active=false; A.dead=true;
+  A.endless=false;   // reset endless flag on death
   GAME.state='dead';
   recordWave(A.wave);
   // Persistent stats: count the death, the completed run, per-class best
@@ -3153,10 +3189,22 @@ function updateArenaHud(){
   D.getElementById('xpfill').style.width=(A.xp/A.xpNext*100)+'%';
   D.getElementById('lvlbadge').innerHTML='LVL <b style="font-size:18px">'+A.level+'</b>';
   const enemies=A.enemies.length+(A.boss?1:0);
-  D.getElementById('wavebox').innerHTML=
-    '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left'+
-    '<br><span style="opacity:.85;font-size:12px">Kills: '+(A.runKills||0)+' &nbsp;·&nbsp; Total: '+totalKills+'</span>'+
-    '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+  if(A.endless){
+    // Endless mode HUD: show "ENDLESS" instead of wave number, plus
+    // a boss countdown timer.
+    const bossMins=Math.floor(A.endlessBossTimer/60);
+    const bossSecs=Math.ceil(A.endlessBossTimer%60);
+    const bossStr = A.boss ? 'BOSS ACTIVE' : 'next boss in '+bossMins+':'+(bossSecs<10?'0':'')+bossSecs;
+    D.getElementById('wavebox').innerHTML=
+      '<div class="big" style="color:#ff6a1f">ENDLESS</div>'+enemies+' enemies'+
+      '<br><span style="opacity:.85;font-size:12px">'+bossStr+' &nbsp;·&nbsp; Kills: '+(A.runKills||0)+'</span>'+
+      '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+  } else {
+    D.getElementById('wavebox').innerHTML=
+      '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left'+
+      '<br><span style="opacity:.85;font-size:12px">Kills: '+(A.runKills||0)+' &nbsp;·&nbsp; Total: '+totalKills+'</span>'+
+      '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+  }
   if(A.boss){
     D.getElementById('bossfill').style.width=Math.max(0,A.boss.hp/A.boss.maxhp*100)+'%';
   }
@@ -3344,6 +3392,7 @@ function updateOverworld(){
     sun.position.set(Math.cos(sunAngle)*60, Math.max(10, sunHeight*80), 30);
   }
   if(portalPlane){ portalPlane.material.opacity=0.6+Math.sin(performance.now()*0.004)*0.18; }
+  if(portalPlaneEndless){ portalPlaneEndless.material.opacity=0.6+Math.sin(performance.now()*0.005+1.5)*0.18; }
   if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.30+Math.sin(performance.now()*0.003)*0.10; }
   // NPC idle animation + always-face-the-player behavior. The whole group
   // yaw-rotates to track the player, and the arms/legs get a subtle sway so
@@ -3386,14 +3435,21 @@ function updateOverworld(){
     touch.shop=false;   // clear stale taps if the player backed away
   }
   _npcNear = canShop;   // kept for compatibility (used by the hint below)
-  // portal proximity -> enter arena
+  // portal proximity -> enter arena or endless mode
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
+  const de=Math.hypot(player.pos.x-ENDLESS_PORTAL_POS.x, player.pos.z-ENDLESS_PORTAL_POS.z);
   if(d<1.7){
     startArena();
     hint.style.display='none';
+  } else if(de<1.7){
+    startEndless();
+    hint.style.display='none';
   } else if(d<4.5){
     hint.style.display='block';
-    hint.textContent='Step into the portal to enter the arena';
+    hint.textContent='Step into the purple portal for Wave mode';
+  } else if(de<4.5){
+    hint.style.display='block';
+    hint.textContent='Step into the orange portal for Endless mode';
   } else if(canShop){
     hint.style.display='block';
     hint.textContent = isMobile ? 'Tap SHOP to open the class shop' : 'Press E to open the class shop';
@@ -3453,7 +3509,39 @@ function updateArena(){
 
   // wave timer / spawning
   A.waveTime+=dt;
-  if(A.toSpawn>0){
+  if(A.endless){
+    // ---- ENDLESS MODE spawning (v061726l) ----
+    // No waves. Maintain a target enemy count on screen — spawn
+    // continuously to keep up. All enemy types are available from
+    // the start (we pass a high wave number to pickEnemyKind so every
+    // type is in the pool). Boss spawns every 3 minutes.
+    A.endlessTime += dt;
+    A.endlessBossTimer -= dt;
+    A.endlessSpawnAcc += dt;
+    // target on-screen count grows slightly over time to ramp difficulty
+    const targetCount = Math.min(20, 8 + Math.floor(A.endlessTime/30));
+    const spawnInterval = Math.max(0.4, 1.2 - A.endlessTime*0.005);
+    if(A.endlessSpawnAcc >= spawnInterval && A.enemies.length < targetCount && !A.boss){
+      A.endlessSpawnAcc = 0;
+      // use wave 10 so all enemy types are in the pool
+      const kind = pickEnemyKind(10);
+      // telegraph the spawn (same as wave mode)
+      const ang=Math.random()*Math.PI*2;
+      const rad=ARENA_R-3;
+      const tx=Math.cos(ang)*rad, tz=Math.sin(ang)*rad;
+      A.telegraphs = A.telegraphs || [];
+      A.telegraphs.push({x:tx, z:tz, t:0, kind, mesh:null});
+    }
+    // boss every 3 minutes
+    if(A.endlessBossTimer <= 0 && !A.boss){
+      A.endlessBossTimer = 180;   // reset for next boss
+      spawnBoss();
+      // override the wave number shown by the boss intro banner
+      // (endless has no wave number, so show "ENDLESS" instead)
+      const intro = D.getElementById('bossIntro');
+      if(intro) intro.querySelector('.wave').textContent = 'ENDLESS';
+    }
+  } else if(A.toSpawn>0){
     A.spawnAcc+=dt;
     const interval=Math.max(0.28, 1.0 - A.wave*0.022);   // spawns get faster later
     if(A.spawnAcc>=interval){
@@ -3490,8 +3578,9 @@ function updateArena(){
       }
     }
   }
-  // advance wave when cleared -> vacuum up any leftover xp orbs first
-  if(A.toSpawn===0 && A.enemies.length===0 && !A.boss){
+  // advance wave when cleared -> vacuum up any leftover xp orbs first.
+  // Endless mode skips this — there are no waves to advance.
+  if(!A.endless && A.toSpawn===0 && A.enemies.length===0 && !A.boss){
     collectAllXp();
     nextWave();
   }
@@ -4195,7 +4284,6 @@ function openSettings(){
   D.getElementById('easyBhopToggle').checked=settings.easyBhop;
   D.getElementById('potatoToggle').checked=settings.potato;
   D.getElementById('shakeToggle').checked=settings.screenShake;
-  D.getElementById('endlessToggle').checked=settings.endlessMode;
   D.getElementById('weaponSel').value=settings.startingWeapon;
   // mobile already runs at this quality, so hide the toggle there
   D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
@@ -4276,11 +4364,6 @@ D.getElementById('shakeToggle').addEventListener('change', e=>{
   settings.screenShake=e.target.checked;
   if(!settings.screenShake) _shakeMag=0;
   persist();
-});
-D.getElementById('endlessToggle').addEventListener('change', e=>{
-  settings.endlessMode=e.target.checked;
-  persist();
-  toast(settings.endlessMode ? 'Endless mode on' : 'Endless mode off');
 });
 D.getElementById('weaponSel').addEventListener('change', e=>{
   settings.startingWeapon=e.target.value;
