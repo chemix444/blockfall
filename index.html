@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726p';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726q';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726p · Mastery Fix</div>
+<div id="version">v061726q · Trails & XP NPC</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -450,7 +450,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726p · Mastery Fix (June 17, 2026)</div>
+    <div class="desc">v061726q · Trails & XP NPC (June 17, 2026)</div>
+    <ul>
+      <li>Fixed bullet trails randomly not rendering — the particle pool's circular cursor was blindly overwriting living particles. Now it searches for a dead slot before writing, so trail particles don't get clobbered by other particle effects</li>
+      <li>New XP Range NPC in the lobby (green marker) — spend shards to permanently upgrade your default XP pickup range. Each level increases the base range by 15%, cost scales up per level. The bonus applies at the start of every run</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726p · Mastery Fix (June 17, 2026)</div>
     <ul>
       <li>Fixed the Mastery tab showing nothing — there were two elements with id="masteryContent" (the old separate modal and the new tab content), and getElementById was returning the hidden one. Removed the old unused #masteryMenu modal so the tab's content div is the only one</li>
     </ul>
@@ -646,6 +651,18 @@
   </div>
 </div>
 
+<!-- XP pickup range upgrade NPC menu (v061726q) -->
+<div id="xpMenu" class="modal">
+  <div class="panel" style="width:460px;max-width:94vw">
+    <h2>XP Pickup Range</h2>
+    <div class="desc">Spend shards to permanently upgrade your default XP pickup range. Each level adds +15% to the base range. The bonus applies at the start of every run.</div>
+    <div id="xpContent" style="margin-top:14px;font-size:14px;line-height:2"></div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-primary" id="xpClose">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Class shop (mastery is now a tab inside this menu) -->
 <div id="classMenu" class="modal">
   <div class="panel" style="width:560px;max-width:94vw">
@@ -675,7 +692,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726p · Mastery Fix</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726q · Trails & XP NPC</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -702,8 +719,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726p';
-const UPDATE_TITLE = 'Mastery Fix';
+const VERSION = 'v061726q';
+const UPDATE_TITLE = 'Trails & XP NPC';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1205,8 +1222,10 @@ let PORTAL_POS = new THREE.Vector3();
 let ENDLESS_PORTAL_POS = new THREE.Vector3();   // endless-mode portal (v061726l)
 let NPC_POS = new THREE.Vector3();
 let COSMETIC_NPC_POS = new THREE.Vector3();   // cosmetics NPC (v061726m)
+let XP_NPC_POS = new THREE.Vector3();   // XP pickup range NPC (v061726q)
 let npcMarker;
 let cosmeticNpcMarker;
+let xpNpcMarker;
 const LOBBY_Y = 0;            // floor top surface
 let portalPlane;
 let portalPlaneEndless;   // endless-mode portal glow plane (v061726l)
@@ -1250,6 +1269,12 @@ function buildLobby(){
   const cnx = -6.5, cnz = -1;
   buildCosmeticNPC(cnx, LOBBY_Y, cnz);
   COSMETIC_NPC_POS.set(cnx, LOBBY_Y, cnz);
+
+  // XP pickup range NPC behind the player (green marker).
+  // Positioned so it doesn't overlap with the other NPCs or portals.
+  const xnx = 0, xnz = 5;
+  buildXPNPC(xnx, LOBBY_Y, xnz);
+  XP_NPC_POS.set(xnx, LOBBY_Y, xnz);
 }
 // Class-shop NPC. Built as a blocky humanoid mirroring the default player
 // avatar (same body parts, same default colors) so it reads as "another person"
@@ -1325,6 +1350,39 @@ function buildCosmeticNPC(x, baseY, z){
   g.position.set(x, baseY, z);
   g.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], torso, head, baseY, phase:0};
   cosmeticNpcGroup=g;
+  overworld.group.add(g);
+}
+// XP pickup range NPC — green marker, green/gold body to read as a
+// "collector" character. Same blocky-humanoid template as the others.
+let xpNpcGroup=null;
+function buildXPNPC(x, baseY, z){
+  const g=new THREE.Group();
+  const torsoMat=new THREE.MeshLambertMaterial({color:0x33aa55});
+  const armMat  =new THREE.MeshLambertMaterial({color:0x33aa55});
+  const legMat  =new THREE.MeshLambertMaterial({color:0x1a5522});
+  const headMat =new THREE.MeshLambertMaterial({color:0xe9d2b0});
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.78,0.36), torsoMat); torso.position.y=1.06; torso.castShadow=true; g.add(torso);
+  const head =new THREE.Mesh(new THREE.BoxGeometry(0.44,0.44,0.44), headMat); head.position.y=1.70; head.castShadow=true; g.add(head);
+  const eyeMat=new THREE.MeshBasicMaterial({color:0x16203a});
+  const eg=new THREE.BoxGeometry(0.07,0.09,0.04);
+  const le=new THREE.Mesh(eg,eyeMat); le.position.set(-0.10,1.74,0.23); g.add(le);
+  const re=new THREE.Mesh(eg,eyeMat); re.position.set( 0.10,1.74,0.23); g.add(re);
+  const mkLimb=(px,topY,w,h,d,mat)=>{
+    const piv=new THREE.Group(); piv.position.set(px,topY,0);
+    const seg=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); seg.position.y=-h/2; seg.castShadow=true;
+    piv.add(seg); g.add(piv); return piv;
+  };
+  const lLeg=mkLimb(-0.16,0.70,0.26,0.70,0.30,legMat);
+  const rLeg=mkLimb( 0.16,0.70,0.26,0.70,0.30,legMat);
+  const lArm=mkLimb(-0.42,1.44,0.20,0.72,0.24,armMat);
+  const rArm=mkLimb( 0.42,1.44,0.20,0.72,0.24,armMat);
+  // green marker gem above the head
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshBasicMaterial({color:0x7dff7d}));
+  gem.position.y=2.30; g.add(gem); xpNpcMarker=gem;
+  const light=new THREE.PointLight(0x7dff7d,5,9); light.position.y=2.10; g.add(light);
+  g.position.set(x, baseY, z);
+  g.userData={legs:[lLeg,rLeg], arms:[lArm,rArm], torso, head, baseY, phase:0};
+  xpNpcGroup=g;
   overworld.group.add(g);
 }
 
@@ -1548,7 +1606,20 @@ function _makeParticleTex(){
 const _pMat = new THREE.PointsMaterial({ size:0.34, map:_makeParticleTex(), vertexColors:true, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, sizeAttenuation:true });
 const _points = new THREE.Points(_pGeo, _pMat); _points.frustumCulled=false; scene.add(_points);
 function spawnParticle(x,y,z,vx,vy,vz,r,g,b,life){
-  const i=_pCursor; _pCursor=(_pCursor+1)%PCOUNT; const i3=i*3;
+  // Find a dead slot instead of blindly overwriting the cursor position.
+  // The old circular-cursor approach would overwrite still-living particles
+  // (especially trail particles, which are spawned frequently) when the pool
+  // cycled back around — causing trails to randomly disappear. Now we scan
+  // forward from the cursor until we find a dead slot (life<=0). In
+  // practice this is very fast because most slots are dead at any given
+  // time (particles live 0.15-0.5s, and we spawn ~20-50 per frame).
+  let i=_pCursor;
+  for(let attempt=0; attempt<PCOUNT; attempt++){
+    if(_pLife[i]<=0) break;   // found a dead slot
+    i=(i+1)%PCOUNT;
+  }
+  _pCursor=(i+1)%PCOUNT;   // advance past the slot we just used
+  const i3=i*3;
   _pPos[i3]=x; _pPos[i3+1]=y; _pPos[i3+2]=z;
   _pVx[i]=vx; _pVy[i]=vy; _pVz[i]=vz;
   _pBr[i]=r; _pBg[i]=g; _pBb[i]=b;
@@ -1626,6 +1697,7 @@ function escapePressed(){
   if(A.paused) return;        // level-up menu is open
   if(D.getElementById('classMenu').style.display==='flex'){ closeClassMenu(); return; }
   if(D.getElementById('cosmeticShop').style.display==='flex'){ closeCosmeticShop(); return; }
+  if(D.getElementById('xpMenu').style.display==='flex'){ D.getElementById('xpMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('colorsMenu').style.display==='flex'){ D.getElementById('colorsMenu').style.display='none'; return; }
   if(D.getElementById('pauseMenu').style.display==='flex'){ closePauseMenu(); return; }
   const setEl=D.getElementById('settings');
@@ -1713,7 +1785,8 @@ function anyOverlayOpen(){
     D.getElementById('importModal').style.display==='flex' ||
     D.getElementById('cosmeticShop').style.display==='flex' ||
     D.getElementById('colorsMenu').style.display==='flex' ||
-    D.getElementById('classMenu').style.display==='flex';
+    D.getElementById('classMenu').style.display==='flex' ||
+    D.getElementById('xpMenu').style.display==='flex';
 }
 if(isMobile){
   D.body.classList.add('mobile');
@@ -2158,6 +2231,7 @@ function startArena(){
   player.speed=7.2;
   applyClass();                 // selected class modifies starting stats/weapons/speed
   applyMasteryBonus();          // permanent per-class mastery bonuses (v061726k)
+  applyXpPickupBonus();         // permanent XP pickup range bonus (v061726q)
   for(const w of A.weapons) A.wcd[w]=0;
   for(const k in upgradeLevels) delete upgradeLevels[k];   // reset owned counts
   ensureBlades();
@@ -3543,6 +3617,7 @@ function updateOverworld(){
   if(portalPlaneEndless){ portalPlaneEndless.material.opacity=0.6+Math.sin(performance.now()*0.005+1.5)*0.18; }
   if(npcMarker){ npcMarker.rotation.y+=dt*1.6; npcMarker.position.y=2.30+Math.sin(performance.now()*0.003)*0.10; }
   if(cosmeticNpcMarker){ cosmeticNpcMarker.rotation.y-=dt*1.6; cosmeticNpcMarker.position.y=2.30+Math.sin(performance.now()*0.003+1.5)*0.10; }
+  if(xpNpcMarker){ xpNpcMarker.rotation.y+=dt*1.4; xpNpcMarker.position.y=2.30+Math.sin(performance.now()*0.003+3.0)*0.10; }
   // NPC idle animation + always-face-the-player behavior. The whole group
   // yaw-rotates to track the player, and the arms/legs get a subtle sway so
   // the figure feels alive instead of frozen.
@@ -3585,6 +3660,24 @@ function updateOverworld(){
     u.legs[1].rotation.x= sw*0.5;
     u.torso.position.y=1.06 + Math.sin(u.phase*0.5)*0.012;
   }
+  // XP NPC idle animation + face-the-player (mirrors the others)
+  if(xpNpcGroup){
+    const u=xpNpcGroup.userData;
+    const dx=player.pos.x-xpNpcGroup.position.x;
+    const dz=player.pos.z-xpNpcGroup.position.z;
+    const targetYaw=Math.atan2(dx,dz);
+    let dYaw=targetYaw-xpNpcGroup.rotation.y;
+    while(dYaw> Math.PI) dYaw-=Math.PI*2;
+    while(dYaw<-Math.PI) dYaw+=Math.PI*2;
+    xpNpcGroup.rotation.y += dYaw*Math.min(1, dt*6);
+    u.phase += dt*1.8;
+    const sw=Math.sin(u.phase)*0.10;
+    u.arms[0].rotation.x= sw;
+    u.arms[1].rotation.x=-sw;
+    u.legs[0].rotation.x=-sw*0.5;
+    u.legs[1].rotation.x= sw*0.5;
+    u.torso.position.y=1.06 + Math.sin(u.phase*0.5)*0.012;
+  }
   const hint=D.getElementById('hint');
   // class NPC: requires a button press (E on PC, SHOP on mobile) to open.
   // We no longer auto-open on approach — the player has to actively engage.
@@ -3616,6 +3709,17 @@ function updateOverworld(){
       return;
     }
   }
+  // XP pickup range NPC interaction (v061726q)
+  const dxn=Math.hypot(player.pos.x-XP_NPC_POS.x, player.pos.z-XP_NPC_POS.z);
+  const canXp = dxn<3.0;
+  if(btnShop) btnShop.style.display = (btnShop.style.display==='flex') ? btnShop.style.display : ((canXp && isMobile && !anyOverlayOpen()) ? 'flex' : 'none');
+  if(canXp){
+    if(keys[settings.keybinds.interact] || touch.shop){
+      touch.shop=false;
+      openXpMenu();
+      return;
+    }
+  }
   // portal proximity -> enter arena or endless mode
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
   const de=Math.hypot(player.pos.x-ENDLESS_PORTAL_POS.x, player.pos.z-ENDLESS_PORTAL_POS.z);
@@ -3637,6 +3741,9 @@ function updateOverworld(){
   } else if(canCosmetic){
     hint.style.display='block';
     hint.textContent = isMobile ? 'Tap SHOP to open cosmetics' : 'Press E to open cosmetics';
+  } else if(canXp){
+    hint.style.display='block';
+    hint.textContent = isMobile ? 'Tap SHOP to upgrade XP range' : 'Press E to upgrade XP pickup range';
   } else hint.style.display='none';
 }
 
@@ -4787,6 +4894,62 @@ function applyMasteryBonus(){
   A.stats.dmg*=bonus;
   A.maxhp=Math.round(A.maxhp*bonus); A.hp=A.maxhp;
 }
+// ---------- XP pickup range upgrades (v061726q) ----------
+// Persistent upgrade separate from mastery — increases the base XP
+// pickup range permanently. Stored in localStorage.
+let xpPickupLevel = 0;
+function loadXpPickupLevel(){ try{ const raw=localStorage.getItem('blockfall_xp_pickup_v1'); if(raw) xpPickupLevel=JSON.parse(raw).level||0; }catch(e){} }
+function saveXpPickupLevel(){ try{ localStorage.setItem('blockfall_xp_pickup_v1', JSON.stringify({level:xpPickupLevel})); }catch(e){} }
+loadXpPickupLevel();
+function xpPickupCost(level){ return 30 + level*20; }   // 30, 50, 70, 90, ...
+function applyXpPickupBonus(){
+  if(xpPickupLevel<=0) return;
+  A.stats.pickup *= Math.pow(1.15, xpPickupLevel);   // +15% per level, compounding
+}
+function openXpMenu(){
+  GAME.paused=true;
+  suppressAutoSettings=true; exitPointerLockSafe();
+  setTouchEnabled(false);
+  const el=D.getElementById('xpContent');
+  if(el){
+    const baseRange = 2.2;
+    const currentRange = baseRange * Math.pow(1.15, xpPickupLevel);
+    const nextRange = baseRange * Math.pow(1.15, xpPickupLevel+1);
+    const cost = xpPickupCost(xpPickupLevel);
+    const canBuy = shards >= cost;
+    let html='<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0"><span style="opacity:.7">Shards</span><b>'+shards+'</b></div>';
+    html+='<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0"><span style="opacity:.7">Current level</span><b>'+xpPickupLevel+'</b></div>';
+    html+='<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0"><span style="opacity:.7">Current pickup range</span><b>'+currentRange.toFixed(1)+'</b></div>';
+    html+='<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);padding:4px 0"><span style="opacity:.7">Next level range</span><b>'+nextRange.toFixed(1)+'</b></div>';
+    html+='<div style="margin-top:14px;text-align:center">';
+    if(canBuy){
+      html+='<button class="btn-primary" id="xpBuyBtn" style="font-size:15px;padding:10px 24px">Upgrade ('+cost+' shards)</button>';
+    } else {
+      html+='<span style="opacity:.5">Need '+cost+' shards to upgrade</span>';
+    }
+    html+='</div>';
+    el.innerHTML=html;
+    const buyBtn=D.getElementById('xpBuyBtn');
+    if(buyBtn){
+      onTap(buyBtn, ()=>{
+        const cost=xpPickupCost(xpPickupLevel);
+        if(shards>=cost){
+          shards-=cost; xpPickupLevel++;
+          updateShardHud(); persist(); saveXpPickupLevel();
+          openXpMenu();   // refresh
+          SFX.level();
+        }
+      });
+    }
+  }
+  D.getElementById('xpMenu').style.display='flex';
+}
+onTap(D.getElementById('xpClose'), ()=>{
+  D.getElementById('xpMenu').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
+});
 // ---------- colorblind mode ----------
 // Applies a CSS filter to the canvas element instead of swapping the
 // player's color settings. This keeps all custom colors intact while
