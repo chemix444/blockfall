@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726m';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726n';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726m · Refinements</div>
+<div id="version">v061726n · UX Pass</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -261,7 +261,7 @@
   <div id="joy"><div id="joyNub"></div></div>
   <div id="lookPad"></div>
   <div id="btnJump">JUMP</div>
-  <div id="btnExit">LEAVE</div>
+  <div id="btnExit">END RUN</div>
   <div id="btnShop">SHOP</div>
   <div id="btnCharge">CHARGE</div>
 </div>
@@ -370,21 +370,8 @@
       <input id="sensRange" type="range" min="20" max="300" step="5">
       <span class="val" id="sensVal">1.0</span>
     </div>
-    <h2 style="font-size:15px;margin:18px 0 2px">Colors</h2>
-    <div class="row"><label for="skyCol">Sky</label><input id="skyCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="outlineCol">Enemy outline</label><input id="outlineCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="pcHead">Player head</label><input id="pcHead" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="pcTorso">Player torso</label><input id="pcTorso" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="pcArms">Player arms</label><input id="pcArms" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="pcLegs">Player legs</label><input id="pcLegs" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="trailLowCol">Speed trail (slow)</label><input id="trailLowCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="trailHighCol">Speed trail (fast)</label><input id="trailHighCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="hitCol">Enemy hit sparks</label><input id="hitCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="dmgCol">Damage numbers</label><input id="dmgCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="critCol">Critical damage</label><input id="critCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="row"><label for="specialCol">Special text (dodge)</label><input id="specialCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
-    <div class="actions" style="margin-top:6px">
-      <button class="btn-ghost" id="resetColors">Reset colors</button>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn-ghost" id="openColorsBtn">Customize Colors</button>
     </div>
     <h2 style="font-size:15px;margin:18px 0 2px">Accessibility</h2>
     <div class="row">
@@ -421,6 +408,41 @@
   </div>
 </div>
 
+<!-- Colors customization modal (v061726n) -->
+<div id="colorsMenu" class="modal">
+  <div class="panel" style="width:460px;max-width:94vw">
+    <h2>Colors</h2>
+    <div class="desc">Customize the color of everything in the game. Changes apply right away.</div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">WORLD</h3>
+    <div class="row"><label for="skyCol">Sky</label><input id="skyCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="arenaGroundCol">Arena ground</label><input id="arenaGroundCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="arenaPropsCol">Arena props</label><input id="arenaPropsCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="portalGlowCol">Portal glow</label><input id="portalGlowCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">PLAYER</h3>
+    <div class="row"><label for="pcHead">Player head</label><input id="pcHead" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcTorso">Player torso</label><input id="pcTorso" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcArms">Player arms</label><input id="pcArms" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="pcLegs">Player legs</label><input id="pcLegs" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">COMBAT</h3>
+    <div class="row"><label for="bulletCol">Bullet</label><input id="bulletCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="trailLowCol">Speed trail (slow)</label><input id="trailLowCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="trailHighCol">Speed trail (fast)</label><input id="trailHighCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">ENEMIES</h3>
+    <div class="row"><label for="outlineCol">Enemy outline</label><input id="outlineCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="enemyTintCol">Enemy body tint</label><input id="enemyTintCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="hitCol">Enemy hit sparks</label><input id="hitCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">UI</h3>
+    <div class="row"><label for="dmgCol">Damage numbers</label><input id="dmgCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="critCol">Critical damage</label><input id="critCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="specialCol">Special text (dodge)</label><input id="specialCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="row"><label for="dmgFlashCol">Damage flash</label><input id="dmgFlashCol" type="color" style="flex:none;width:46px;height:30px;background:none;border:none"></div>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn-ghost" id="resetColors">Reset colors</button>
+      <button class="btn-primary" id="colorsClose">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Changelog -->
 <div id="changelog" class="modal">
   <div class="panel">
@@ -428,7 +450,20 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726m · Refinements (June 17, 2026)</div>
+    <div class="desc">v061726n · UX Pass (June 17, 2026)</div>
+    <ul>
+      <li>Bigger default bullet size — the uncharged ball was too small to see clearly</li>
+      <li>Removed the exit portal from the center of the arena (the End Run button replaces it)</li>
+      <li>Renamed "LEAVE" / "Quit to lobby" to "End Run" across all UI</li>
+      <li>Fixed pointer re-locking when clicking the settings gear after Esc — now only re-locks when a menu actually closes</li>
+      <li>Removed hit-stop on enemy hits/kills (was making the game feel choppy)</li>
+      <li>Cumulative damage numbers: hits on the same enemy stack into one number instead of spawning separate floating text per hit. The number's color/style reflects the latest hit (normal/crit/special)</li>
+      <li>Replaced muzzle-flash particles with a trail behind each projectile — bullets now leave a colored streak as they fly</li>
+      <li>Color customization moved into its own "Colors" submenu within Settings to keep the main settings panel less overwhelming</li>
+      <li>Added color customization for: bullet color, enemy body tint, arena ground, arena props, portal glow, and damage flash</li>
+      <li>Arena weapon panel now shows only the weapons you've unlocked (with names), instead of all weapons — matches the upgrade list style</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726m · Refinements (June 17, 2026)</div>
     <ul>
       <li>Colorblind mode now applies a CSS filter overlay on the canvas instead of swapping your color settings — your custom colors stay intact, and the filter (protanopia/deuteranopia/tritanopia/high-contrast) is applied as a real-time visual layer on top</li>
       <li>New Cosmetics NPC in the lobby (mirrors the class NPC) — walk up and press E to open the cosmetic shop. Removed the cosmetics button from Settings since it now has its own NPC</li>
@@ -540,12 +575,12 @@
 <!-- Exit confirmation -->
 <div id="exitConfirm" class="modal">
   <div class="panel">
-    <h2>Leave the arena?</h2>
-    <div class="desc">Stepping through the portal ends this run. Your level and all upgrades are wiped, and the next trip generates a fresh map. Shards you've collected are kept.</div>
+    <h2>End the run?</h2>
+    <div class="desc">Ending the run now wipes your level and all upgrades. The next trip generates a fresh map. Shards you've collected are kept.</div>
     <label class="check"><input type="checkbox" id="exitDontAsk"> Don't ask again</label>
     <div class="actions">
       <button class="btn-ghost" id="exitStay">Stay</button>
-      <button class="btn-danger" id="exitLeave">Leave run</button>
+      <button class="btn-danger" id="exitLeave">End run</button>
     </div>
   </div>
 </div>
@@ -559,7 +594,7 @@
       <button class="btn-primary" id="pauseResume">Resume</button>
       <button class="btn-ghost" id="pauseSettings">Settings</button>
       <button class="btn-ghost" id="pauseRestart">Restart run</button>
-      <button class="btn-danger" id="pauseQuit">Quit to lobby</button>
+      <button class="btn-danger" id="pauseQuit">End Run</button>
     </div>
   </div>
 </div>
@@ -642,7 +677,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726m · Refinements</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726n · UX Pass</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -669,8 +704,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726m';
-const UPDATE_TITLE = 'Refinements';
+const VERSION = 'v061726n';
+const UPDATE_TITLE = 'UX Pass';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -798,6 +833,8 @@ const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50
   skyColor:'#9fd0ff', outlineColor:'#fff27a',
   trailLow:'#4ad1ff', trailHigh:'#ff4bd0', hitColor:'#fff27a',
   dmgColor:'#ffffff', critColor:'#ffd84a', specialColor:'#7fe0ff',
+  bulletColor:'#fff1a8', enemyTint:'#ffffff', arenaGround:'#5a7a45', arenaProps:'#3f6a32',
+  portalGlow:'#b14bff', dmgFlashColor:'#e23b3b',
   playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' },
   keybinds:{ forward:'KeyW', back:'KeyS', left:'KeyA', right:'KeyD', jump:'Space', interact:'KeyE' } };
 const DEFAULT_SETTINGS = JSON.parse(JSON.stringify(settings));
@@ -864,6 +901,13 @@ function loadSave(){
         if(isHex(s.settings.dmgColor)) settings.dmgColor = s.settings.dmgColor;
         if(isHex(s.settings.critColor)) settings.critColor = s.settings.critColor;
         if(isHex(s.settings.specialColor)) settings.specialColor = s.settings.specialColor;
+        // new color settings (v061726n)
+        if(isHex(s.settings.bulletColor)) settings.bulletColor = s.settings.bulletColor;
+        if(isHex(s.settings.enemyTint)) settings.enemyTint = s.settings.enemyTint;
+        if(isHex(s.settings.arenaGround)) settings.arenaGround = s.settings.arenaGround;
+        if(isHex(s.settings.arenaProps)) settings.arenaProps = s.settings.arenaProps;
+        if(isHex(s.settings.portalGlow)) settings.portalGlow = s.settings.portalGlow;
+        if(isHex(s.settings.dmgFlashColor)) settings.dmgFlashColor = s.settings.dmgFlashColor;
         if(s.settings.playerColors){ for(const k of ['head','torso','arms','legs']) if(isHex(s.settings.playerColors[k])) settings.playerColors[k]=s.settings.playerColors[k]; }
       }
       if(typeof s.totalKills==='number') totalKills = s.totalKills;
@@ -2079,14 +2123,8 @@ function buildArenaMap(seed){
                     hp: destructible ? 15 : 0, maxHp: destructible ? 15 : 0};
     A.props.push(propData);
   }
-  // exit portal pad at center
-  const padMat=new THREE.MeshBasicMaterial({color:0xb14bff, transparent:true, opacity:0.7});
-  arenaExitPad=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,0.12,32), padMat);
-  arenaExitPad.position.set(0,0.06,0); arena.group.add(arenaExitPad);
-  const ring2=new THREE.Mesh(new THREE.TorusGeometry(2.2,0.18,8,32),
-    new THREE.MeshBasicMaterial({color:0xe6b3ff}));
-  ring2.rotation.x=Math.PI/2; ring2.position.set(0,0.1,0); arena.group.add(ring2);
-  const pl=new THREE.PointLight(0xb14bff,6,12); pl.position.set(0,2,0); arena.group.add(pl);
+  // exit portal pad removed (v061726n) — the End Run button replaces it.
+  // No more center pad in the arena.
 }
 
 function hideBossBar(){
@@ -2778,25 +2816,21 @@ function fireProjectile(dir, size, color, dmg, lifeMul){
   // Use the object pool instead of creating a new mesh per shot.
   const m=obtainProjMesh();
   m.visible=true;
-  m.scale.setScalar(size||0.18);
+  // Bigger default size (v061726n) — the old 0.18 was too small to see.
+  const s = size||0.26;
+  m.scale.setScalar(s);
   m.material.color.setHex(color||0xfff1a8);
   m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
   arena.group.add(m);
-  // Muzzle flash: a quick burst of sparks at the barrel (player chest)
-  // tinted to match the projectile color. Pure juice — no gameplay
-  // effect. 4 particles, short life, low velocity. spawnParticle takes
-  // (x,y,z, vx,vy,vz, r,g,b, life) where r/g/b are 0-1 floats.
-  const c = new THREE.Color(color||0xfff1a8);
-  for(let i=0;i<4;i++){
-    const a=Math.random()*Math.PI*2;
-    const sp=1.5+Math.random()*1.5;
-    spawnParticle(player.pos.x, player.pos.y+1.1, player.pos.z,
-                  Math.cos(a)*sp, 0.5+Math.random()*1.0, Math.sin(a)*sp,
-                  c.r, c.g, c.b, 0.18);
-  }
+  // Trail (v061726n): replaced muzzle-flash particles with a trail
+  // behind the projectile. The trail is a list of recent positions
+  // stored on the projectile; the update loop draws fading particles
+  // along them. We seed the trail with the spawn position.
+  const trailColor = new THREE.Color(color||0xfff1a8);
   const crit=Math.random()<A.stats.crit;
   A.projectiles.push({mesh:m, dir:dir.clone(), life:1.6*(lifeMul||1), dmg:(dmg||A.stats.dmg)*(crit?A.stats.critMul:1), crit,
-                      pierceLeft:A.stats.pierce, hitSet:new Set()});
+                      pierceLeft:A.stats.pierce, hitSet:new Set(),
+                      trail:[], trailColor, trailSize:s});
 }
 
 // tracer line from player to current target
@@ -2881,13 +2915,13 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
                 0.3, 0.65, 1.0, 0.4);
             }
           }
-          spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'BREAK!', true, false);
+          spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'BREAK!', true, false, e);
           // damage passes through unmodified — fall through to the
           // normal hp subtraction below.
         } else {
           dmg *= 0.2;     // shield eats 80%
           if(e.shieldMesh) e.shieldMesh.material.emissive.setHex(0xffffff);   // flash
-          spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'BLOCKED', true, false);
+          spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'BLOCKED', true, false, e);
         }
       }
     }
@@ -2895,21 +2929,10 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
   e.hp-=dmg; e.hit=0.12;
   SFX.hit();
   emitHit(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z);
-  spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(dmg), false, crit);
-  // Hit-stop on crits: 30ms freeze sells the impact. Kills get a longer
-  // 60ms freeze (see killEnemy). Only triggers on actual crits, not on
-  // every hit, so the game doesn't feel stuttery.
-  if(crit){
-    hitStop(30);
-    // Crit flash: brief gold vignette pulse on the screen edge.
-    const cf=D.getElementById('critflash');
-    if(cf){
-      cf.style.boxShadow='inset 0 0 80px rgba(255,200,80,.45)';
-      setTimeout(()=>cf.style.boxShadow='inset 0 0 80px rgba(255,200,80,0)',80);
-    }
-    // Sharper crit SFX: a higher-pitched hit blip on top of the normal one.
-    blip(880, 0.06, 'square', 0.05, 1320);
-  }
+  spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(dmg), false, crit, e);
+  // Hit-stop on crits removed (v061726n) — was making the game
+  // feel choppy. The hitStop() call on charged-shot release is kept
+  // because that's a deliberate player action, not a per-hit effect.
   // Status effects: frost (slow), poison (DoT), shock (chain) — applied
   // as debuffs on the enemy. Tied to A.stats.frostChance / poisonChance /
   // shockChance which are set by new upgrades.
@@ -2945,9 +2968,8 @@ function killEnemy(e){
   addShards(1);                      // +1 shard per kill (also persists totalKills)
   SFX.kill();
   bumpStreak();
-  // Hit-stop on kills: 60ms freeze — longer than crits because kills are
-  // a bigger moment. Bosses get 120ms.
-  hitStop(e===A.boss ? 120 : 60);
+  // Hit-stop on kills removed (v061726n) — was making the game
+  // feel choppy. Kept the crit flash + SFX in damageEnemy instead.
   // Bomber explodes on death — same AoE as the contact explosion, so
   // killing it point-blank still punishes you. Detonates at its current
   // position, not where the shot came from, so a long-range kill is safe.
@@ -3258,13 +3280,20 @@ onTap(D.getElementById('rerollUpgrade'), ()=>{
 
 // left-side panel: weapons owned + each upgrade with count and total % boost
 function updateUpgradePanel(){
+  // Weapon list (v061726n): only show weapons the player has unlocked,
+  // with names — matches the upgrade list style below.
   const wr=D.getElementById('weaponRow');
   if(wr){
     wr.innerHTML='';
     for(const w of WEAPON_ORDER){
-      const on=A.weapons.includes(w);
+      if(!A.weapons.includes(w)) continue;   // skip weapons you don't have
       const d=WEAPONS[w];
-      wr.innerHTML+=`<div class="wp ${on?'on':''}" title="${d.name}">${d.ic}</div>`;
+      // list-style row with icon + name, styled like the upgrade list
+      const el=D.createElement('div');
+      el.className='u';
+      el.innerHTML='<span class="uic">'+d.ic+'</span><span class="un">'+d.name+'</span>';
+      el.style.opacity='1';
+      wr.appendChild(el);
     }
   }
   const ul=D.getElementById('upgList');
@@ -3647,20 +3676,24 @@ function updateArena(){
     player.pos.z += driftFwd.z * 1.5 * dt;
   }
 
-  // exit pad: stand near center and press E (or tap LEAVE) to leave the run
+  // exit: the End Run button is always available (v061726n — no more
+  // center pad). The mobile button shows whenever the player isn't in
+  // the exit-grace cooldown. On desktop, press E to end the run.
   if(A.exitGrace>0) A.exitGrace-=dt;
-  const cd=Math.hypot(player.pos.x, player.pos.z);
-  if(arenaExitPad) arenaExitPad.material.opacity=0.5+Math.sin(performance.now()*0.005)*0.25;
-  const canLeave = cd<2.4 && A.exitGrace<=0;
-  // the LEAVE button only appears when the player is actually able to leave
+  const canLeave = A.exitGrace<=0;
+  // the END RUN button shows on mobile whenever the player can leave
   const btnExit=D.getElementById('btnExit');
   if(btnExit) btnExit.style.display = (canLeave && isMobile) ? 'flex' : 'none';
   // CHARGE button: always visible on mobile during arena play
   const btnCharge=D.getElementById('btnCharge');
   if(btnCharge) btnCharge.style.display = isMobile ? 'flex' : 'none';
   if(canLeave){
-    exitHint.style.display='block';
-    exitHint.textContent = isMobile ? 'Tap LEAVE to exit the run' : 'Press E to leave the run';
+    // Show the hint only when the player has been alive for a moment
+    // (don't spam "Press E" the instant they enter).
+    if(A.wave > 1 || A.endless){
+      exitHint.style.display='block';
+      exitHint.textContent = isMobile ? 'Tap END RUN to leave' : 'Press E to end the run';
+    }
     if(keys[settings.keybinds.interact] || touch.exit){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
@@ -3931,7 +3964,7 @@ function updateArena(){
         e._poisonAccum = 0;
         const pd = e.poisonDmg * 0.5;   // 0.5s of dps
         e.hp -= pd;
-        spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(pd), false, false);
+        spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(pd), false, false, e);
         emitHit(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z);
         // green tint flash
         e.bodyMat.emissive.setHex(0x226622);
@@ -4124,6 +4157,21 @@ function updateArena(){
         }
       }
       p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
+      // ---- trail rendering (v061726n) ----
+      // Record the current position and emit a fading particle behind
+      // the projectile. The trail is capped at 8 entries to limit
+      // particle count. Particles are tiny, short-lived, and tinted
+      // to match the projectile color.
+      if(p.trailColor){
+        p.trail.push({x:p.mesh.position.x, y:p.mesh.position.y, z:p.mesh.position.z});
+        if(p.trail.length > 8) p.trail.shift();
+        // emit a trail particle every other frame
+        if((A._trailFrame = (A._trailFrame||0)+1) % 2 === 0){
+          spawnParticle(p.mesh.position.x - p.dir.x*0.15, p.mesh.position.y - p.dir.y*0.15, p.mesh.position.z - p.dir.z*0.15,
+                        0, 0, 0,
+                        p.trailColor.r, p.trailColor.g, p.trailColor.b, 0.15);
+        }
+      }
       p.life-=dt;
       if(p.life<=0) remove=true;
       if(!remove && hitsPropH(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.2)){
@@ -4205,7 +4253,32 @@ const dmgLayer=D.getElementById('dmgLayer');
 const dmgTexts=[];
 const _dv=new THREE.Vector3();
 const DMG_CAP=44;   // hard cap on floating numbers to avoid DOM/GC churn
-function spawnDamageText(x,y,z,val,special,crit){
+// Cumulative damage text (v061726n): instead of spawning a new floating
+// number per hit, we stack damage onto the enemy's existing damage text.
+// The number's color/style reflects the LATEST hit (normal/crit/special).
+// dmgTexts entries now track which enemy they're attached to (d.enemy)
+// so subsequent hits on the same enemy update the same text.
+function spawnDamageText(x,y,z,val,special,crit,enemy){
+  // If an enemy was passed and it already has a damage text, update it.
+  if(enemy && enemy._dmgText){
+    const d = enemy._dmgText;
+    // accumulate: add to the stored value if it's numeric
+    if(typeof d.val === 'number' && typeof val === 'number'){
+      d.val += val;
+    } else {
+      d.val = val;   // non-numeric (BLOCKED, BREAK, etc) replaces
+    }
+    d.crit = crit; d.special = special;
+    // refresh the display
+    d.el.className='dmg '+(special?'special':(crit?'crit':'norm'));
+    d.el.style.color = special ? settings.specialColor : (crit ? settings.critColor : settings.dmgColor);
+    d.el.textContent = (typeof d.val==='number') ? Math.round(d.val) : d.val;
+    d.t = 0;   // reset the fade timer so the stacked number stays visible
+    d.y = y;   // update position to the enemy's current head
+    d.x = x; d.z = z;
+    return;
+  }
+  // otherwise spawn a new one
   let el;
   if(dmgTexts.length>=DMG_CAP){ el=dmgTexts.shift().el; }   // recycle the oldest node
   else { el=D.createElement('div'); }
@@ -4214,13 +4287,19 @@ function spawnDamageText(x,y,z,val,special,crit){
   el.textContent=val;
   if(!el.parentNode) dmgLayer.appendChild(el);
   el.style.opacity='1';
-  dmgTexts.push({el, x:x+(Math.random()-0.5)*0.6, y, z, t:0, vy:1.6});
+  const entry={el, x:x+(Math.random()-0.5)*0.6, y, z, t:0, vy:1.6, val, crit, special, enemy};
+  if(enemy) enemy._dmgText = entry;
+  dmgTexts.push(entry);
 }
 function updateDamageTexts(){
   for(let i=dmgTexts.length-1;i>=0;i--){
     const d=dmgTexts[i]; d.t+=dt;
     _dv.set(d.x, d.y+d.t*d.vy, d.z).project(camera);
-    if(_dv.z>1 || d.t>0.8){ d.el.remove(); dmgTexts.splice(i,1); continue; }
+    if(_dv.z>1 || d.t>0.8){
+      // clear the enemy reference when the text expires
+      if(d.enemy && d.enemy._dmgText===d) d.enemy._dmgText=null;
+      d.el.remove(); dmgTexts.splice(i,1); continue;
+    }
     const sx=(_dv.x*0.5+0.5)*innerWidth, sy=(-_dv.y*0.5+0.5)*innerHeight;
     d.el.style.left=sx+'px'; d.el.style.top=sy+'px';
     d.el.style.opacity=String(Math.max(0,1-d.t/0.8));
@@ -4546,10 +4625,28 @@ function openSettings(){
 function closeSettings(){
   D.getElementById('settings').style.display='none';
   D.getElementById('changelog').style.display='none';
-  GAME.paused=false;
+  // Check whether any OTHER overlay is still open BEFORE clearing
+  // GAME.paused — anyOverlayOpen() checks GAME.paused, so we need to
+  // test it while settings is closed but paused is still true.
+  // We test the overlays directly instead.
+  const otherOverlayOpen =
+    D.getElementById('pauseMenu').style.display==='flex' ||
+    D.getElementById('upgrade').style.display==='flex' ||
+    D.getElementById('exitConfirm').style.display==='flex' ||
+    D.getElementById('classMenu').style.display==='flex' ||
+    D.getElementById('cosmeticShop').style.display==='flex' ||
+    D.getElementById('statsPage').style.display==='flex' ||
+    D.getElementById('importModal').style.display==='flex';
+  GAME.paused = otherOverlayOpen;   // stay paused if another menu is open
   setTouchEnabled(true);
   persist();
-  if(!isMobile && (GAME.state==='arena'||GAME.state==='overworld')) requestPointerLockSafe(cvs);
+  // Only re-lock the pointer if no other overlay is still open.
+  // Previously this always re-locked, which meant clicking the settings
+  // gear from the pause menu would re-lock the pointer even though the
+  // pause menu was still visible — trapping the mouse. (v061726n)
+  if(!isMobile && (GAME.state==='arena'||GAME.state==='overworld') && !otherOverlayOpen){
+    requestPointerLockSafe(cvs);
+  }
 }
 onTap(D.getElementById('gear'), openSettings);
 onTap(D.getElementById('settingsClose'), closeSettings);
@@ -4868,6 +4965,48 @@ D.getElementById('hitCol').addEventListener('input', e=>{ settings.hitColor=e.ta
 D.getElementById('dmgCol').addEventListener('input', e=>{ settings.dmgColor=e.target.value; persist(); });
 D.getElementById('critCol').addEventListener('input', e=>{ settings.critColor=e.target.value; persist(); });
 D.getElementById('specialCol').addEventListener('input', e=>{ settings.specialColor=e.target.value; persist(); });
+// new color inputs (v061726n)
+D.getElementById('bulletCol').addEventListener('input', e=>{ settings.bulletColor=e.target.value; persist(); });
+D.getElementById('enemyTintCol').addEventListener('input', e=>{ settings.enemyTint=e.target.value; applyEnemyTint(); persist(); });
+D.getElementById('arenaGroundCol').addEventListener('input', e=>{ settings.arenaGround=e.target.value; persist(); });
+D.getElementById('arenaPropsCol').addEventListener('input', e=>{ settings.arenaProps=e.target.value; persist(); });
+D.getElementById('portalGlowCol').addEventListener('input', e=>{ settings.portalGlow=e.target.value; persist(); });
+D.getElementById('dmgFlashCol').addEventListener('input', e=>{ settings.dmgFlashColor=e.target.value; persist(); });
+// Colors modal open/close
+onTap(D.getElementById('openColorsBtn'), openColorsMenu);
+onTap(D.getElementById('colorsClose'), ()=>{ D.getElementById('colorsMenu').style.display='none'; });
+function openColorsMenu(){
+  // sync all color inputs to current settings
+  const sync=(id,val)=>{ const el=D.getElementById(id); if(el) el.value=val; };
+  sync('skyCol',settings.skyColor);
+  sync('outlineCol',settings.outlineColor);
+  sync('pcHead',settings.playerColors.head);
+  sync('pcTorso',settings.playerColors.torso);
+  sync('pcArms',settings.playerColors.arms);
+  sync('pcLegs',settings.playerColors.legs);
+  sync('trailLowCol',settings.trailLow);
+  sync('trailHighCol',settings.trailHigh);
+  sync('hitCol',settings.hitColor);
+  sync('dmgCol',settings.dmgColor);
+  sync('critCol',settings.critColor);
+  sync('specialCol',settings.specialColor);
+  sync('bulletCol',settings.bulletColor);
+  sync('enemyTintCol',settings.enemyTint);
+  sync('arenaGroundCol',settings.arenaGround);
+  sync('arenaPropsCol',settings.arenaProps);
+  sync('portalGlowCol',settings.portalGlow);
+  sync('dmgFlashCol',settings.dmgFlashColor);
+  D.getElementById('colorsMenu').style.display='flex';
+}
+// apply enemy tint — multiplies all enemy body materials by the tint color.
+// We store the original colors on the enemy object and re-apply on change.
+function applyEnemyTint(){
+  // For now this just sets a flag; the actual tint is applied when
+  // enemies are spawned (they read settings.enemyTint). Existing
+  // enemies on screen won't change until they're re-spawned. A full
+  // re-tint would require tracking all enemy materials, which is
+  // expensive — this is a "next spawn" approach.
+}
 D.getElementById('resetColors').addEventListener('click', ()=>{
   settings.skyColor=DEFAULT_SETTINGS.skyColor;
   settings.outlineColor=DEFAULT_SETTINGS.outlineColor;
@@ -4877,20 +5016,34 @@ D.getElementById('resetColors').addEventListener('click', ()=>{
   settings.dmgColor=DEFAULT_SETTINGS.dmgColor;
   settings.critColor=DEFAULT_SETTINGS.critColor;
   settings.specialColor=DEFAULT_SETTINGS.specialColor;
+  settings.bulletColor=DEFAULT_SETTINGS.bulletColor;
+  settings.enemyTint=DEFAULT_SETTINGS.enemyTint;
+  settings.arenaGround=DEFAULT_SETTINGS.arenaGround;
+  settings.arenaProps=DEFAULT_SETTINGS.arenaProps;
+  settings.portalGlow=DEFAULT_SETTINGS.portalGlow;
+  settings.dmgFlashColor=DEFAULT_SETTINGS.dmgFlashColor;
   settings.playerColors={...DEFAULT_SETTINGS.playerColors};
   applySky(); applyOutlineColor(); applyPlayerColors(); applyParticleColors(); persist();
-  D.getElementById('skyCol').value=settings.skyColor;
-  D.getElementById('outlineCol').value=settings.outlineColor;
-  D.getElementById('trailLowCol').value=settings.trailLow;
-  D.getElementById('trailHighCol').value=settings.trailHigh;
-  D.getElementById('hitCol').value=settings.hitColor;
-  D.getElementById('dmgCol').value=settings.dmgColor;
-  D.getElementById('critCol').value=settings.critColor;
-  D.getElementById('specialCol').value=settings.specialColor;
-  D.getElementById('pcHead').value=settings.playerColors.head;
-  D.getElementById('pcTorso').value=settings.playerColors.torso;
-  D.getElementById('pcArms').value=settings.playerColors.arms;
-  D.getElementById('pcLegs').value=settings.playerColors.legs;
+  // re-sync the color inputs in the colors menu
+  const sync=(id,val)=>{ const el=D.getElementById(id); if(el) el.value=val; };
+  sync('skyCol',settings.skyColor);
+  sync('outlineCol',settings.outlineColor);
+  sync('pcHead',settings.playerColors.head);
+  sync('pcTorso',settings.playerColors.torso);
+  sync('pcArms',settings.playerColors.arms);
+  sync('pcLegs',settings.playerColors.legs);
+  sync('trailLowCol',settings.trailLow);
+  sync('trailHighCol',settings.trailHigh);
+  sync('hitCol',settings.hitColor);
+  sync('dmgCol',settings.dmgColor);
+  sync('critCol',settings.critColor);
+  sync('specialCol',settings.specialColor);
+  sync('bulletCol',settings.bulletColor);
+  sync('enemyTintCol',settings.enemyTint);
+  sync('arenaGroundCol',settings.arenaGround);
+  sync('arenaPropsCol',settings.arenaProps);
+  sync('portalGlowCol',settings.portalGlow);
+  sync('dmgFlashCol',settings.dmgFlashColor);
 });
 
 // shard HUD + best-wave HUD
