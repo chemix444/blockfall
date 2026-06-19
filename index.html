@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726o';   // keep in sync with VERSION below
+  var BUNDLED = 'v061726p';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726o · Bugfixes</div>
+<div id="version">v061726p · Mastery Fix</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -450,7 +450,11 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726o · Bugfixes (June 17, 2026)</div>
+    <div class="desc">v061726p · Mastery Fix (June 17, 2026)</div>
+    <ul>
+      <li>Fixed the Mastery tab showing nothing — there were two elements with id="masteryContent" (the old separate modal and the new tab content), and getElementById was returning the hidden one. Removed the old unused #masteryMenu modal so the tab's content div is the only one</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726o · Bugfixes (June 17, 2026)</div>
     <ul>
       <li>Fixed class mastery tab not working — tab buttons now use standard click handlers instead of the touch-oriented onTap wrapper</li>
       <li>Fixed cosmetics NPC not releasing the pointer lock — opening the cosmetic shop now properly exits pointer lock, pauses the game, and disables touch controls (same as the class NPC)</li>
@@ -642,19 +646,7 @@
   </div>
 </div>
 
-<!-- Class mastery tree -->
-<div id="masteryMenu" class="modal">
-  <div class="panel" style="width:520px;max-width:94vw">
-    <h2>Class Mastery</h2>
-    <div class="desc">Spend shards on permanent stat boosts for the selected class. Each level costs 50 shards and gives +5% to the class's primary stat. Max 5 levels per class.</div>
-    <div id="masteryContent" style="margin-top:14px;font-size:13px;line-height:1.8"></div>
-    <div class="actions" style="margin-top:18px">
-      <button class="btn-primary" id="masteryClose">Done</button>
-    </div>
-  </div>
-</div>
-
-<!-- Class shop -->
+<!-- Class shop (mastery is now a tab inside this menu) -->
 <div id="classMenu" class="modal">
   <div class="panel" style="width:560px;max-width:94vw">
     <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:10px">
@@ -683,7 +675,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726o · Bugfixes</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726p · Mastery Fix</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -710,8 +702,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726o';
-const UPDATE_TITLE = 'Bugfixes';
+const VERSION = 'v061726p';
+const UPDATE_TITLE = 'Mastery Fix';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1720,7 +1712,6 @@ function anyOverlayOpen(){
     D.getElementById('statsPage').style.display==='flex' ||
     D.getElementById('importModal').style.display==='flex' ||
     D.getElementById('cosmeticShop').style.display==='flex' ||
-    D.getElementById('masteryMenu').style.display==='flex' ||
     D.getElementById('colorsMenu').style.display==='flex' ||
     D.getElementById('classMenu').style.display==='flex';
 }
@@ -4787,10 +4778,8 @@ function openMasteryMenu(){
     });
   });
   // No longer opening a separate modal — masteryContent is inside the
-  // class menu's Mastery tab. The modal #masteryMenu is kept for
-  // backwards compat but no longer used.
+  // class menu's Mastery tab.
 }
-onTap(D.getElementById('masteryClose'), ()=>{ D.getElementById('masteryMenu').style.display='none'; });
 function applyMasteryBonus(){
   const lv=mastery[selectedClass]||0;
   if(lv<=0) return;
