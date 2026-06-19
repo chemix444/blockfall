@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061726q';   // keep in sync with VERSION below
+  var BUNDLED = 'v061926a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061726q · Trails & XP NPC</div>
+<div id="version">v061926a · June 19 Pass</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -350,6 +350,15 @@
         <option value="nova">Frost Nova</option>
         <option value="homing">Seeker Missiles</option>
         <option value="pulse">Pulse</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="difficultySel">Difficulty</label>
+      <select id="difficultySel" style="flex:none;width:120px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px">
+        <option value="easy">Easy</option>
+        <option value="normal">Normal</option>
+        <option value="hard">Hard</option>
+        <option value="nightmare">Nightmare</option>
       </select>
     </div>
     <div class="row">
@@ -450,7 +459,16 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061726q · Trails & XP NPC (June 17, 2026)</div>
+    <div class="desc">v061926a · June 19 Pass (June 19, 2026)</div>
+    <ul>
+      <li>Fixed the version date — it's actually June 19, not June 17. I'll check the date before each update from now on</li>
+      <li>Removed the "Press E to end run" hint + interaction in endless mode (the End Run button in the pause menu replaces it)</li>
+      <li>The pause menu's "End Run" button now shows a confirmation dialog before ending the run — no more accidental clicks ending your run</li>
+      <li>Added hats to the cosmetics shop: Top Hat, Crown, Wizard Hat, Headphones, Halo, Devil Horns, Bandana. Hats sit on top of the player avatar and are visible in both the lobby and arena</li>
+      <li>Added 8 more color presets to the cosmetics shop: Ocean, Sunset, Mint, Lavender, Bronze, Neon, Pastel, Monochrome</li>
+      <li>Added difficulty modes to both Wave and Endless runs: Easy, Normal (default), Hard, Nightmare. Difficulty scales enemy HP, damage, and spawn rate. Choose your difficulty when entering either portal</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061726q · Trails & XP NPC (June 17, 2026)</div>
     <ul>
       <li>Fixed bullet trails randomly not rendering — the particle pool's circular cursor was blindly overwriting living particles. Now it searches for a dead slot before writing, so trail particles don't get clobbered by other particle effects</li>
       <li>New XP Range NPC in the lobby (green marker) — spend shards to permanently upgrade your default XP pickup range. Each level increases the base range by 15%, cost scales up per level. The bonus applies at the start of every run</li>
@@ -692,7 +710,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061726q · Trails & XP NPC</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926a · June 19 Pass</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -719,8 +737,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061726q';
-const UPDATE_TITLE = 'Trails & XP NPC';
+const VERSION = 'v061926a';
+const UPDATE_TITLE = 'June 19 Pass';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -850,6 +868,8 @@ const settings = { fov:75, firstPerson:false, skipExitConfirm:false, musicVol:50
   dmgColor:'#ffffff', critColor:'#ffd84a', specialColor:'#7fe0ff',
   bulletColor:'#fff1a8', enemyTint:'#ffffff', arenaGround:'#5a7a45', arenaProps:'#3f6a32',
   portalGlow:'#b14bff', dmgFlashColor:'#e23b3b',
+  hat:'none',
+  difficulty:'normal',
   playerColors:{ head:'#e9d2b0', torso:'#6d8cff', arms:'#6d8cff', legs:'#3a4a8a' },
   keybinds:{ forward:'KeyW', back:'KeyS', left:'KeyA', right:'KeyD', jump:'Space', interact:'KeyE' } };
 const DEFAULT_SETTINGS = JSON.parse(JSON.stringify(settings));
@@ -923,6 +943,8 @@ function loadSave(){
         if(isHex(s.settings.arenaProps)) settings.arenaProps = s.settings.arenaProps;
         if(isHex(s.settings.portalGlow)) settings.portalGlow = s.settings.portalGlow;
         if(isHex(s.settings.dmgFlashColor)) settings.dmgFlashColor = s.settings.dmgFlashColor;
+        if(typeof s.settings.hat==='string') settings.hat = s.settings.hat;
+        if(typeof s.settings.difficulty==='string') settings.difficulty = s.settings.difficulty;
         if(s.settings.playerColors){ for(const k of ['head','torso','arms','legs']) if(isHex(s.settings.playerColors[k])) settings.playerColors[k]=s.settings.playerColors[k]; }
       }
       if(typeof s.totalKills==='number') totalKills = s.totalKills;
@@ -2246,11 +2268,19 @@ function startArena(){
   A.exitGrace=1.2;
   setMode('arena');
   arena.group.visible=true; overworld.group.visible=false;
+  // Difficulty multipliers (v061926a) — applied to enemy HP, damage, and
+  // spawn rate. Set once at run start based on settings.difficulty.
+  const diff = settings.difficulty || 'normal';
+  DIFFICULTY = diff==='easy' ? {hp:0.7, dmg:0.7, spawn:0.8} :
+               diff==='hard' ? {hp:1.4, dmg:1.4, spawn:1.2} :
+               diff==='nightmare' ? {hp:2.0, dmg:2.0, spawn:1.5} :
+               {hp:1.0, dmg:1.0, spawn:1.0};   // normal
   startMusic();
   updateUpgradePanel();
   nextWave();
-  toast("Entered the portal. "+A.biomeName);
+  toast("Entered the portal. "+A.biomeName+(diff!=='normal'?' ('+diff+')':''));
 }
+let DIFFICULTY = {hp:1, dmg:1, spawn:1};   // difficulty multipliers
 // ---------- endless mode (v061726l) ----------
 // A separate game mode entered through the orange portal. Instead of
 // discrete waves, enemies of ALL types spawn continuously to maintain
@@ -2479,6 +2509,9 @@ function spawnEnemy(kind, atX, atZ){
   // player. Forces repositioning. Counter: break line of sight with props.
   else if(kind==='turret'){ hp=(30+w*6)*lateMul; spd=0; size=1.0; color=0x88aabb; dmg=10*lateMul; xp=3; }
   else { hp=(16+w*5)*lateMul; spd=3.7*spdMul; size=1.0; color=0xff4b6b; dmg=20*lateMul; xp=1; }
+  // Apply difficulty multipliers (v061926a)
+  hp *= DIFFICULTY.hp;
+  dmg *= DIFFICULTY.dmg;
   const mdl=makeEnemyModel(size, color, kind);
   mdl.group.position.set(x, 0, z);
   arena.group.add(mdl.group);
@@ -3784,9 +3817,11 @@ function updateArena(){
     player.pos.z += driftFwd.z * 1.5 * dt;
   }
 
-  // exit: the End Run button is always available (v061726n — no more
-  // center pad). The mobile button shows whenever the player isn't in
-  // the exit-grace cooldown. On desktop, press E to end the run.
+  // exit: the End Run button is available via the pause menu (Esc →
+  // End Run). The mobile END RUN button also works. The "Press E"
+  // hint + interaction was removed in endless mode (v061926a) since
+  // the pause menu's End Run button replaces it. In wave mode, E
+  // still works as a convenience.
   if(A.exitGrace>0) A.exitGrace-=dt;
   const canLeave = A.exitGrace<=0;
   // the END RUN button shows on mobile whenever the player can leave
@@ -3796,13 +3831,16 @@ function updateArena(){
   const btnCharge=D.getElementById('btnCharge');
   if(btnCharge) btnCharge.style.display = isMobile ? 'flex' : 'none';
   if(canLeave){
-    // Show the hint only when the player has been alive for a moment
-    // (don't spam "Press E" the instant they enter).
-    if(A.wave > 1 || A.endless){
+    // In wave mode, show the "Press E" hint. In endless mode, no hint —
+    // the player uses the pause menu's End Run button instead.
+    if(!A.endless && (A.wave > 1)){
       exitHint.style.display='block';
       exitHint.textContent = isMobile ? 'Tap END RUN to leave' : 'Press E to end the run';
+    } else {
+      exitHint.style.display='none';
     }
-    if(keys[settings.keybinds.interact] || touch.exit){ touch.exit=false; requestExit(); return; }
+    // Only allow E-to-exit in wave mode, not endless.
+    if(!A.endless && (keys[settings.keybinds.interact] || touch.exit)){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
   // wave timer / spawning
@@ -4694,6 +4732,7 @@ function openSettings(){
   D.getElementById('potatoToggle').checked=settings.potato;
   D.getElementById('shakeToggle').checked=settings.screenShake;
   D.getElementById('weaponSel').value=settings.startingWeapon;
+  D.getElementById('difficultySel').value=settings.difficulty;
   // mobile already runs at this quality, so hide the toggle there
   D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
   D.getElementById('colorblindSel').value = settings.colorblind;
@@ -4796,6 +4835,11 @@ D.getElementById('weaponSel').addEventListener('change', e=>{
   settings.startingWeapon=e.target.value;
   persist();
 });
+D.getElementById('difficultySel').addEventListener('change', e=>{
+  settings.difficulty=e.target.value;
+  persist();
+  toast('Difficulty: '+e.target.value);
+});
 // ---------- cosmetic shop ----------
 const COSMETIC_PRESETS = [
   {name:'Default',  colors:{head:'#e9d2b0',torso:'#6d8cff',arms:'#6d8cff',legs:'#3a4a8a'}},
@@ -4806,11 +4850,111 @@ const COSMETIC_PRESETS = [
   {name:'Ice',      colors:{head:'#e9d2b0',torso:'#66ddff',arms:'#66ddff',legs:'#2266aa'}},
   {name:'Rose',     colors:{head:'#e9d2b0',torso:'#ff66aa',arms:'#ff66aa',legs:'#882244'}},
   {name:'Toxic',    colors:{head:'#e9d2b0',torso:'#88ff22',arms:'#88ff22',legs:'#446611'}},
+  // new presets (v061926a)
+  {name:'Ocean',    colors:{head:'#e9d2b0',torso:'#1a6da0',arms:'#1a6da0',legs:'#0a3358'}},
+  {name:'Sunset',   colors:{head:'#e9d2b0',torso:'#ff6b35',arms:'#ff6b35',legs:'#a04020'}},
+  {name:'Mint',     colors:{head:'#e9d2b0',torso:'#7affc4',arms:'#7affc4',legs:'#2a8055'}},
+  {name:'Lavender', colors:{head:'#e9d2b0',torso:'#b388ff',arms:'#b388ff',legs:'#5a4080'}},
+  {name:'Bronze',   colors:{head:'#e9d2b0',torso:'#cd7f32',arms:'#cd7f32',legs:'#6b4020'}},
+  {name:'Neon',     colors:{head:'#e9d2b0',torso:'#00ff88',arms:'#ff00ff',legs:'#00aaff'}},
+  {name:'Pastel',   colors:{head:'#e9d2b0',torso:'#ffb3d9',arms:'#b3d9ff',legs:'#d9ffb3'}},
+  {name:'Mono',     colors:{head:'#e9d2b0',torso:'#888888',arms:'#888888',legs:'#444444'}},
 ];
+// Hat definitions (v061926a). Each hat is a function that builds and
+// returns a THREE.Group positioned to sit on top of the player avatar's
+// head (y ≈ 1.92). The group is added to the avatar and removed when
+// the player switches hats. 'none' = no hat.
+const HATS = {
+  none: {name:'None', build:()=>null},
+  tophat: {name:'Top Hat', build:()=>{
+    const g=new THREE.Group();
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.04,12), new THREE.MeshLambertMaterial({color:0x1a1a1a}));
+    brim.position.y=0.02; g.add(brim);
+    const top=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.35,12), new THREE.MeshLambertMaterial({color:0x1a1a1a}));
+    top.position.y=0.21; g.add(top);
+    return g;
+  }},
+  crown: {name:'Crown', build:()=>{
+    const g=new THREE.Group();
+    const mat=new THREE.MeshLambertMaterial({color:0xffd700, emissive:0x442200});
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.12,8), mat);
+    base.position.y=0.06; g.add(base);
+    // spikes
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2;
+      const spike=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.15,4), mat);
+      spike.position.set(Math.cos(a)*0.22, 0.18, Math.sin(a)*0.22);
+      g.add(spike);
+    }
+    return g;
+  }},
+  wizard: {name:'Wizard Hat', build:()=>{
+    const g=new THREE.Group();
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.03,12), new THREE.MeshLambertMaterial({color:0x4a2a6a}));
+    brim.position.y=0.02; g.add(brim);
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.5,12), new THREE.MeshLambertMaterial({color:0x4a2a6a}));
+    cone.position.y=0.28; g.add(cone);
+    return g;
+  }},
+  headphones: {name:'Headphones', build:()=>{
+    const g=new THREE.Group();
+    const band=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.04,8,12,Math.PI), new THREE.MeshLambertMaterial({color:0x222222}));
+    band.rotation.x=Math.PI/2; band.position.y=0.1; g.add(band);
+    const lc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,8), new THREE.MeshLambertMaterial({color:0x222222}));
+    lc.rotation.z=Math.PI/2; lc.position.set(-0.24,0.04,0); g.add(lc);
+    const rc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,8), new THREE.MeshLambertMaterial({color:0x222222}));
+    rc.rotation.z=Math.PI/2; rc.position.set(0.24,0.04,0); g.add(rc);
+    return g;
+  }},
+  halo: {name:'Halo', build:()=>{
+    const g=new THREE.Group();
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.26,0.04,8,20), new THREE.MeshBasicMaterial({color:0xffff88}));
+    ring.rotation.x=Math.PI/2; ring.position.y=0.12; g.add(ring);
+    return g;
+  }},
+  horns: {name:'Devil Horns', build:()=>{
+    const g=new THREE.Group();
+    const mat=new THREE.MeshLambertMaterial({color:0x880000});
+    const lh=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.18,6), mat);
+    lh.position.set(-0.14,0.12,0); lh.rotation.z=0.3; g.add(lh);
+    const rh=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.18,6), mat);
+    rh.position.set(0.14,0.12,0); rh.rotation.z=-0.3; g.add(rh);
+    return g;
+  }},
+  bandana: {name:'Bandana', build:()=>{
+    const g=new THREE.Group();
+    const band=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.08,0.46), new THREE.MeshLambertMaterial({color:0xcc2222}));
+    band.position.y=0.02; g.add(band);
+    // knot at the back
+    const knot=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.1), new THREE.MeshLambertMaterial({color:0xcc2222}));
+    knot.position.set(0,0.02,-0.24); g.add(knot);
+    return g;
+  }},
+};
+let currentHat = 'none';
+let hatMesh = null;
+function applyHat(hatId){
+  // remove old hat
+  if(hatMesh){ avatar.remove(hatMesh); hatMesh=null; }
+  currentHat = hatId || 'none';
+  if(currentHat==='none') return;
+  const def = HATS[currentHat];
+  if(!def) return;
+  hatMesh = def.build();
+  if(hatMesh){
+    hatMesh.position.y = 1.92;   // sit on top of the head (head center is 1.70, head is 0.44 tall)
+    avatar.add(hatMesh);
+  }
+}
 function buildCosmeticGrid(){
   const grid=D.getElementById('cosmeticGrid');
   if(!grid) return;
   grid.innerHTML='';
+  // Color presets section
+  const colorHeader=D.createElement('div');
+  colorHeader.style.cssText='width:100%;text-align:center;font-size:13px;opacity:.7;letter-spacing:1px;margin-bottom:8px';
+  colorHeader.textContent='COLOR PRESETS';
+  grid.appendChild(colorHeader);
   for(const preset of COSMETIC_PRESETS){
     const el=D.createElement('div');
     el.style.cssText='width:100px;cursor:pointer;text-align:center;padding:8px;border:2px solid rgba(255,255,255,.15);border-radius:8px;background:#10182b;transition:border-color .15s';
@@ -4830,6 +4974,27 @@ function buildCosmeticGrid(){
       D.getElementById('pcLegs').value=preset.colors.legs;
       persist();
       toast(preset.name+' applied');
+    });
+    grid.appendChild(el);
+  }
+  // Hats section (v061926a)
+  const hatHeader=D.createElement('div');
+  hatHeader.style.cssText='width:100%;text-align:center;font-size:13px;opacity:.7;letter-spacing:1px;margin:14px 0 8px';
+  hatHeader.textContent='HATS';
+  grid.appendChild(hatHeader);
+  for(const hid in HATS){
+    const hdef=HATS[hid];
+    const el=D.createElement('div');
+    el.style.cssText='width:100px;cursor:pointer;text-align:center;padding:8px;border:2px solid '+(currentHat===hid?'#9b7bff':'rgba(255,255,255,.15)')+';border-radius:8px;background:#10182b;transition:border-color .15s';
+    el.innerHTML='<div style="font-size:22px;margin-bottom:4px">'+(hid==='none'?'🚫':hid==='tophat'?'🎩':hid==='crown'?'👑':hid==='wizard'?'🧙':hid==='headphones'?'🎧':hid==='halo'?'😇':hid==='horns'?'😈':'🧢')+'</div><div style="font-size:12px">'+hdef.name+'</div>';
+    el.addEventListener('mouseenter',()=>el.style.borderColor='#9b7bff');
+    el.addEventListener('mouseleave',()=>el.style.borderColor=(currentHat===hid?'#9b7bff':'rgba(255,255,255,.15)'));
+    onTap(el, ()=>{
+      applyHat(hid);
+      settings.hat=hid;
+      persist();
+      toast(hdef.name+' equipped');
+      buildCosmeticGrid();   // refresh to highlight the selected hat
     });
     grid.appendChild(el);
   }
@@ -5118,8 +5283,11 @@ onTap(D.getElementById('pauseRestart'), ()=>{
   exitArena(); startArena();
 });
 onTap(D.getElementById('pauseQuit'), ()=>{
+  // Show the exit confirmation dialog instead of immediately ending.
+  // Closes the pause menu first so the confirm dialog is the only
+  // overlay visible. (v061926a)
   closePauseMenu();
-  exitArena();
+  requestExit();
 });
 D.getElementById('musicVol').addEventListener('input', e=>{
   settings.musicVol=+e.target.value;
@@ -5274,6 +5442,7 @@ scene.fog=new THREE.Fog(0x000000,60,140);
 applyFov();
 applyQuality();
 applyPlayerColors();
+applyHat(settings.hat);
 applyOutlineColor();
 applySky();
 applyParticleColors();
