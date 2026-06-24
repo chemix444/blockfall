@@ -173,7 +173,7 @@
 
   /* enemy indicator layer */
   #indicators { position:fixed; inset:0; z-index:4; pointer-events:none; overflow:hidden; }
-  .ind { position:absolute; transform:translate(-50%,-50%); will-change:transform; }
+  .ind { position:absolute; top: 0; left: 0; will-change:transform; }
   .ind .elabel { font-size:9px; font-weight:bold; letter-spacing:.5px; text-align:center; text-shadow:0 1px 2px #000; margin-bottom:2px; white-space:nowrap; }
   .ind .ehp { width:42px; height:5px; background:rgba(0,0,0,.55); border-radius:3px; overflow:hidden; margin:0 auto 3px; }
   .ind .ehp i { display:block; height:100%; background:linear-gradient(90deg,#ff5b5b,#ffae5b); }
@@ -2286,12 +2286,14 @@ function allTargets(){
   _targets.length=0;
   const es=A.enemies;
   for(let i=0;i<es.length;i++) _targets.push(es[i]);
-  if(A.boss) _targets.push(A.boss);
+  // A.boss is now pushed into A.enemies directly in spawnBoss, so no need to separately push it
+  if(A.boss && !es.includes(A.boss)) _targets.push(A.boss); 
   return _targets;
 }
 
 function buildArenaMap(seed){
   // clear
+  for(const k in _enemyPool) _enemyPool[k].length=0; // Clear the object pool so disposed meshes aren't reused
   while(arena.group.children.length) disposeObj(arena.group.children[0]);
   arenaProps=[];
   const rng = mulberry32(seed);
@@ -2491,6 +2493,7 @@ function startSandbox(){
   // Override map with custom settings
   ARENA_R = sbSize;
   // Rebuild the map with the chosen biome + props
+  for(const k in _enemyPool) _enemyPool[k].length=0; // Clear the object pool so disposed meshes aren't reused
   while(arena.group.children.length) disposeObj(arena.group.children[0]);
   const biomes=[
     {ground:0x5a7a45, prop:0x3f6a32, sky:0x9fd0ff, name:'Meadow',    twist:'none'},
@@ -2778,6 +2781,40 @@ function outlineFor(mesh, scale){
   o.scale.setScalar(scale); o.visible=false; mesh.add(o);
   return o;
 }
+const _enemyPool = {};
+function obtainEnemyModel(size, color, kind){
+  if(kind!=='boss' && kind!=='turret'){
+    const pool = _enemyPool[kind] || (_enemyPool[kind] = []);
+    if(pool.length > 0){
+      const mdl = pool.pop();
+      mdl.group.visible = true;
+      mdl.bodyMat.emissive.setHex(0x000000);
+      if(mdl.shieldMesh) mdl.shieldMesh.visible = true;
+      if(mdl.group.userData.fuse) mdl.group.userData.fuse.scale.setScalar(1);
+      if(mdl.group.userData.orb) mdl.group.userData.orb.scale.setScalar(1);
+      return mdl;
+    }
+  }
+  return makeEnemyModel(size, color, kind);
+}
+function releaseEnemyModel(e){
+  if(e.kind!=='boss' && e.kind!=='turret'){
+    e.mesh.visible = false;
+    const pool = _enemyPool[e.kind] || (_enemyPool[e.kind] = []);
+    pool.push({
+      group: e.mesh,
+      legs: e.legs,
+      arms: e.arms,
+      bodyMat: e.bodyMat,
+      top: e.top,
+      outlines: e.outlines,
+      shieldMesh: e.shieldMesh
+    });
+  } else {
+    disposeObj(e.mesh);
+  }
+}
+
 function makeEnemyModel(size, color, kind){
   const g=new THREE.Group();
   // Phantom gets a translucent body so it reads as ghostly. Other kinds
@@ -2907,9 +2944,9 @@ function spawnEnemy(kind, atX, atZ){
   // Apply difficulty multipliers (v061926a)
   hp *= DIFFICULTY.hp;
   dmg *= DIFFICULTY.dmg;
-  const mdl=makeEnemyModel(size, color, kind);
+  const mdl=obtainEnemyModel(size, color, kind);
   mdl.group.position.set(x, 0, z);
-  arena.group.add(mdl.group);
+  if(!mdl.group.parent) arena.group.add(mdl.group);
   const baseProps = {mesh:mdl.group, hp, maxhp:hp, spd, dmg, xp, size, top:mdl.top, color,
                   hit:0, kind, outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
                   phase:Math.random()*6.28, baseY:0, ev:0,
@@ -2992,11 +3029,18 @@ function spawnBoss(){
   const pool=[...BOSS_ATTACKS].sort(()=>Math.random()-0.5);
   const attacks=pool.slice(0, 2+Math.floor(Math.random()*2));
   const name=BOSS_PRE[(Math.random()*BOSS_PRE.length)|0]+' '+BOSS_SUF[(Math.random()*BOSS_SUF.length)|0];
-  A.boss={mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.25, dmg:34*(1+tier*0.35), xp:25, size, top:mdl.top,
+  
+  if(A.boss) {
+    if(!A.enemies.includes(A.boss)) A.enemies.push(A.boss); // If multiple bosses spawned (e.g. Sandbox), move older ones into normal pool so they still update
+  }
+  
+  const bossObj = {mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.25, dmg:34*(1+tier*0.35), xp:25, size, top:mdl.top,
           hit:0, kind:'boss', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
           phase:0, baseY:0, color,
           attacks, atkIdx:0, atkCd:1.4, dashing:0, dashDir:new THREE.Vector3(),
           phase2:false, desperate:false};   // boss phase + desperation flags (v061726k)
+          
+  A.boss = bossObj;
   D.getElementById('bossbar').style.display='block';
   D.getElementById('bossname').style.display='block';
   D.getElementById('bossname').textContent=name.toUpperCase();
@@ -3033,7 +3077,7 @@ function hslHex(h,s,l){
 // ----- auto attack -----
 function findTarget(){
   let best=null, bd=A.stats.range*A.stats.range;
-  const all=A.boss? A.enemies.concat([A.boss]) : A.enemies;
+  const all = A.enemies;
   for(const e of all){
     const dx=e.mesh.position.x-player.pos.x, dz=e.mesh.position.z-player.pos.z;
     const d=dx*dx+dz*dz;
@@ -3132,7 +3176,7 @@ function fireHoming(target){
   // do our own 2x-range target search.
   if(!target){
     const r2 = (A.stats.range*2)*(A.stats.range*2);
-    const all = A.boss ? A.enemies.concat([A.boss]) : A.enemies;
+    const all = A.enemies;
     for(const e of all){
       const d=(e.mesh.position.x-player.pos.x)**2+(e.mesh.position.z-player.pos.z)**2;
       if(d<r2){ r2=d; target=e; }   // find closest within 2x range
@@ -3302,7 +3346,7 @@ function autoFire(){
     if(def.cd<=0) continue;               // passive (blades) handled separately
     A.wcd[w]=(A.wcd[w]||0)-dt;
     if(A.wcd[w]>0) continue;
-    if(w==='nova'||w==='pulse'){ if(!A.enemies.length && !A.boss){ continue; } (w==='nova'?fireNova:firePulse)(); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
+    if(w==='nova'||w==='pulse'){ if(!A.enemies.length){ continue; } (w==='nova'?fireNova:firePulse)(); A.wcd[w]=def.cd/A.stats.atkSpeed; continue; }
     if(!best) continue;
     // Homing missiles have 2x range — they do their own target search
     // with the extended range inside fireHoming, so we skip the normal
@@ -3351,7 +3395,7 @@ function updateTargetVisuals(){
   if(A._lastTarget && A._lastTarget!==A.target) setOutline(A._lastTarget,false);
   const t=A.target;
   ensureTracer();
-  if(t && (A.enemies.includes(t) || t===A.boss)){
+  if(t && A.enemies.includes(t)){
     setOutline(t,true);
     const a=new THREE.Vector3(player.pos.x, player.pos.y+1.1, player.pos.z);
     const b=new THREE.Vector3(t.mesh.position.x, t.mesh.position.y+(t.top||1)*0.5, t.mesh.position.z);
@@ -3500,19 +3544,24 @@ function killEnemy(e){
       spawnMinion(mx, mz);
     }
   }
-  if(e===A.boss){
+  if(e.kind==='boss'){
     addShards(9);                    // bosses are worth a bit more
-    disposeObj(e.mesh);
     spawnOrb(e.mesh.position, e.xp, true);
-    A.boss=null;
-    D.getElementById('bossbar').style.display='none';
-    D.getElementById('bossname').style.display='none';
+    if(e === A.boss){
+      A.boss=null;
+      D.getElementById('bossbar').style.display='none';
+      D.getElementById('bossname').style.display='none';
+    } else {
+      const i=A.enemies.indexOf(e);
+      if(i>=0) A.enemies.splice(i,1);
+    }
     stats.bossesKilled++; persist();   // persistent boss-kill counter
     toast("Boss down!");
+    disposeObj(e.mesh);
     return;
   }
   const i=A.enemies.indexOf(e);
-  if(i>=0){ disposeObj(e.mesh); A.enemies.splice(i,1); spawnOrb(e.mesh.position, e.xp,false); }
+  if(i>=0){ releaseEnemyModel(e); A.enemies.splice(i,1); spawnOrb(e.mesh.position, e.xp,false); }
 }
 // spawn a half-size basic grunt — used by the Splitter's death split
 // and by the Summoner's periodic minion spawn.
@@ -3520,9 +3569,9 @@ function spawnMinion(x, z){
   const w=A.wave;
   const lateMul = 1 + Math.max(0, w-6)*0.11;
   const hp=(8+w*2)*lateMul;       // weaker than a full grunt
-  const mdl=makeEnemyModel(0.7, 0xff7a8a, 'basic');
+  const mdl=obtainEnemyModel(0.7, 0xff7a8a, 'basic');
   mdl.group.position.set(x, 0, z);
-  arena.group.add(mdl.group);
+  if(!mdl.group.parent) arena.group.add(mdl.group);
   A.enemies.push({mesh:mdl.group, hp, maxhp:hp, spd:4.2, dmg:8*lateMul, xp:1, size:0.7, top:mdl.top, color:0xff7a8a,
                   hit:0, kind:'basic', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
                   phase:Math.random()*6.28, baseY:0, ev:0,
@@ -3870,7 +3919,7 @@ function updateArenaHud(){
     D.getElementById('lvlbadge').innerHTML='LVL <b style="font-size:18px">'+A.level+'</b>';
   }
   
-  const enemies=A.enemies.length+(A.boss?1:0);
+  const enemies=A.enemies.length;
   let waveHtml = '';
   const bossMins=Math.floor(A.endlessBossTimer/60);
   const bossSecs=Math.ceil(A.endlessBossTimer%60);
@@ -4298,7 +4347,7 @@ function updateArena(){
     // target on-screen count grows slightly over time to ramp difficulty
     const targetCount = Math.min(20, 8 + Math.floor(A.endlessTime/30));
     const spawnInterval = Math.max(0.4, 1.2 - A.endlessTime*0.005);
-    if(A.endlessSpawnAcc >= spawnInterval && A.enemies.length < targetCount && !A.boss){
+    if(A.endlessSpawnAcc >= spawnInterval && A.enemies.length < targetCount){
       A.endlessSpawnAcc = 0;
       // use wave 10 so all enemy types are in the pool
       const kind = pickEnemyKind(10);
@@ -4310,7 +4359,7 @@ function updateArena(){
       A.telegraphs.push({x:tx, z:tz, t:0, kind, mesh:null});
     }
     // boss every 3 minutes
-    if(A.endlessBossTimer <= 0 && !A.boss){
+    if(A.endlessBossTimer <= 0){
       A.endlessBossTimer = 180;   // reset for next boss
       spawnBoss();
       // override the wave number shown by the boss intro banner
@@ -4357,7 +4406,7 @@ function updateArena(){
   }
   // advance wave when cleared -> vacuum up any leftover xp orbs first.
   // Endless mode skips this — there are no waves to advance.
-  if(!A.endless && !A.sandbox && A.toSpawn===0 && A.enemies.length===0 && !A.boss){
+  if(!A.endless && !A.sandbox && A.toSpawn===0 && A.enemies.length===0){
     collectAllXp();
     nextWave();
   }
@@ -4378,7 +4427,7 @@ function updateArena(){
     const px=e.mesh.position.x, pz=e.mesh.position.z;   // for stuck detection
     const dx=player.pos.x-e.mesh.position.x, dz=player.pos.z-e.mesh.position.z;
     const dist=Math.hypot(dx,dz);
-    const isBoss=(e===A.boss);
+    const isBoss = (e.kind==='boss');
     const big = isBoss || e.kind==='tank';   // big ones can't climb
     if(e._detourT>0) e._detourT-=dt;
     let moved=0;
@@ -4994,20 +5043,21 @@ const indLayer=D.getElementById('indicators');
 function makeIndicator(){
   const el=D.createElement('div'); el.className='ind';
   el.innerHTML='<div class="elabel"></div><div class="ehp"><i></i></div><div class="arrow"></div>';
+  el._state = { hpPct: -1, onScreen: null, kind: null };
   indLayer.appendChild(el);
   return el;
 }
 function clearIndicators(){
   for(const e of A.enemies){ if(e.indEl){ e.indEl.remove(); e.indEl=null; } }
-  if(A.boss && A.boss.indEl){ A.boss.indEl.remove(); A.boss.indEl=null; }
 }
 const _v=new THREE.Vector3();
 function updateIndicators(){
   const VW=innerWidth, VH=innerHeight, cx=VW/2, cy=VH/2, margin=30;
-  const list=A.boss? A.enemies.concat([A.boss]):A.enemies;
+  const list=A.enemies;
   for(const e of list){
     if(!e.indEl) e.indEl=makeIndicator();
     const el=e.indEl;
+    const st=el._state;
     // head world position
     _v.set(e.mesh.position.x, e.top+0.4, e.mesh.position.z).project(camera);
     let behind=_v.z>1, nx=_v.x, ny=_v.y;
@@ -5016,37 +5066,53 @@ function updateIndicators(){
     const onScreen=!behind && nx>=-1 && nx<=1 && ny>=-1 && ny<=1;
     const lab=el.children[0], ehp=el.children[1], arrow=el.children[2];
     const hpPct=Math.max(0,e.hp/e.maxhp*100);
-    ehp.firstChild.style.width=hpPct+'%';
-    if(e===A.boss){ lab.style.display='none'; }
-    else {
-      lab.textContent=ENEMY_LABELS[e.kind]||e.kind;
-      lab.style.color='#'+(e.color||0xffffff).toString(16).padStart(6,'0');
+    
+    if(st.hpPct !== hpPct){
+      st.hpPct = hpPct;
+      ehp.firstChild.style.width = hpPct+'%';
     }
+    
+    if(st.kind !== e.kind){
+      st.kind = e.kind;
+      if(e.kind==='boss'){ lab.style.display='none'; }
+      else {
+        lab.textContent=ENEMY_LABELS[e.kind]||e.kind;
+        lab.style.color='#'+(e.color||0xffffff).toString(16).padStart(6,'0');
+      }
+    }
+    
+    if(st.onScreen !== onScreen){
+      st.onScreen = onScreen;
+      if(onScreen){
+        ehp.style.display='block';
+        if(e.kind!=='boss') lab.style.display='block';
+        arrow.style.borderLeft='5px solid transparent';
+        arrow.style.borderRight='5px solid transparent';
+        arrow.style.borderTop='7px solid #fff27a';
+        arrow.style.borderBottom='0';
+        arrow.style.margin='3px auto 0';
+      } else {
+        ehp.style.display='none'; lab.style.display='none';
+        arrow.style.borderLeft='6px solid transparent';
+        arrow.style.borderRight='6px solid transparent';
+        arrow.style.borderBottom='10px solid #ff7a5c';
+        arrow.style.borderTop='0';
+        arrow.style.margin='0 auto';
+      }
+    }
+
     if(onScreen){
-      ehp.style.display='block';
-      if(e!==A.boss) lab.style.display='block';
-      // bar sits above the head; arrow just under it points down at the enemy
-      el.style.left=sx+'px'; el.style.top=(sy-32)+'px';
-      arrow.style.borderLeft='5px solid transparent';
-      arrow.style.borderRight='5px solid transparent';
-      arrow.style.borderTop='7px solid #fff27a';
-      arrow.style.borderBottom='0';
-      arrow.style.transform='rotate(0deg)';
-      arrow.style.margin='3px auto 0';
+      // Use CSS transform instead of left/top for extreme performance gains
+      el.style.transform = `translate(${sx}px, ${sy-32}px) translate(-50%, -50%)`;
+      if(st.deg !== 0){ st.deg=0; arrow.style.transform='rotate(0deg)'; }
     } else {
-      ehp.style.display='none'; lab.style.display='none';
       let dx=sx-cx, dy=sy-cy;
       const sc=Math.max(Math.abs(dx)/(cx-margin), Math.abs(dy)/(cy-margin));
       if(sc>0){ dx/=sc; dy/=sc; }
-      el.style.left=(cx+dx)+'px'; el.style.top=(cy+dy)+'px';
-      // triangle points up by default (toward -y); rotate to face enemy
+      el.style.transform = `translate(${cx+dx}px, ${cy+dy}px) translate(-50%, -50%)`;
       const deg=Math.atan2(dy,dx)*180/Math.PI + 90;
-      arrow.style.borderLeft='6px solid transparent';
-      arrow.style.borderRight='6px solid transparent';
-      arrow.style.borderBottom='10px solid #ff7a5c';
-      arrow.style.borderTop='0';
       arrow.style.transform='rotate('+deg+'deg)';
-      arrow.style.margin='0 auto';
+      st.deg = deg;
     }
   }
 }
