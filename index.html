@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061926d';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -282,6 +282,7 @@
 
 <!-- Arena HUD -->
 <div id="arenahud">
+  <canvas id="radar" width="100" height="100" style="position:fixed;top:76px;right:12px;z-index:6;border-radius:50%;background:rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.2);pointer-events:none;"></canvas>
   <div id="lvlbadge" class="hud"></div>
   <div id="wavebox" class="hud"></div>
   <div id="bestwave" class="hud"></div>
@@ -450,8 +451,15 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061926d · Sandbox & Fixes (June 19, 2026)</div>
+    <div class="desc">v062426a · Radar & HUD Optimizations (June 24, 2026)</div>
     <ul>
+      <li>Added a minimap/radar to the top-right corner of the HUD that shows the layout of the arena, tracking enemies (red), the boss (purple), the player (white), and the exit portal (green)</li>
+      <li>Major performance optimization: the HUD's health, XP, and wave displays now only update the DOM when their values actually change, saving substantial CPU overhead each frame</li>
+      <li>The Death Screen now tracks and displays the total damage you dealt during the run</li>
+      <li>Sandbox Mode: Enemies spawned from the sandbox menu now use the standard 0.5-second red warning ring and spawn at the outer edges of the map instead of instantly appearing next to the player</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061926d · Sandbox & Fixes (June 19, 2026)</div>
+    <ul style="opacity:.6">
       <li>Fixed headphones cosmetic — band now arcs over the top of the head with ear cups on the sides instead of sitting flat horizontally</li>
       <li>Fixed killstreak counter staying frozen on screen when you die or exit to the lobby — now properly hides on arena exit/death</li>
       <li>New Sandbox mode portal (green, behind the player) — customize the map (size, biome, prop density, destructibility) before loading, then use a Gmod-like spawn menu to spawn any enemy type, weapons, upgrades, adjust stats, and tweak every game parameter in real time</li>
@@ -817,8 +825,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061926d';
-const UPDATE_TITLE = 'Sandbox & Fixes';
+const VERSION = 'v062426a';
+const UPDATE_TITLE = 'Radar & HUD Optimizations';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2354,7 +2362,8 @@ function startArena(){
   if(settings.startingWeapon && settings.startingWeapon!=='ball' && WEAPONS[settings.startingWeapon]){
     A.weapons.push(settings.startingWeapon);
   }
-  A.runKills=0; A.boomerangOut=false;
+  A.runKills=0; A.runDamage=0; A.boomerangOut=false;
+  _hudCache = { hp: -1, maxhp: -1, xp: -1, xpNext: -1, level: -1, waveHash: '', bossHp: -1, bossMaxhp: -1 };
   A.runStartTime=performance.now();   // for the run-duration readout on the death screen
   player.speed=7.2;
   applyClass();                 // selected class modifies starting stats/weapons/speed
@@ -3368,7 +3377,7 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
       }
     }
   }
-  e.hp-=dmg; e.hit=0.12;
+  e.hp-=dmg; e.hit=0.12; A.runDamage = (A.runDamage||0) + dmg;
   SFX.hit();
   emitHit(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z);
   spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, Math.round(dmg), false, crit, e);
@@ -3598,14 +3607,16 @@ function arenaDeath(){
   const mins = Math.floor(totalSec/60);
   const secs = totalSec%60;
   const timeStr = mins+':'+(secs<10?'0':'')+secs;
+  const dmgStr = Math.round(A.runDamage||0).toLocaleString();
   const ov=D.getElementById('overlay');
   ov.querySelector('h1').textContent='YOU DIED';
   ov.querySelector('.tag').innerHTML=
     'You fell on <b>wave '+A.wave+'</b> at <b>level '+A.level+'</b>.<br>'+
     '<span style="display:inline-block;margin-top:8px;font-size:13px;opacity:.9">'+
-    'Kills this run: <b>'+(A.runKills||0)+'</b> &nbsp;·&nbsp; '+
-    'Time survived: <b>'+timeStr+'</b> &nbsp;·&nbsp; '+
-    'Best wave: <b>'+bestWave+'</b></span><br>'+
+    'Kills: <b>'+(A.runKills||0)+'</b> &nbsp;·&nbsp; '+
+    'Damage: <b>'+dmgStr+'</b> &nbsp;·&nbsp; '+
+    'Time: <b>'+timeStr+'</b> &nbsp;·&nbsp; '+
+    'Best: <b>'+bestWave+'</b></span><br>'+
     '<span style="display:inline-block;margin-top:10px;font-size:13px;opacity:.7">'+
     'Head back to the lobby and try again.</span>';
   ov.querySelector('.ctrls').style.display='none';
@@ -3789,30 +3800,109 @@ function setMode(m){
 }
 function updateHotbar(){ /* no hotbar in lobby */ }
 function updateOverworldHud(){ /* no inventory in lobby */ }
+let _hudCache = { hp: -1, maxhp: -1, xp: -1, xpNext: -1, level: -1, waveHash: '', bossHp: -1, bossMaxhp: -1 };
 function updateArenaHud(){
-  D.getElementById('hpfill').style.width=Math.max(0,A.hp/A.maxhp*100)+'%';
-  D.getElementById('hptext').textContent=Math.ceil(A.hp)+' / '+A.maxhp;
-  D.getElementById('xpfill').style.width=(A.xp/A.xpNext*100)+'%';
-  D.getElementById('lvlbadge').innerHTML='LVL <b style="font-size:18px">'+A.level+'</b>';
-  const enemies=A.enemies.length+(A.boss?1:0);
-  if(A.endless){
-    // Endless mode HUD: show "ENDLESS" instead of wave number, plus
-    // a boss countdown timer.
-    const bossMins=Math.floor(A.endlessBossTimer/60);
-    const bossSecs=Math.ceil(A.endlessBossTimer%60);
-    const bossStr = A.boss ? 'BOSS ACTIVE' : 'next boss in '+bossMins+':'+(bossSecs<10?'0':'')+bossSecs;
-    D.getElementById('wavebox').innerHTML=
-      '<div class="big" style="color:#ff6a1f">ENDLESS</div>'+enemies+' enemies'+
-      '<br><span style="opacity:.85;font-size:12px">'+bossStr+' &nbsp;·&nbsp; Kills: '+(A.runKills||0)+'</span>'+
-      '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
-  } else {
-    D.getElementById('wavebox').innerHTML=
-      '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left'+
-      '<br><span style="opacity:.85;font-size:12px">Kills: '+(A.runKills||0)+' &nbsp;·&nbsp; Total: '+totalKills+'</span>'+
-      '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+  if(A.hp !== _hudCache.hp || A.maxhp !== _hudCache.maxhp){
+    _hudCache.hp = A.hp; _hudCache.maxhp = A.maxhp;
+    D.getElementById('hpfill').style.width=Math.max(0,A.hp/A.maxhp*100)+'%';
+    D.getElementById('hptext').textContent=Math.ceil(A.hp)+' / '+A.maxhp;
   }
+  
+  if(A.xp !== _hudCache.xp || A.xpNext !== _hudCache.xpNext){
+    _hudCache.xp = A.xp; _hudCache.xpNext = A.xpNext;
+    D.getElementById('xpfill').style.width=(A.xp/A.xpNext*100)+'%';
+  }
+  
+  if(A.level !== _hudCache.level){
+    _hudCache.level = A.level;
+    D.getElementById('lvlbadge').innerHTML='LVL <b style="font-size:18px">'+A.level+'</b>';
+  }
+  
+  const enemies=A.enemies.length+(A.boss?1:0);
+  let waveHtml = '';
+  const bossMins=Math.floor(A.endlessBossTimer/60);
+  const bossSecs=Math.ceil(A.endlessBossTimer%60);
+  const bossStr = A.boss ? 'BOSS ACTIVE' : 'next boss in '+bossMins+':'+(bossSecs<10?'0':'')+bossSecs;
+  const hash = enemies + '_' + A.wave + '_' + bossStr + '_' + (A.runKills||0) + '_' + A.endless + '_' + A.sandbox;
+  
+  if(_hudCache.waveHash !== hash){
+    _hudCache.waveHash = hash;
+    if(A.endless){
+      waveHtml = '<div class="big" style="color:#ff6a1f">ENDLESS</div>'+enemies+' enemies'+
+        '<br><span style="opacity:.85;font-size:12px">'+bossStr+' &nbsp;·&nbsp; Kills: '+(A.runKills||0)+'</span>'+
+        '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+    } else if(A.sandbox){
+      waveHtml = '<div class="big" style="color:#14b45a">SANDBOX</div>'+enemies+' enemies'+
+        '<br><span style="opacity:.85;font-size:12px">Press Q for menu &nbsp;·&nbsp; Kills: '+(A.runKills||0)+'</span>'+
+        '<br><span style="opacity:.6;font-size:11px">Everything is free</span>';
+    } else {
+      waveHtml = '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left'+
+        '<br><span style="opacity:.85;font-size:12px">Kills: '+(A.runKills||0)+' &nbsp;·&nbsp; Total: '+totalKills+'</span>'+
+        '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
+    }
+    D.getElementById('wavebox').innerHTML = waveHtml;
+  }
+  
   if(A.boss){
-    D.getElementById('bossfill').style.width=Math.max(0,A.boss.hp/A.boss.maxhp*100)+'%';
+    if(A.boss.hp !== _hudCache.bossHp || A.boss.maxhp !== _hudCache.bossMaxhp){
+      _hudCache.bossHp = A.boss.hp; _hudCache.bossMaxhp = A.boss.maxhp;
+      D.getElementById('bossfill').style.width=Math.max(0,A.boss.hp/A.boss.maxhp*100)+'%';
+    }
+  }
+
+  // Radar / Minimap
+  const radar = D.getElementById('radar');
+  if(radar){
+    const ctx = radar.getContext('2d');
+    const w = radar.width, h = radar.height;
+    ctx.clearRect(0,0,w,h);
+    
+    // Scale: map the arena radius to slightly less than the canvas half-width
+    const cx = w/2, cy = h/2;
+    const scale = (w/2 - 4) / ARENA_R;
+    
+    // Draw exit portal if active
+    if((A.wave%10===0 && !A.boss && A.enemies.length===0 && !A.sandbox && !A.endless) || (A.sandbox && A.enemies.length===0) || GAME.state==='dead'){
+      // the exit pad is always at 0,0
+      ctx.fillStyle = '#14b45a';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI*2);
+      ctx.fill();
+    }
+    
+    // Draw enemies
+    if(A.enemies.length > 0){
+      ctx.fillStyle = '#ff4444';
+      ctx.beginPath();
+      for(const e of A.enemies){
+        ctx.moveTo(cx + e.mesh.position.x * scale, cy + e.mesh.position.z * scale);
+        ctx.arc(cx + e.mesh.position.x * scale, cy + e.mesh.position.z * scale, 1.5, 0, Math.PI*2);
+      }
+      ctx.fill();
+    }
+    
+    // Draw boss
+    if(A.boss){
+      ctx.fillStyle = '#b14bff';
+      ctx.beginPath();
+      ctx.arc(cx + A.boss.mesh.position.x * scale, cy + A.boss.mesh.position.z * scale, 3.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    
+    // Draw player (always)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    // the player marker
+    ctx.arc(cx + player.pos.x * scale, cy + player.pos.z * scale, 2.5, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Draw player aim direction
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + player.pos.x * scale, cy + player.pos.z * scale);
+    ctx.lineTo(cx + player.pos.x * scale + Math.sin(player.yaw)*7, cy + player.pos.z * scale + Math.cos(player.yaw)*7);
+    ctx.stroke();
   }
 }
 
