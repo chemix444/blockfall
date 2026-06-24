@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426h';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426i';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -450,8 +450,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426h · Portal Menu Fixes (June 24, 2026)</div>
+    <div class="desc">v062426i · Ice Physics & Cosmetics (June 24, 2026)</div>
     <ul>
+      <li>Fixed an issue where multiple bosses' health bars wouldn't show up correctly. The boss health bar now only tracks the most recent boss, but *all* bosses now dynamically get the same floating health-bar indicators above their heads that normal enemies have</li>
+      <li>Greatly improved the "ice" twist in the Tundra biome. Instead of just slowly sliding forward continuously, it now correctly uses your exact movement vector to preserve momentum while acting like a slippery floor</li>
+      <li>Fixed the "Headphones" cosmetic model which was previously displaying incorrectly</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426h · Portal Menu Fixes (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Fixed an issue where clicking 'Cancel' when standing in a portal (difficulty menu or sandbox setup) would leave you stuck touching the portal. Clicking 'Cancel' now safely teleports you back to the center of the lobby.</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062426g · Sandbox Stats Fix (June 24, 2026)</div>
@@ -850,8 +856,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426h';
-const UPDATE_TITLE = 'Portal Menu Fixes';
+const VERSION = 'v062426i';
+const UPDATE_TITLE = 'Multiple Bosses & Cosmetics';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -4300,16 +4306,36 @@ function updateArena(){
     }
   }
   // Ice: slippery floor — the player's momentum carries them further.
-  // Implemented as a small velocity carryover: when on ground and trying
-  // to stop, the deceleration is reduced. We apply this by extending the
-  // knock system — if the player is on ice and not pressing movement,
-  // they keep sliding at their current velocity for longer.
-  // (Simplified: just add a small forward nudge in the look direction
-  // when on ice and on ground, so the player drifts.)
-  if(A.biomeTwist==='ice' && player.onGround && !player.moving){
-    const driftFwd = new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
-    player.pos.x += driftFwd.x * 1.5 * dt;
-    player.pos.z += driftFwd.z * 1.5 * dt;
+  // Instead of a fake forward drift, we actually maintain a portion of the
+  // previous velocity if the player stops pressing movement keys.
+  if(A.biomeTwist==='ice' && player.onGround){
+    if(player.moving){
+      // Store current movement vector for ice sliding. We pull this from player.vel 
+      // or we can calculate the vector they moved this frame. Let's use the explicit look direction 
+      // scaled by their current speed.
+      const driftFwd = new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
+      // Factor in sideways movement if they are strafing
+      const right = new THREE.Vector3(-Math.cos(player.yaw),0,Math.sin(player.yaw));
+      const mv = new THREE.Vector3();
+      if(keys[settings.keybinds.forward]) mv.add(driftFwd); if(keys[settings.keybinds.back]) mv.sub(driftFwd);
+      if(keys[settings.keybinds.right]) mv.add(right); if(keys[settings.keybinds.left]) mv.sub(right);
+      if(touch.active && (touch.mx||touch.my)){
+        mv.addScaledVector(driftFwd, -touch.my);
+        mv.addScaledVector(right, touch.mx);
+      }
+      if(mv.lengthSq()>0) mv.normalize().multiplyScalar(player.speed*(player.bhop||1));
+      
+      A._iceSlideX = mv.x * dt;
+      A._iceSlideZ = mv.z * dt;
+    } else if(A._iceSlideX !== undefined){
+      // Apply sliding momentum
+      player.pos.x += A._iceSlideX;
+      player.pos.z += A._iceSlideZ;
+      // Decay momentum (friction)
+      A._iceSlideX *= 0.96; // Less friction on ice
+      A._iceSlideZ *= 0.96;
+      if(Math.hypot(A._iceSlideX, A._iceSlideZ) < 0.001) A._iceSlideX = A._iceSlideZ = 0;
+    }
   }
 
   // exit: the End Run button is available via the pause menu (Esc →
@@ -5409,27 +5435,20 @@ const HATS = {
   headphones: {name:'Headphones', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0x222222});
-    // Band: half-torus arcing over the top of the head. The torus's
-    // arc (Math.PI) creates a half-ring. We rotate it so the arc
-    // goes from left to right OVER the top, not horizontally.
-    // Default torus lies in the XY plane; we want it in the YZ plane
-    // (arc from -X to +X over the top), so rotate around Y by PI/2.
-    // The half-arc starts at angle 0 (which is +X after the rotation)
-    // and sweeps to PI, going over the top.
+    // Band: half-torus arcing over the top of the head.
+    // Default torus lies in the XY plane. A PI arc goes from +X through +Y to -X,
+    // forming an arch over the top of the head. No rotation needed.
     const band=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.04,8,16,Math.PI), mat);
-    band.rotation.y = Math.PI/2;   // arc in YZ plane (over the top)
-    band.rotation.z = Math.PI;      // flip so the arc goes up not down
-    band.position.y = 0.1;
+    band.position.y = 0.05;
     g.add(band);
     // Ear cups: cylinders on the left and right sides of the head.
-    // Oriented so the flat face points inward (toward the head).
     const lc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,12), mat);
-    lc.rotation.z = Math.PI/2;   // lay cylinder on its side (axis along X)
-    lc.position.set(-0.24, 0.02, 0);
+    lc.rotation.z = Math.PI/2;
+    lc.position.set(-0.24, 0.05, 0);
     g.add(lc);
     const rc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,12), mat);
     rc.rotation.z = Math.PI/2;
-    rc.position.set(0.24, 0.02, 0);
+    rc.position.set(0.24, 0.05, 0);
     g.add(rc);
     return g;
   }},
