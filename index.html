@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426a';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426b';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -282,7 +282,6 @@
 
 <!-- Arena HUD -->
 <div id="arenahud">
-  <canvas id="radar" width="100" height="100" style="position:fixed;top:76px;right:12px;z-index:6;border-radius:50%;background:rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.2);pointer-events:none;"></canvas>
   <div id="lvlbadge" class="hud"></div>
   <div id="wavebox" class="hud"></div>
   <div id="bestwave" class="hud"></div>
@@ -451,9 +450,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426a · Radar & HUD Optimizations (June 24, 2026)</div>
+    <div class="desc">v062426b · HUD Revisions (June 24, 2026)</div>
     <ul>
-      <li>Added a minimap/radar to the top-right corner of the HUD that shows the layout of the arena, tracking enemies (red), the boss (purple), the player (white), and the exit portal (green)</li>
+      <li>Removed the radar minimap introduced in the last update, as the existing off-screen edge indicators already serve this purpose perfectly without cluttering the screen</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426a · HUD Optimizations & Run Damage (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Major performance optimization: the HUD's health, XP, and wave displays now only update the DOM when their values actually change, saving substantial CPU overhead each frame</li>
       <li>The Death Screen now tracks and displays the total damage you dealt during the run</li>
       <li>Sandbox Mode: Enemies spawned from the sandbox menu now use the standard 0.5-second red warning ring and spawn at the outer edges of the map instead of instantly appearing next to the player</li>
@@ -825,8 +827,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426a';
-const UPDATE_TITLE = 'Radar & HUD Optimizations';
+const VERSION = 'v062426b';
+const UPDATE_TITLE = 'HUD Revisions';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -3848,61 +3850,6 @@ function updateArenaHud(){
       _hudCache.bossHp = A.boss.hp; _hudCache.bossMaxhp = A.boss.maxhp;
       D.getElementById('bossfill').style.width=Math.max(0,A.boss.hp/A.boss.maxhp*100)+'%';
     }
-  }
-
-  // Radar / Minimap
-  const radar = D.getElementById('radar');
-  if(radar){
-    const ctx = radar.getContext('2d');
-    const w = radar.width, h = radar.height;
-    ctx.clearRect(0,0,w,h);
-    
-    // Scale: map the arena radius to slightly less than the canvas half-width
-    const cx = w/2, cy = h/2;
-    const scale = (w/2 - 4) / ARENA_R;
-    
-    // Draw exit portal if active
-    if((A.wave%10===0 && !A.boss && A.enemies.length===0 && !A.sandbox && !A.endless) || (A.sandbox && A.enemies.length===0) || GAME.state==='dead'){
-      // the exit pad is always at 0,0
-      ctx.fillStyle = '#14b45a';
-      ctx.beginPath();
-      ctx.arc(cx, cy, 4, 0, Math.PI*2);
-      ctx.fill();
-    }
-    
-    // Draw enemies
-    if(A.enemies.length > 0){
-      ctx.fillStyle = '#ff4444';
-      ctx.beginPath();
-      for(const e of A.enemies){
-        ctx.moveTo(cx + e.mesh.position.x * scale, cy + e.mesh.position.z * scale);
-        ctx.arc(cx + e.mesh.position.x * scale, cy + e.mesh.position.z * scale, 1.5, 0, Math.PI*2);
-      }
-      ctx.fill();
-    }
-    
-    // Draw boss
-    if(A.boss){
-      ctx.fillStyle = '#b14bff';
-      ctx.beginPath();
-      ctx.arc(cx + A.boss.mesh.position.x * scale, cy + A.boss.mesh.position.z * scale, 3.5, 0, Math.PI*2);
-      ctx.fill();
-    }
-    
-    // Draw player (always)
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    // the player marker
-    ctx.arc(cx + player.pos.x * scale, cy + player.pos.z * scale, 2.5, 0, Math.PI*2);
-    ctx.fill();
-    
-    // Draw player aim direction
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx + player.pos.x * scale, cy + player.pos.z * scale);
-    ctx.lineTo(cx + player.pos.x * scale + Math.sin(player.yaw)*7, cy + player.pos.z * scale + Math.cos(player.yaw)*7);
-    ctx.stroke();
   }
 }
 
