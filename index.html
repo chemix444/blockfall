@@ -2513,7 +2513,17 @@ function buildSandboxSpawnMenu(){
       const el=D.createElement('button');
       el.className='btn-ghost'; el.style.cssText='font-size:12px;padding:6px 10px';
       el.textContent=ENEMY_LABELS[k];
-      el.addEventListener('click', ()=>{ spawnEnemy(k, player.pos.x+(Math.random()-0.5)*8, player.pos.z+(Math.random()-0.5)*8); SFX.level(); });
+      el.addEventListener('click', ()=>{ 
+        A.telegraphs = A.telegraphs || [];
+        A.telegraphs.push({
+          x: player.pos.x+(Math.random()-0.5)*8, 
+          z: player.pos.z+(Math.random()-0.5)*8, 
+          t: 0, 
+          kind: k, 
+          mesh: null
+        }); 
+        SFX.level();
+      });
       sg.appendChild(el);
     }
   }
