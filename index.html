@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426b';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426c';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -450,8 +450,13 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426b · HUD Revisions (June 24, 2026)</div>
+    <div class="desc">v062426c · Interaction Fixes (June 24, 2026)</div>
     <ul>
+      <li>Removed the "Press E to end run" interaction entirely; you must now use the End Run button in the pause menu</li>
+      <li>Sandbox mode: You can no longer press Q to close the spawn menu; you must scroll down and press the Close button</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426b · HUD Revisions (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Removed the radar minimap introduced in the last update, as the existing off-screen edge indicators already serve this purpose perfectly without cluttering the screen</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062426a · HUD Optimizations & Run Damage (June 24, 2026)</div>
@@ -711,7 +716,7 @@
 <div id="sandboxSpawn" class="modal">
   <div class="panel" style="width:560px;max-width:94vw;max-height:88vh;overflow:auto">
     <h2>Sandbox — Spawn Menu</h2>
-    <div class="desc">Press Q or close this to resume. Everything is free in sandbox.</div>
+    <div class="desc">Everything is free in sandbox. Scroll down and click Close to resume.</div>
     <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">SPAWN ENEMIES</h3>
     <div id="sbSpawnGrid" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">GIVE WEAPONS</h3>
@@ -729,7 +734,7 @@
       <button class="btn-ghost sbAction" data-action="killall">Kill All Enemies</button>
     </div>
     <div class="actions" style="margin-top:18px">
-      <button class="btn-primary" id="sandboxSpawnClose">Close (Q)</button>
+      <button class="btn-primary" id="sandboxSpawnClose">Close</button>
     </div>
   </div>
 </div>
@@ -827,8 +832,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426b';
-const UPDATE_TITLE = 'HUD Revisions';
+const VERSION = 'v062426c';
+const UPDATE_TITLE = 'Interaction Fixes';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1831,7 +1836,7 @@ function escapePressed(){
   if(D.getElementById('xpMenu').style.display==='flex'){ D.getElementById('xpMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('difficultyMenu').style.display==='flex'){ D.getElementById('difficultyMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('sandboxMenu').style.display==='flex'){ D.getElementById('sandboxMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
-  if(D.getElementById('sandboxSpawn').style.display==='flex'){ toggleSandboxSpawn(); return; }
+  if(D.getElementById('sandboxSpawn').style.display==='flex') return; // Must close via button
   if(D.getElementById('colorsMenu').style.display==='flex'){ D.getElementById('colorsMenu').style.display='none'; return; }
   if(D.getElementById('pauseMenu').style.display==='flex'){ closePauseMenu(); return; }
   const setEl=D.getElementById('settings');
@@ -2621,7 +2626,7 @@ D.querySelectorAll('.sbAction').forEach(btn=>{
     buildSandboxSpawnMenu();   // refresh weapon checkmarks
   });
 });
-// Q key toggles sandbox spawn menu
+// Q key toggles sandbox spawn menu (only allows opening; you must click close to close it)
 addEventListener('keydown', e=>{ if(e.code==='KeyQ' && A.sandbox && GAME.state==='arena' && !anyOverlayOpen()){ e.preventDefault(); toggleSandboxSpawn(); } });
 // ---------- endless mode (v061726l) ----------
 // A separate game mode entered through the orange portal. Instead of
@@ -4227,16 +4232,11 @@ function updateArena(){
   const btnCharge=D.getElementById('btnCharge');
   if(btnCharge) btnCharge.style.display = isMobile ? 'flex' : 'none';
   if(canLeave){
-    // In wave mode, show the "Press E" hint. In endless mode, no hint —
-    // the player uses the pause menu's End Run button instead.
-    if(!A.endless && (A.wave > 1)){
-      exitHint.style.display='block';
-      exitHint.textContent = isMobile ? 'Tap END RUN to leave' : 'Press E to end the run';
-    } else {
-      exitHint.style.display='none';
-    }
-    // Only allow E-to-exit in wave mode, not endless.
-    if(!A.endless && (keys[settings.keybinds.interact] || touch.exit)){ touch.exit=false; requestExit(); return; }
+    // In wave mode, we no longer show the "Press E to end run" hint, nor do we
+    // allow pressing E to end the run. The player must use the End Run button 
+    // in the pause menu. We only show the mobile End Run button if applicable.
+    exitHint.style.display='none';
+    if(touch.exit){ touch.exit=false; requestExit(); return; }
   } else exitHint.style.display='none';
 
   // wave timer / spawning
