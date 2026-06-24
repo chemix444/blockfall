@@ -2515,9 +2515,11 @@ function buildSandboxSpawnMenu(){
       el.textContent=ENEMY_LABELS[k];
       el.addEventListener('click', ()=>{ 
         A.telegraphs = A.telegraphs || [];
+        const ang = Math.random() * Math.PI * 2;
+        const rad = ARENA_R - 3;
         A.telegraphs.push({
-          x: player.pos.x+(Math.random()-0.5)*8, 
-          z: player.pos.z+(Math.random()-0.5)*8, 
+          x: Math.cos(ang) * rad, 
+          z: Math.sin(ang) * rad, 
           t: 0, 
           kind: k, 
           mesh: null
