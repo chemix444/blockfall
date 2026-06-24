@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426g';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426h';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -450,8 +450,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426g · Sandbox Stats Fix (June 24, 2026)</div>
+    <div class="desc">v062426h · Portal Menu Fixes (June 24, 2026)</div>
     <ul>
+      <li>Fixed an issue where clicking 'Cancel' when standing in a portal (difficulty menu or sandbox setup) would leave you stuck touching the portal. Clicking 'Cancel' now safely teleports you back to the center of the lobby.</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426g · Sandbox Stats Fix (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Sandbox mode: Removed the ability to modify your starting HP and starting Level from the green portal's setup menu. You now load into the arena exactly as you would in a normal game, and can modify your stats exclusively via the Q spawn menu once inside.</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062426f · Sandbox Improvements (June 24, 2026)</div>
@@ -846,8 +850,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426g';
-const UPDATE_TITLE = 'Sandbox Stats Fix';
+const VERSION = 'v062426h';
+const UPDATE_TITLE = 'Portal Menu Fixes';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2447,6 +2451,7 @@ onTap(D.getElementById('difficultyCancel'), ()=>{
   D.getElementById('difficultyMenu').style.display='none';
   GAME.paused=false;
   setTouchEnabled(true);
+  resetPlayerOverworld();
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 });
 // ---------- sandbox mode (v061926d) ----------
@@ -2460,6 +2465,7 @@ onTap(D.getElementById('sandboxCancel'), ()=>{
   D.getElementById('sandboxMenu').style.display='none';
   GAME.paused=false;
   setTouchEnabled(true);
+  resetPlayerOverworld();
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 });
 // sync range value displays
