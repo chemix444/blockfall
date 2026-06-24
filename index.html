@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426f';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426g';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -450,8 +450,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426f · Sandbox Improvements (June 24, 2026)</div>
+    <div class="desc">v062426g · Sandbox Stats Fix (June 24, 2026)</div>
     <ul>
+      <li>Sandbox mode: Removed the ability to modify your starting HP and starting Level from the green portal's setup menu. You now load into the arena exactly as you would in a normal game, and can modify your stats exclusively via the Q spawn menu once inside.</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426f · Sandbox Improvements (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Sandbox mode: You no longer spawn with every weapon unlocked automatically; you start with your standard chosen loadout so you can test early-game scenarios</li>
       <li>Sandbox mode: Clicking a weapon in the spawn menu now toggles it (so you can remove weapons you gave yourself)</li>
       <li>Sandbox mode: Clicking an upgrade in the spawn menu now successfully applies the stats, increments your level counter, and live-updates your stats panel</li>
@@ -715,9 +719,6 @@
     <div class="row"><label>Prop density</label><input id="sbProps" type="range" min="0" max="100" value="70" style="flex:1"><span class="val" id="sbPropsVal">70%</span></div>
     <div class="row"><label>Destructible props</label><label class="switch"><input id="sbDestruct" type="checkbox" checked><span class="track"></span></label></div>
     <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option></select></div>
-    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">PLAYER</h3>
-    <div class="row"><label>Start HP</label><input id="sbHp" type="range" min="1" max="999" value="100" style="flex:1"><span class="val" id="sbHpVal">100</span></div>
-    <div class="row"><label>Start level</label><input id="sbLvl" type="range" min="1" max="50" value="1" style="flex:1"><span class="val" id="sbLvlVal">1</span></div>
     <div class="actions" style="margin-top:18px">
       <button class="btn-ghost" id="sandboxCancel">Cancel</button>
       <button class="btn-primary" id="sandboxStart">Enter Sandbox</button>
@@ -845,8 +846,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426f';
-const UPDATE_TITLE = 'Sandbox Improvements';
+const VERSION = 'v062426g';
+const UPDATE_TITLE = 'Sandbox Stats Fix';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2464,8 +2465,6 @@ onTap(D.getElementById('sandboxCancel'), ()=>{
 // sync range value displays
 D.getElementById('sbSize').addEventListener('input', e=>{ D.getElementById('sbSizeVal').textContent=e.target.value; });
 D.getElementById('sbProps').addEventListener('input', e=>{ D.getElementById('sbPropsVal').textContent=e.target.value+'%'; });
-D.getElementById('sbHp').addEventListener('input', e=>{ D.getElementById('sbHpVal').textContent=e.target.value; });
-D.getElementById('sbLvl').addEventListener('input', e=>{ D.getElementById('sbLvlVal').textContent=e.target.value; });
 onTap(D.getElementById('sandboxStart'), ()=>{
   D.getElementById('sandboxMenu').style.display='none';
   GAME.paused=false;
@@ -2478,8 +2477,6 @@ function startSandbox(){
   const sbProps = +D.getElementById('sbProps').value;
   const sbDestruct = D.getElementById('sbDestruct').checked;
   const sbBiome = D.getElementById('sbBiome').value;
-  const sbHp = +D.getElementById('sbHp').value;
-  const sbLvl = +D.getElementById('sbLvl').value;
   // Start arena with sandbox flag
   startArena();
   A.sandbox = true;
@@ -2524,9 +2521,6 @@ function startSandbox(){
     arena.group.add(m);
     A.props.push({x, z, hx:sx/2, hz:sz/2, top:h, jumpable:h<=MAX_JUMP, mesh:m, destructible, hp:destructible?15:0, maxHp:destructible?15:0});
   }
-  // Override player HP and level
-  A.maxhp = sbHp; A.hp = sbHp;
-  A.level = sbLvl;
   // Make sure blades update if user had them from start
   ensureBlades();
   updateUpgradePanel();
