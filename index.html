@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426e';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426f';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -450,8 +450,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426e · Pointer Lock Fixes (June 24, 2026)</div>
+    <div class="desc">v062426f · Sandbox Improvements (June 24, 2026)</div>
     <ul>
+      <li>Sandbox mode: You no longer spawn with every weapon unlocked automatically; you start with your standard chosen loadout so you can test early-game scenarios</li>
+      <li>Sandbox mode: Clicking a weapon in the spawn menu now toggles it (so you can remove weapons you gave yourself)</li>
+      <li>Sandbox mode: Clicking an upgrade in the spawn menu now successfully applies the stats, increments your level counter, and live-updates your stats panel</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426e · Pointer Lock Fixes (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Fixed an issue where clicking 'Settings' from the Pause menu would incorrectly re-lock your mouse pointer to the game behind the settings window</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062426d · Sandbox QoL Fix (June 24, 2026)</div>
@@ -839,8 +845,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426e';
-const UPDATE_TITLE = 'Pointer Lock Fixes';
+const VERSION = 'v062426f';
+const UPDATE_TITLE = 'Sandbox Improvements';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2521,8 +2527,7 @@ function startSandbox(){
   // Override player HP and level
   A.maxhp = sbHp; A.hp = sbHp;
   A.level = sbLvl;
-  // Give all weapons in sandbox
-  for(const w of WEAPON_ORDER){ if(!A.weapons.includes(w)) A.weapons.push(w); A.wcd[w]=0; }
+  // Make sure blades update if user had them from start
   ensureBlades();
   updateUpgradePanel();
   setMode('arena');
@@ -2559,7 +2564,21 @@ function buildSandboxSpawnMenu(){
       const el=D.createElement('button');
       el.className='btn-ghost'; el.style.cssText='font-size:12px;padding:6px 10px';
       el.textContent=d.ic+' '+d.name+(A.weapons.includes(w)?' ✓':'');
-      el.addEventListener('click', ()=>{ if(!A.weapons.includes(w)){ A.weapons.push(w); A.wcd[w]=0; } ensureBlades(); SFX.weapon(); buildSandboxSpawnMenu(); });
+      el.addEventListener('click', ()=>{ 
+        if(!A.weapons.includes(w)){ 
+          A.weapons.push(w); A.wcd[w]=0; 
+        } else {
+          A.weapons = A.weapons.filter(x => x !== w);
+          if(w === 'blades'){
+            for(const b of blades) disposeObj(b.mesh);
+            blades.length = 0;
+          }
+        }
+        ensureBlades(); 
+        SFX.weapon(); 
+        buildSandboxSpawnMenu();
+        updateUpgradePanel();
+      });
       wg.appendChild(el);
     }
   }
@@ -2568,8 +2587,15 @@ function buildSandboxSpawnMenu(){
     for(const u of UPGRADE_POOL){
       const el=D.createElement('button');
       el.className='btn-ghost'; el.style.cssText='font-size:12px;padding:6px 10px';
-      el.textContent=u.ic+' '+u.nm;
-      el.addEventListener('click', ()=>{ u.apply(A.stats); if(u.id==='proj'||u.id==='haste') ensureBlades(); SFX.level(); });
+      el.textContent=u.ic+' '+u.nm+' ('+(upgradeLevels[u.id]||0)+')';
+      el.addEventListener('click', ()=>{ 
+        u.apply(A.stats); 
+        upgradeLevels[u.id] = (upgradeLevels[u.id]||0) + 1;
+        if(u.id==='proj'||u.id==='haste') ensureBlades(); 
+        SFX.level(); 
+        buildSandboxSpawnMenu();
+        updateUpgradePanel();
+      });
       ug.appendChild(el);
     }
   }
