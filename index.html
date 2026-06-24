@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426i';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426j';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -450,8 +450,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426i · Ice Physics & Cosmetics (June 24, 2026)</div>
+    <div class="desc">v062426j · Headphones Fix (June 24, 2026)</div>
     <ul>
+      <li>Fixed the Headphones cosmetic model actually wearing them on the ears instead of hovering way above the head. Let me know if you want the Sandbox boss UI to stack up on screen and I can revert that back!</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426i · Ice Physics & Cosmetics (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Fixed an issue where multiple bosses' health bars wouldn't show up correctly. The boss health bar now only tracks the most recent boss, but *all* bosses now dynamically get the same floating health-bar indicators above their heads that normal enemies have</li>
       <li>Greatly improved the "ice" twist in the Tundra biome. Instead of just slowly sliding forward continuously, it now correctly uses your exact movement vector to preserve momentum while acting like a slippery floor</li>
       <li>Fixed the "Headphones" cosmetic model which was previously displaying incorrectly</li>
@@ -856,8 +860,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426i';
-const UPDATE_TITLE = 'Multiple Bosses & Cosmetics';
+const VERSION = 'v062426j';
+const UPDATE_TITLE = 'Headphones Fix';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -5435,21 +5439,29 @@ const HATS = {
   headphones: {name:'Headphones', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0x222222});
-    // Band: half-torus arcing over the top of the head.
-    // Default torus lies in the XY plane. A PI arc goes from +X through +Y to -X,
-    // forming an arch over the top of the head. No rotation needed.
-    const band=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.04,8,16,Math.PI), mat);
-    band.position.y = 0.05;
+    // The player's head center is at ~1.70, and applyHat mounts the hat at 1.92.
+    // The head is 0.44 tall, so 1.92 is resting on the absolute top of the head.
+    // For headphones, we need the band to arc over the top of the head, but the 
+    // ear cups need to reach down to the *sides* of the head. 
+    // We achieve this by shifting the band and cups downwards relative to the hat's pivot point.
+    
+    // Band: half-torus arcing over the head. 
+    const band=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.03,8,16,Math.PI), mat);
+    // Move the band down so the arc apex sits exactly at the top of the head (y=0 relative to the 1.92 pivot)
+    band.position.y = -0.15;
     g.add(band);
-    // Ear cups: cylinders on the left and right sides of the head.
+    
+    // Ear cups: cylinders on the left and right sides.
     const lc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,12), mat);
     lc.rotation.z = Math.PI/2;
-    lc.position.set(-0.24, 0.05, 0);
+    lc.position.set(-0.25, -0.15, 0); // Drop them down to ear level
     g.add(lc);
+    
     const rc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,12), mat);
     rc.rotation.z = Math.PI/2;
-    rc.position.set(0.24, 0.05, 0);
+    rc.position.set(0.25, -0.15, 0);
     g.add(rc);
+    
     return g;
   }},
   halo: {name:'Halo', build:()=>{
