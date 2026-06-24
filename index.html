@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426j';   // keep in sync with VERSION below
+  var BUNDLED = 'v062426k';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -77,9 +77,11 @@
   #wavebox { position:fixed; top:12px; right:12px; text-align:right; font-size:13px; line-height:1.6; z-index:6; text-shadow:0 2px 4px #000; }
   #wavebox .big { font-size:20px; font-weight:bold; }
   #lvlbadge { position:fixed; top:12px; left:12px; z-index:6; font-size:13px; text-shadow:0 2px 4px #000; }
-  #bossbar { position:fixed; top:84px; left:50%; transform:translateX(-50%); width:60%; max-width:520px; height:14px; background:rgba(0,0,0,.5); border:2px solid rgba(255,255,255,.35); border-radius:7px; z-index:6; display:none; overflow:hidden; }
-  #bossfill { height:100%; width:100%; background:linear-gradient(90deg,#b14bff,#ff4b9d); }
-  #bossname { position:fixed; top:64px; left:50%; transform:translateX(-50%); font-size:13px; font-weight:bold; letter-spacing:1px; z-index:6; display:none; text-shadow:0 2px 4px #000; }
+  #bossUIContainer { position:fixed; top:64px; left:50%; transform:translateX(-50%); width:60%; max-width:520px; z-index:6; display:flex; flex-direction:column; gap:16px; align-items:center; pointer-events:none; }
+  .boss-bar-wrap { width:100%; display:flex; flex-direction:column; align-items:center; }
+  .boss-name { font-size:13px; font-weight:bold; letter-spacing:1px; text-shadow:0 2px 4px #000; margin-bottom:4px; }
+  .boss-bar { width:100%; height:14px; background:rgba(0,0,0,.5); border:2px solid rgba(255,255,255,.35); border-radius:7px; overflow:hidden; box-shadow:0 4px 10px rgba(0,0,0,.5); }
+  .boss-fill { height:100%; width:100%; background:linear-gradient(90deg,#b14bff,#ff4b9d); transition:width .15s linear; }
   /* Boss intro banner: dramatic full-screen flash when a boss spawns.
      Animates from 0 -> full opacity over 0.3s, holds ~1.4s, then fades
      out over 0.6s. Total ~2.3s. */
@@ -285,8 +287,7 @@
   <div id="lvlbadge" class="hud"></div>
   <div id="wavebox" class="hud"></div>
   <div id="bestwave" class="hud"></div>
-  <div id="bossname">BOSS</div>
-  <div id="bossbar"><div id="bossfill"></div></div>
+  <div id="bossUIContainer"></div>
   <!-- Boss intro banner: shown dramatically when a boss spawns. Pure
        CSS animation via the .show class; JS just toggles it and sets
        the text content. -->
@@ -450,8 +451,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426j · Headphones Fix (June 24, 2026)</div>
+    <div class="desc">v062426k · Boss UI Stacking (June 24, 2026)</div>
     <ul>
+      <li>Re-enabled the main DOM UI Boss healthbars for multiple bosses! If you spawn multiple major bosses at the same time in Sandbox mode, their health bars will now stack dynamically at the top of the screen instead of being overridden.</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426j · Headphones Fix (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Fixed the Headphones cosmetic model actually wearing them on the ears instead of hovering way above the head. Let me know if you want the Sandbox boss UI to stack up on screen and I can revert that back!</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062426i · Ice Physics & Cosmetics (June 24, 2026)</div>
@@ -860,8 +865,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426j';
-const UPDATE_TITLE = 'Headphones Fix';
+const VERSION = 'v062426k';
+const UPDATE_TITLE = 'Boss UI Stacking';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2374,8 +2379,7 @@ function buildArenaMap(seed){
 }
 
 function hideBossBar(){
-  D.getElementById('bossbar').style.display='none';
-  D.getElementById('bossname').style.display='none';
+  D.getElementById('bossUIContainer').innerHTML = '';
 }
 function clearDmgTexts(){
   for(const d of dmgTexts) d.el.remove();
@@ -2775,11 +2779,14 @@ function spawnMiniBoss(){
   const pool=[...BOSS_ATTACKS].sort(()=>Math.random()-0.5);
   const attacks=pool.slice(0, 1+Math.floor(Math.random()*2));   // 1-2 attacks (fewer than full boss)
   const name='Elite '+BOSS_PRE[(Math.random()*BOSS_PRE.length)|0];
-  A.boss={mesh:mdl.group, hp, maxhp:hp, spd:2.8+tier*0.2, dmg:22*(1+tier*0.25), xp:12, size, top:mdl.top,
+  const bossObj = {id: Math.random().toString(36).substr(2,9), name, mesh:mdl.group, hp, maxhp:hp, spd:2.8+tier*0.2, dmg:22*(1+tier*0.25), xp:12, size, top:mdl.top,
           hit:0, kind:'boss', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
           phase:0, baseY:0, color,
           attacks, atkIdx:0, atkCd:1.6, dashing:0, dashDir:new THREE.Vector3(),
           phase2:false, desperate:false, _miniBoss:true};
+          
+  A.boss = bossObj;
+  if(!A.enemies.includes(bossObj)) A.enemies.push(bossObj);
   // mini-bosses don't get the full boss bar — just a toast + small shake.
   toast('Wave '+A.wave+': '+name);
   addShake(0.25);
@@ -3044,16 +3051,14 @@ function spawnBoss(){
     if(!A.enemies.includes(A.boss)) A.enemies.push(A.boss); // If multiple bosses spawned (e.g. Sandbox), move older ones into normal pool so they still update
   }
   
-  const bossObj = {mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.25, dmg:34*(1+tier*0.35), xp:25, size, top:mdl.top,
+  const bossObj = {id: Math.random().toString(36).substr(2,9), name, mesh:mdl.group, hp, maxhp:hp, spd:2.4+tier*0.25, dmg:34*(1+tier*0.35), xp:25, size, top:mdl.top,
           hit:0, kind:'boss', outlines:mdl.outlines, bodyMat:mdl.bodyMat, legs:mdl.legs, arms:mdl.arms,
           phase:0, baseY:0, color,
           attacks, atkIdx:0, atkCd:1.4, dashing:0, dashDir:new THREE.Vector3(),
           phase2:false, desperate:false};   // boss phase + desperation flags (v061726k)
           
   A.boss = bossObj;
-  D.getElementById('bossbar').style.display='block';
-  D.getElementById('bossname').style.display='block';
-  D.getElementById('bossname').textContent=name.toUpperCase();
+  if(!A.enemies.includes(bossObj)) A.enemies.push(bossObj);
   SFX.boss();
   // Dramatic boss intro banner — replaces the easy-to-miss toast. The
   // banner is pure CSS animation (see #bossIntro styles in <head>); JS
@@ -3559,12 +3564,10 @@ function killEnemy(e){
     spawnOrb(e.mesh.position, e.xp, true);
     if(e === A.boss){
       A.boss=null;
-      D.getElementById('bossbar').style.display='none';
-      D.getElementById('bossname').style.display='none';
-    } else {
-      const i=A.enemies.indexOf(e);
-      if(i>=0) A.enemies.splice(i,1);
     }
+    const i=A.enemies.indexOf(e);
+    if(i>=0) A.enemies.splice(i,1);
+    
     stats.bossesKilled++; persist();   // persistent boss-kill counter
     toast("Boss down!");
     disposeObj(e.mesh);
@@ -3954,10 +3957,41 @@ function updateArenaHud(){
     D.getElementById('wavebox').innerHTML = waveHtml;
   }
   
-  if(A.boss){
-    if(A.boss.hp !== _hudCache.bossHp || A.boss.maxhp !== _hudCache.bossMaxhp){
-      _hudCache.bossHp = A.boss.hp; _hudCache.bossMaxhp = A.boss.maxhp;
-      D.getElementById('bossfill').style.width=Math.max(0,A.boss.hp/A.boss.maxhp*100)+'%';
+  const bosses = A.enemies.filter(e => e.kind === 'boss' && !e._miniBoss);
+  if(bosses.length > 0){
+    const container = D.getElementById('bossUIContainer');
+    
+    // Check if the number of bosses matches our child count, or if any HP changed
+    let redraw = false;
+    if(container.children.length !== bosses.length) redraw = true;
+    else {
+      // Check if any specific HP changed
+      for(let i=0; i<bosses.length; i++){
+        if(!bosses[i]._lastHp || bosses[i]._lastHp !== bosses[i].hp){
+          redraw = true;
+          bosses[i]._lastHp = bosses[i].hp;
+        }
+      }
+    }
+    
+    if(redraw){
+      let html = '';
+      for(const b of bosses){
+        const pct = Math.max(0, b.hp / b.maxhp * 100);
+        html += `
+          <div class="boss-bar-wrap">
+            <div class="boss-name">${(b.name || 'BOSS').toUpperCase()}</div>
+            <div class="boss-bar"><div class="boss-fill" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      }
+      container.innerHTML = html;
+    }
+  } else {
+    // No bosses
+    const container = D.getElementById('bossUIContainer');
+    if(container.children.length > 0){
+      container.innerHTML = '';
     }
   }
 }
