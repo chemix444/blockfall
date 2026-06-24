@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061926c';   // keep in sync with VERSION below
+  var BUNDLED = 'v061926d';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061926c · YT Race Fix</div>
+<div id="version">v061926d · Sandbox & Fixes</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -450,7 +450,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061926c · YT Race Fix (June 19, 2026)</div>
+    <div class="desc">v061926d · Sandbox & Fixes (June 19, 2026)</div>
+    <ul>
+      <li>Fixed headphones cosmetic — band now arcs over the top of the head with ear cups on the sides instead of sitting flat horizontally</li>
+      <li>Fixed killstreak counter staying frozen on screen when you die or exit to the lobby — now properly hides on arena exit/death</li>
+      <li>New Sandbox mode portal (green, behind the player) — customize the map (size, biome, prop density, destructibility) before loading, then use a Gmod-like spawn menu to spawn any enemy type, weapons, upgrades, adjust stats, and tweak every game parameter in real time</li>
+      <li>The mode indicator at the top of the screen now shows the current mode + difficulty (e.g. "WAVE · NORMAL", "ENDLESS · HARD", "SANDBOX")</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061926c · YT Race Fix (June 19, 2026)</div>
     <ul>
       <li>Fixed the Lofi Girl livestream never playing — the YouTube IFrame API script (loaded async in <head>) was calling <code>window.onYouTubeIframeAPIReady()</code> before the main game script (a deferred ES module) had defined it, so the callback was lost and the player was never created. Now checks if the API already loaded and calls the init function directly if so</li>
     </ul>
@@ -671,6 +678,56 @@
 
 <!-- Difficulty selection (per-run prompt, v061926b) -->
 <div id="difficultyMenu" class="modal">
+
+<!-- Sandbox setup menu (v061926d) -->
+<div id="sandboxMenu" class="modal">
+  <div class="panel" style="width:500px;max-width:94vw">
+    <h2>Sandbox Setup</h2>
+    <div class="desc">Customize the map before loading. Once in the arena, press Q to open the spawn menu.</div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">MAP</h3>
+    <div class="row"><label>Arena size</label><input id="sbSize" type="range" min="15" max="50" value="34" style="flex:1"><span class="val" id="sbSizeVal">34</span></div>
+    <div class="row"><label>Prop density</label><input id="sbProps" type="range" min="0" max="100" value="70" style="flex:1"><span class="val" id="sbPropsVal">70%</span></div>
+    <div class="row"><label>Destructible props</label><label class="switch"><input id="sbDestruct" type="checkbox" checked><span class="track"></span></label></div>
+    <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option></select></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">PLAYER</h3>
+    <div class="row"><label>Start HP</label><input id="sbHp" type="range" min="1" max="999" value="100" style="flex:1"><span class="val" id="sbHpVal">100</span></div>
+    <div class="row"><label>Start level</label><input id="sbLvl" type="range" min="1" max="50" value="1" style="flex:1"><span class="val" id="sbLvlVal">1</span></div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-ghost" id="sandboxCancel">Cancel</button>
+      <button class="btn-primary" id="sandboxStart">Enter Sandbox</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sandbox spawn menu (Q to open, v061926d) -->
+<div id="sandboxSpawn" class="modal">
+  <div class="panel" style="width:560px;max-width:94vw;max-height:88vh;overflow:auto">
+    <h2>Sandbox — Spawn Menu</h2>
+    <div class="desc">Press Q or close this to resume. Everything is free in sandbox.</div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">SPAWN ENEMIES</h3>
+    <div id="sbSpawnGrid" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">GIVE WEAPONS</h3>
+    <div id="sbWeaponGrid" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">GIVE UPGRADES</h3>
+    <div id="sbUpgradeGrid" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">ADJUST STATS</h3>
+    <div id="sbStatsList" style="font-size:13px"></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">QUICK ACTIONS</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <button class="btn-ghost sbAction" data-action="heal">Full Heal</button>
+      <button class="btn-ghost sbAction" data-action="levelup">Level Up</button>
+      <button class="btn-ghost sbAction" data-action="clear">Clear Enemies</button>
+      <button class="btn-ghost sbAction" data-action="boss">Spawn Boss</button>
+      <button class="btn-ghost sbAction" data-action="killall">Kill All Enemies</button>
+    </div>
+    <div class="actions" style="margin-top:18px">
+      <button class="btn-primary" id="sandboxSpawnClose">Close (Q)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Difficulty selection (per-run prompt, v061926b) -->
+<div id="difficultyMenu" class="modal">
   <div class="panel" style="width:420px;max-width:94vw;text-align:center">
     <h2 id="difficultyTitle">Choose Difficulty</h2>
     <div class="desc" id="difficultyMode">Wave Mode</div>
@@ -735,7 +792,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926c · YT Race Fix</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926d · Sandbox & Fixes</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -762,8 +819,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061926c';
-const UPDATE_TITLE = 'YT Race Fix';
+const VERSION = 'v061926d';
+const UPDATE_TITLE = 'Sandbox & Fixes';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1280,6 +1337,7 @@ function keyOf(x,y,z){ return x+','+y+','+z; }
 // ---------- generate the overworld ----------
 let PORTAL_POS = new THREE.Vector3();
 let ENDLESS_PORTAL_POS = new THREE.Vector3();   // endless-mode portal (v061726l)
+let SANDBOX_PORTAL_POS = new THREE.Vector3();   // sandbox-mode portal (v061926d)
 let NPC_POS = new THREE.Vector3();
 let COSMETIC_NPC_POS = new THREE.Vector3();   // cosmetics NPC (v061726m)
 let XP_NPC_POS = new THREE.Vector3();   // XP pickup range NPC (v061726q)
@@ -1335,6 +1393,11 @@ function buildLobby(){
   const xnx = 0, xnz = 5;
   buildXPNPC(xnx, LOBBY_Y, xnz);
   XP_NPC_POS.set(xnx, LOBBY_Y, xnz);
+
+  // Sandbox portal — green, to the right of the arena portal.
+  const sx = 6.5, sz = -7;
+  buildPortalFrame(sx, LOBBY_Y, sz, 0x33ff66);   // green = sandbox
+  SANDBOX_PORTAL_POS.set(sx, LOBBY_Y + 1.9, sz);
 }
 // Class-shop NPC. Built as a blocky humanoid mirroring the default player
 // avatar (same body parts, same default colors) so it reads as "another person"
@@ -1759,6 +1822,8 @@ function escapePressed(){
   if(D.getElementById('cosmeticShop').style.display==='flex'){ closeCosmeticShop(); return; }
   if(D.getElementById('xpMenu').style.display==='flex'){ D.getElementById('xpMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('difficultyMenu').style.display==='flex'){ D.getElementById('difficultyMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
+  if(D.getElementById('sandboxMenu').style.display==='flex'){ D.getElementById('sandboxMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
+  if(D.getElementById('sandboxSpawn').style.display==='flex'){ toggleSandboxSpawn(); return; }
   if(D.getElementById('colorsMenu').style.display==='flex'){ D.getElementById('colorsMenu').style.display='none'; return; }
   if(D.getElementById('pauseMenu').style.display==='flex'){ closePauseMenu(); return; }
   const setEl=D.getElementById('settings');
@@ -1848,7 +1913,9 @@ function anyOverlayOpen(){
     D.getElementById('colorsMenu').style.display==='flex' ||
     D.getElementById('classMenu').style.display==='flex' ||
     D.getElementById('xpMenu').style.display==='flex' ||
-    D.getElementById('difficultyMenu').style.display==='flex';
+    D.getElementById('difficultyMenu').style.display==='flex' ||
+    D.getElementById('sandboxMenu').style.display==='flex' ||
+    D.getElementById('sandboxSpawn').style.display==='flex';
 }
 if(isMobile){
   D.body.classList.add('mobile');
@@ -2274,6 +2341,7 @@ function clearDmgTexts(){
 function startArena(){
   A.active=true; A.dead=false;
   A.endless=false;   // reset — startEndless() sets this true after calling us
+  A.sandbox=false;   // reset — startSandbox() sets this true after calling us
   hideBossBar();
   A.wave=0; A.waveTime=0; A.spawnAcc=0; A.toSpawn=0;
   A.enemies.length=0; A.projectiles.length=0; A.orbs.length=0; A.boss=null;
@@ -2353,6 +2421,187 @@ onTap(D.getElementById('difficultyCancel'), ()=>{
   setTouchEnabled(true);
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 });
+// ---------- sandbox mode (v061926d) ----------
+function showSandboxMenu(){
+  GAME.paused=true;
+  suppressAutoSettings=true; exitPointerLockSafe();
+  setTouchEnabled(false);
+  D.getElementById('sandboxMenu').style.display='flex';
+}
+onTap(D.getElementById('sandboxCancel'), ()=>{
+  D.getElementById('sandboxMenu').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
+});
+// sync range value displays
+D.getElementById('sbSize').addEventListener('input', e=>{ D.getElementById('sbSizeVal').textContent=e.target.value; });
+D.getElementById('sbProps').addEventListener('input', e=>{ D.getElementById('sbPropsVal').textContent=e.target.value+'%'; });
+D.getElementById('sbHp').addEventListener('input', e=>{ D.getElementById('sbHpVal').textContent=e.target.value; });
+D.getElementById('sbLvl').addEventListener('input', e=>{ D.getElementById('sbLvlVal').textContent=e.target.value; });
+onTap(D.getElementById('sandboxStart'), ()=>{
+  D.getElementById('sandboxMenu').style.display='none';
+  GAME.paused=false;
+  setTouchEnabled(true);
+  startSandbox();
+});
+function startSandbox(){
+  // Read setup options
+  const sbSize = +D.getElementById('sbSize').value;
+  const sbProps = +D.getElementById('sbProps').value;
+  const sbDestruct = D.getElementById('sbDestruct').checked;
+  const sbBiome = D.getElementById('sbBiome').value;
+  const sbHp = +D.getElementById('sbHp').value;
+  const sbLvl = +D.getElementById('sbLvl').value;
+  // Start arena with sandbox flag
+  startArena();
+  A.sandbox = true;
+  A.endless = false;
+  A.toSpawn = 0;   // no auto-spawning in sandbox
+  // Override map with custom settings
+  ARENA_R = sbSize;
+  // Rebuild the map with the chosen biome + props
+  while(arena.group.children.length) disposeObj(arena.group.children[0]);
+  const biomes=[
+    {ground:0x5a7a45, prop:0x3f6a32, sky:0x9fd0ff, name:'Meadow',    twist:'none'},
+    {ground:0xc8b27a, prop:0x9c7d44, sky:0xffe7b0, name:'Desert',    twist:'none'},
+    {ground:0x6b6b78, prop:0x4a4a55, sky:0xbfc6d6, name:'Ashlands',  twist:'none'},
+    {ground:0x4a6d8c, prop:0x355270, sky:0xbfe9ff, name:'Tundra',    twist:'ice'},
+    {ground:0x6a4a6e, prop:0x4a2f55, sky:0xe6c4ff, name:'Glimmerwood', twist:'none'},
+    {ground:0x8c4a3a, prop:0x6a2f1f, sky:0xffb088, name:'Emberfield', twist:'lava'},
+  ];
+  const b = sbBiome==='random' ? biomes[Math.floor(Math.random()*biomes.length)] : biomes.find(x=>x.name===sbBiome) || biomes[0];
+  A.biomeName=b.name; A.biomeTwist=b.twist;
+  scene.fog = new THREE.Fog(0x000000, ARENA_R*0.8, ARENA_R*2.1);
+  applySky();
+  const gMat=new THREE.MeshLambertMaterial({color:b.ground});
+  const gGeo=new THREE.CylinderGeometry(ARENA_R, ARENA_R, 1, 48);
+  arenaGround=new THREE.Mesh(gGeo,gMat); arenaGround.position.y=-0.5; arenaGround.receiveShadow=true; arena.group.add(arenaGround);
+  if(b.twist==='lava'){ A.lavaPatches=[]; for(let i=0;i<6;i++){ const ang=Math.random()*Math.PI*2,rad=5+Math.random()*(ARENA_R-8);const r=1.5+Math.random()*1.5;const lp=new THREE.Mesh(new THREE.CircleGeometry(r,16),new THREE.MeshBasicMaterial({color:0xff4400,transparent:true,opacity:0.7}));lp.rotation.x=-Math.PI/2;lp.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);arena.group.add(lp);A.lavaPatches.push({x:Math.cos(ang)*rad,z:Math.sin(ang)*rad,r});} }
+  const wallMat=new THREE.MeshLambertMaterial({color:b.prop});
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(ARENA_R, 0.8, 8, 48), wallMat);
+  ring.rotation.x=Math.PI/2; ring.position.y=0.6; arena.group.add(ring);
+  A.props=[];
+  const pMat=new THREE.MeshLambertMaterial({color:b.prop});
+  const propCount=Math.round(ARENA_R * sbProps/100);
+  for(let i=0;i<propCount;i++){
+    const ang=Math.random()*Math.PI*2, rad=5+Math.random()*(ARENA_R-8);
+    const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
+    if(Math.hypot(x,z)<5) continue;
+    const sx=0.9+Math.random()*1.4, sz=0.9+Math.random()*1.4;
+    const h = Math.random()<0.6 ? (0.7+Math.random()*0.9) : (1.9+Math.random()*1.6);
+    const destructible = sbDestruct && Math.random()<0.3;
+    const mat = destructible ? new THREE.MeshLambertMaterial({color:((b.prop+0x222222)&0xffffff)}) : pMat;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), mat);
+    m.position.set(x, h/2, z); m.castShadow=true; m.receiveShadow=true;
+    arena.group.add(m);
+    A.props.push({x, z, hx:sx/2, hz:sz/2, top:h, jumpable:h<=MAX_JUMP, mesh:m, destructible, hp:destructible?15:0, maxHp:destructible?15:0});
+  }
+  // Override player HP and level
+  A.maxhp = sbHp; A.hp = sbHp;
+  A.level = sbLvl;
+  // Give all weapons in sandbox
+  for(const w of WEAPON_ORDER){ if(!A.weapons.includes(w)) A.weapons.push(w); A.wcd[w]=0; }
+  ensureBlades();
+  updateUpgradePanel();
+  setMode('arena');
+  toast("Sandbox mode — press Q for spawn menu");
+}
+// ---- sandbox spawn menu ----
+function buildSandboxSpawnMenu(){
+  // Enemies
+  const sg=D.getElementById('sbSpawnGrid'); if(sg){ sg.innerHTML='';
+    for(const k in ENEMY_LABELS){
+      const el=D.createElement('button');
+      el.className='btn-ghost'; el.style.cssText='font-size:12px;padding:6px 10px';
+      el.textContent=ENEMY_LABELS[k];
+      el.addEventListener('click', ()=>{ spawnEnemy(k, player.pos.x+(Math.random()-0.5)*8, player.pos.z+(Math.random()-0.5)*8); SFX.level(); });
+      sg.appendChild(el);
+    }
+  }
+  // Weapons
+  const wg=D.getElementById('sbWeaponGrid'); if(wg){ wg.innerHTML='';
+    for(const w of WEAPON_ORDER){
+      const d=WEAPONS[w];
+      const el=D.createElement('button');
+      el.className='btn-ghost'; el.style.cssText='font-size:12px;padding:6px 10px';
+      el.textContent=d.ic+' '+d.name+(A.weapons.includes(w)?' ✓':'');
+      el.addEventListener('click', ()=>{ if(!A.weapons.includes(w)){ A.weapons.push(w); A.wcd[w]=0; } ensureBlades(); SFX.weapon(); buildSandboxSpawnMenu(); });
+      wg.appendChild(el);
+    }
+  }
+  // Upgrades
+  const ug=D.getElementById('sbUpgradeGrid'); if(ug){ ug.innerHTML='';
+    for(const u of UPGRADE_POOL){
+      const el=D.createElement('button');
+      el.className='btn-ghost'; el.style.cssText='font-size:12px;padding:6px 10px';
+      el.textContent=u.ic+' '+u.nm;
+      el.addEventListener('click', ()=>{ u.apply(A.stats); if(u.id==='proj'||u.id==='haste') ensureBlades(); SFX.level(); });
+      ug.appendChild(el);
+    }
+  }
+  // Stats
+  const sl=D.getElementById('sbStatsList'); if(sl){ sl.innerHTML='';
+    const stats=[
+      {k:'dmg',label:'Damage',min:1,max:9999,step:1},
+      {k:'atkSpeed',label:'Attack Speed',min:0.1,max:10,step:0.1},
+      {k:'range',label:'Attack Range',min:1,max:99,step:1},
+      {k:'projSpeed',label:'Projectile Speed',min:1,max:99,step:1},
+      {k:'crit',label:'Crit Chance',min:0,max:1,step:0.05},
+      {k:'critMul',label:'Crit Multiplier',min:1,max:10,step:0.5},
+      {k:'moveBonus',label:'Move Bonus',min:0,max:5,step:0.1},
+      {k:'pickup',label:'Pickup Range',min:0,max:99,step:1},
+      {k:'pierce',label:'Pierce',min:0,max:99,step:1},
+      {k:'extraProj',label:'Extra Projectiles',min:0,max:99,step:1},
+      {k:'regen',label:'Regen',min:0,max:50,step:0.5},
+      {k:'lifesteal',label:'Lifesteal',min:0,max:1,step:0.05},
+      {k:'dodge',label:'Dodge',min:0,max:0.95,step:0.05},
+    ];
+    for(const s of stats){
+      const row=D.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:10px;margin:6px 0';
+      row.innerHTML='<span style="flex:1;opacity:.8">'+s.label+'</span>'+
+        '<input type="range" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+(A.stats[s.k]||0)+'" style="flex:1;accent-color:#9b7bff">'+
+        '<span style="min-width:40px;text-align:right;font-size:12px" id="sbStat_'+s.k+'">'+(A.stats[s.k]||0).toFixed(2)+'</span>';
+      const input=row.querySelector('input');
+      const val=row.querySelector('span:last-child');
+      input.addEventListener('input', e=>{ A.stats[s.k]=+e.target.value; val.textContent=(+e.target.value).toFixed(2); if(s.k==='moveBonus') player.speed=7.2*(1+A.stats.moveBonus); });
+      sl.appendChild(row);
+    }
+  }
+}
+function toggleSandboxSpawn(){
+  const el=D.getElementById('sandboxSpawn');
+  if(el.style.display==='flex'){
+    // close
+    el.style.display='none';
+    A.paused=false;
+    setTouchEnabled(true);
+    if(!isMobile && GAME.state==='arena') requestPointerLockSafe(cvs);
+  } else {
+    // open
+    A.paused=true;
+    suppressAutoSettings=true; exitPointerLockSafe();
+    setTouchEnabled(false);
+    buildSandboxSpawnMenu();
+    el.style.display='flex';
+  }
+}
+onTap(D.getElementById('sandboxSpawnClose'), ()=>{ toggleSandboxSpawn(); });
+// Quick actions
+D.querySelectorAll('.sbAction').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const a=btn.dataset.action;
+    if(a==='heal'){ A.hp=A.maxhp; toast('Full heal'); }
+    else if(a==='levelup'){ A.level++; A.xpNext=Math.floor(A.xpNext*1.18+2); SFX.level(); toast('Level up! Now '+A.level); }
+    else if(a==='clear'){ for(const e of A.enemies) disposeObj(e.mesh); A.enemies.length=0; if(A.boss){ disposeObj(A.boss.mesh); A.boss=null; hideBossBar(); } toast('Enemies cleared'); }
+    else if(a==='boss'){ spawnBoss(); }
+    else if(a==='killall'){ for(const e of allTargets()) damageEnemy(e, 99999, false); toast('All enemies killed'); }
+    buildSandboxSpawnMenu();   // refresh weapon checkmarks
+  });
+});
+// Q key toggles sandbox spawn menu
+addEventListener('keydown', e=>{ if(e.code==='KeyQ' && A.sandbox && GAME.state==='arena' && !anyOverlayOpen()){ e.preventDefault(); toggleSandboxSpawn(); } });
 // ---------- endless mode (v061726l) ----------
 // A separate game mode entered through the orange portal. Instead of
 // discrete waves, enemies of ALL types spawn continuously to maintain
@@ -2374,6 +2623,7 @@ function startEndless(){
 function exitArena(keepNothingBut){
   A.active=false;
   A.endless=false;   // reset endless flag on exit
+  A.sandbox=false;   // reset sandbox flag on exit
   recordWave(A.wave);
   // Persistent stats: count this as a completed run, track per-class best
   // wave, and accumulate play time. We do this here AND in arenaDeath so
@@ -2382,6 +2632,8 @@ function exitArena(keepNothingBut){
   recordClassWave(selectedClass, A.wave);
   if(A.runStartTime) stats.totalTimePlayed += (performance.now() - A.runStartTime)/1000;
   persist();
+  // Hide the streak counter so it doesn't stay frozen on screen (v061926d)
+  streak.count=0; streak.timer=0; D.getElementById('streak').classList.remove('show');
   stopMusic();
   clearIndicators();
   clearDmgTexts();
@@ -3306,6 +3558,7 @@ function contactDamage(e){
 function arenaDeath(){
   A.active=false; A.dead=true;
   A.endless=false;   // reset endless flag on death
+  A.sandbox=false;   // reset sandbox flag on death
   GAME.state='dead';
   recordWave(A.wave);
   // Persistent stats: count the death, the completed run, per-class best
@@ -3315,6 +3568,8 @@ function arenaDeath(){
   recordClassWave(selectedClass, A.wave);
   if(A.runStartTime) stats.totalTimePlayed += (performance.now() - A.runStartTime)/1000;
   persist();
+  // Hide the streak counter so it doesn't stay frozen on screen (v061926d)
+  streak.count=0; streak.timer=0; D.getElementById('streak').classList.remove('show');
   stopMusic();
   clearIndicators();
   clearDmgTexts();
@@ -3507,6 +3762,20 @@ function setMode(m){
   const be=D.getElementById('btnExit'); if(be) be.style.display='none';
   // speed readout shows during play (lobby + arena)
   const sp=D.getElementById('speedo'); if(sp) sp.style.display=(m==='arena'||m==='overworld')?'block':'none';
+  // Mode + difficulty indicator at top of screen (v061926d)
+  const modeEl=D.getElementById('mode');
+  if(modeEl){
+    if(m==='arena'){
+      const diff = (settings.difficulty||'normal').toUpperCase();
+      if(A.endless) modeEl.textContent='ENDLESS · '+diff;
+      else if(A.sandbox) modeEl.textContent='SANDBOX';
+      else modeEl.textContent='WAVE · '+diff;
+    } else if(m==='overworld'){
+      modeEl.textContent='LOBBY';
+    } else {
+      modeEl.textContent=m.toUpperCase();
+    }
+  }
 }
 function updateHotbar(){ /* no hotbar in lobby */ }
 function updateOverworldHud(){ /* no inventory in lobby */ }
@@ -3825,9 +4094,10 @@ function updateOverworld(){
       return;
     }
   }
-  // portal proximity -> enter arena or endless mode
+  // portal proximity -> enter arena, endless, or sandbox
   const d=Math.hypot(player.pos.x-PORTAL_POS.x, player.pos.z-PORTAL_POS.z);
   const de=Math.hypot(player.pos.x-ENDLESS_PORTAL_POS.x, player.pos.z-ENDLESS_PORTAL_POS.z);
+  const ds=Math.hypot(player.pos.x-SANDBOX_PORTAL_POS.x, player.pos.z-SANDBOX_PORTAL_POS.z);
   if(d<1.7){
     // Show difficulty prompt instead of immediately starting (v061926b)
     showDifficultyPrompt('wave');
@@ -3835,12 +4105,18 @@ function updateOverworld(){
   } else if(de<1.7){
     showDifficultyPrompt('endless');
     hint.style.display='none';
+  } else if(ds<1.7){
+    showSandboxMenu();
+    hint.style.display='none';
   } else if(d<4.5){
     hint.style.display='block';
     hint.textContent='Step into the purple portal for Wave mode';
   } else if(de<4.5){
     hint.style.display='block';
     hint.textContent='Step into the orange portal for Endless mode';
+  } else if(ds<4.5){
+    hint.style.display='block';
+    hint.textContent='Step into the green portal for Sandbox mode';
   } else if(canShop){
     hint.style.display='block';
     hint.textContent = isMobile ? 'Tap SHOP to open the class shop' : 'Press E to open the class shop';
@@ -3989,7 +4265,7 @@ function updateArena(){
   }
   // advance wave when cleared -> vacuum up any leftover xp orbs first.
   // Endless mode skips this — there are no waves to advance.
-  if(!A.endless && A.toSpawn===0 && A.enemies.length===0 && !A.boss){
+  if(!A.endless && !A.sandbox && A.toSpawn===0 && A.enemies.length===0 && !A.boss){
     collectAllXp();
     nextWave();
   }
@@ -4974,12 +5250,29 @@ const HATS = {
   }},
   headphones: {name:'Headphones', build:()=>{
     const g=new THREE.Group();
-    const band=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.04,8,12,Math.PI), new THREE.MeshLambertMaterial({color:0x222222}));
-    band.rotation.x=Math.PI/2; band.position.y=0.1; g.add(band);
-    const lc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,8), new THREE.MeshLambertMaterial({color:0x222222}));
-    lc.rotation.z=Math.PI/2; lc.position.set(-0.24,0.04,0); g.add(lc);
-    const rc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,8), new THREE.MeshLambertMaterial({color:0x222222}));
-    rc.rotation.z=Math.PI/2; rc.position.set(0.24,0.04,0); g.add(rc);
+    const mat=new THREE.MeshLambertMaterial({color:0x222222});
+    // Band: half-torus arcing over the top of the head. The torus's
+    // arc (Math.PI) creates a half-ring. We rotate it so the arc
+    // goes from left to right OVER the top, not horizontally.
+    // Default torus lies in the XY plane; we want it in the YZ plane
+    // (arc from -X to +X over the top), so rotate around Y by PI/2.
+    // The half-arc starts at angle 0 (which is +X after the rotation)
+    // and sweeps to PI, going over the top.
+    const band=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.04,8,16,Math.PI), mat);
+    band.rotation.y = Math.PI/2;   // arc in YZ plane (over the top)
+    band.rotation.z = Math.PI;      // flip so the arc goes up not down
+    band.position.y = 0.1;
+    g.add(band);
+    // Ear cups: cylinders on the left and right sides of the head.
+    // Oriented so the flat face points inward (toward the head).
+    const lc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,12), mat);
+    lc.rotation.z = Math.PI/2;   // lay cylinder on its side (axis along X)
+    lc.position.set(-0.24, 0.02, 0);
+    g.add(lc);
+    const rc=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.08,12), mat);
+    rc.rotation.z = Math.PI/2;
+    rc.position.set(0.24, 0.02, 0);
+    g.add(rc);
     return g;
   }},
   halo: {name:'Halo', build:()=>{
