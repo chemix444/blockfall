@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v061926b';   // keep in sync with VERSION below
+  var BUNDLED = 'v061926c';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -253,7 +253,7 @@
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
 <div id="streak"><div class="num">x2</div><div class="lbl">STREAK</div></div>
-<div id="version">v061926b · XP Fix & Difficulty Prompt</div>
+<div id="version">v061926c · YT Race Fix</div>
 <div id="chargeMeter"><div id="chargeFill"></div><div id="chargeLabel">CHARGE 0%</div></div>
 
 <!-- mobile touch controls -->
@@ -450,7 +450,11 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v061926b · XP Fix & Difficulty Prompt (June 19, 2026)</div>
+    <div class="desc">v061926c · YT Race Fix (June 19, 2026)</div>
+    <ul>
+      <li>Fixed the Lofi Girl livestream never playing — the YouTube IFrame API script (loaded async in <head>) was calling <code>window.onYouTubeIframeAPIReady()</code> before the main game script (a deferred ES module) had defined it, so the callback was lost and the player was never created. Now checks if the API already loaded and calls the init function directly if so</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v061926b · XP Fix & Difficulty Prompt (June 19, 2026)</div>
     <ul>
       <li>Fixed XP orbs getting stuck orbiting the player at high pickup range — orb speed is now capped and no longer scales with pickup range. The range upgrade only affects when orbs start being pulled, not how fast they move</li>
       <li>Difficulty selection is now a per-run prompt instead of a setting — when you step into either portal, a difficulty picker appears (Easy / Normal / Hard / Nightmare). Removed the difficulty dropdown from Settings</li>
@@ -731,7 +735,7 @@
 <!-- Title / death overlay -->
 <div id="overlay">
   <h1>BLOCKFALL</h1>
-  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926b · XP Fix & Difficulty Prompt</div>
+  <div id="overlaySub" style="opacity:.55;font-size:13px;letter-spacing:2px;margin-bottom:18px">v061926c · YT Race Fix</div>
   <div class="tag">A lobby with a portal. Step through it to face endless waves, level up, and battle a boss every 10 waves. Everything you earn inside is wiped each time you leave, and every trip generates a fresh map. Shards you collect are kept for good.</div>
   <div class="ctrls">
     <b>WASD</b> move &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Space</b> jump<br>
@@ -758,8 +762,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v061926b';
-const UPDATE_TITLE = 'XP Fix & Difficulty Prompt';
+const VERSION = 'v061926c';
+const UPDATE_TITLE = 'YT Race Fix';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1101,7 +1105,14 @@ let ytFallbackTimer = null;
 
 // The YT IFrame API calls this global when it's loaded and ready to
 // construct players. Must be on window so the API can find it.
-window.onYouTubeIframeAPIReady = function(){
+// RACE CONDITION FIX (v061926c): The YT API script is loaded with
+// `async` in <head>, but the main game script is `type="module"`
+// (deferred). This means the API can finish loading and try to call
+// window.onYouTubeIframeAPIReady() BEFORE this script has run — so
+// the callback is undefined and the player is never created. Fix:
+// after defining the callback, check if the API already loaded
+// (window.YT && window.YT.Player exist) and call the init directly.
+function initYTPlayer(){
   try {
     ytPlayer = new YT.Player('ytPlayer', {
       height: '1', width: '1',
@@ -1125,7 +1136,13 @@ window.onYouTubeIframeAPIReady = function(){
   } catch(e) {
     onYTError({data: -1});
   }
-};
+}
+window.onYouTubeIframeAPIReady = initYTPlayer;
+// If the API already loaded before this script ran (race condition),
+// call init directly. The API sets window.YT when it loads.
+if (window.YT && window.YT.Player) {
+  initYTPlayer();
+}
 function onYTReady(event){
   ytReady = true;
   try { event.target.setVolume(settings.musicVol); } catch(_){}
