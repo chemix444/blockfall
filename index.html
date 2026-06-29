@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062426k';   // keep in sync with VERSION below
+  var BUNDLED = 'v062926a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -451,8 +451,19 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062426k · Boss UI Stacking (June 24, 2026)</div>
+    <div class="desc">v062926a · Content &amp; Polish (June 29, 2026)</div>
     <ul>
+      <li>4 new biomes: <b>Mistwood</b> (dense, low-visibility fog), <b>Canyon</b>, <b>Obsidian</b>, and <b>Aurora</b>. They appear in normal runs and are selectable in the Sandbox setup menu</li>
+      <li>New <b>Executioner</b> upgrade: instantly finishes off any non-boss enemy that drops below a low HP threshold. Each stack raises the threshold (capped at 40%); bosses are immune</li>
+      <li>6 more level-up upgrades: Sharpshooter (range), Juggernaut (max HP), Adrenaline (attack speed + move), Precision (crit damage), Velocity (projectile speed), and Mending (regen)</li>
+      <li>4 new hats in the cosmetics shop: Cowboy Hat, Beanie, Party Hat, and Flower Crown</li>
+      <li>8 new color presets: Emerald, Magma, Void, Cyber, Sakura, Slate, Honey, and Royal</li>
+      <li>Fixed the Shielder's broken-shield window — it's now a true 3-second timer. Previously it only counted down while you were actively shooting the Shielder, so breaking its shield and walking away left it disabled indefinitely</li>
+      <li>Fixed floating damage numbers occasionally attaching to the wrong enemy when 44+ numbers were on screen at once (the recycled number now releases its previous owner first)</li>
+      <li>Performance: removed several wasteful per-frame memory allocations — a projectile trail-history list that was written but never read, plus the aim tracer and ice-physics momentum vectors — to reduce garbage-collection stutter</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062426k · Boss UI Stacking (June 24, 2026)</div>
+    <ul style="opacity:.6">
       <li>Re-enabled the main DOM UI Boss healthbars for multiple bosses! If you spawn multiple major bosses at the same time in Sandbox mode, their health bars will now stack dynamically at the top of the screen instead of being overridden.</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062426j · Headphones Fix (June 24, 2026)</div>
@@ -737,7 +748,7 @@
     <div class="row"><label>Arena size</label><input id="sbSize" type="range" min="15" max="50" value="34" style="flex:1"><span class="val" id="sbSizeVal">34</span></div>
     <div class="row"><label>Prop density</label><input id="sbProps" type="range" min="0" max="100" value="70" style="flex:1"><span class="val" id="sbPropsVal">70%</span></div>
     <div class="row"><label>Destructible props</label><label class="switch"><input id="sbDestruct" type="checkbox" checked><span class="track"></span></label></div>
-    <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option></select></div>
+    <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option><option value="Mistwood">Mistwood</option><option value="Canyon">Canyon</option><option value="Obsidian">Obsidian</option><option value="Aurora">Aurora</option></select></div>
     <div class="actions" style="margin-top:18px">
       <button class="btn-ghost" id="sandboxCancel">Cancel</button>
       <button class="btn-primary" id="sandboxStart">Enter Sandbox</button>
@@ -865,8 +876,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062426k';
-const UPDATE_TITLE = 'Boss UI Stacking';
+const VERSION = 'v062926a';
+const UPDATE_TITLE = 'Content & Polish';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2321,11 +2332,19 @@ function buildArenaMap(seed){
     {ground:0x4a6d8c, prop:0x355270, sky:0xbfe9ff, name:'Tundra',    twist:'ice'},     // slippery floor
     {ground:0x6a4a6e, prop:0x4a2f55, sky:0xe6c4ff, name:'Glimmerwood', twist:'none'},
     {ground:0x8c4a3a, prop:0x6a2f1f, sky:0xffb088, name:'Emberfield', twist:'lava'},   // floor damage zones
+    // new biomes (v062926a)
+    {ground:0x2f6e5a, prop:0x1f4a3c, sky:0xbdeede, name:'Mistwood',  twist:'none', fogMul:1.3},  // dense fog, low visibility
+    {ground:0xa64b2a, prop:0x6e2f18, sky:0xffc59b, name:'Canyon',    twist:'none'},
+    {ground:0x2c2c3a, prop:0x16161f, sky:0x6a6480, name:'Obsidian',  twist:'none'},
+    {ground:0x7a5fa8, prop:0x4a3570, sky:0xd9c2ff, name:'Aurora',    twist:'none'},
   ];
   const b = biomes[Math.floor(rng()*biomes.length)];
   A.biomeName=b.name;
   A.biomeTwist=b.twist;
-  scene.fog = new THREE.Fog(0x000000, ARENA_R*0.8, ARENA_R*2.1);
+  // Mistwood and other dense-fog biomes set fogMul to pull the fog far plane
+  // in close, cutting visibility for a more claustrophobic feel. Normal
+  // biomes use the standard 0.8→2.1×ARENA_R range. (v062926a)
+  scene.fog = new THREE.Fog(0x000000, ARENA_R*(b.fogMul?0.35:0.8), ARENA_R*(b.fogMul||2.1));
   applySky();   // sky/fog color comes from the player's setting (overrides biome)
   // ground disc (top surface at y=0)
   const gMat=new THREE.MeshLambertMaterial({color:b.ground});
@@ -2516,10 +2535,14 @@ function startSandbox(){
     {ground:0x4a6d8c, prop:0x355270, sky:0xbfe9ff, name:'Tundra',    twist:'ice'},
     {ground:0x6a4a6e, prop:0x4a2f55, sky:0xe6c4ff, name:'Glimmerwood', twist:'none'},
     {ground:0x8c4a3a, prop:0x6a2f1f, sky:0xffb088, name:'Emberfield', twist:'lava'},
+    {ground:0x2f6e5a, prop:0x1f4a3c, sky:0xbdeede, name:'Mistwood',  twist:'none', fogMul:1.3},
+    {ground:0xa64b2a, prop:0x6e2f18, sky:0xffc59b, name:'Canyon',    twist:'none'},
+    {ground:0x2c2c3a, prop:0x16161f, sky:0x6a6480, name:'Obsidian',  twist:'none'},
+    {ground:0x7a5fa8, prop:0x4a3570, sky:0xd9c2ff, name:'Aurora',    twist:'none'},
   ];
   const b = sbBiome==='random' ? biomes[Math.floor(Math.random()*biomes.length)] : biomes.find(x=>x.name===sbBiome) || biomes[0];
   A.biomeName=b.name; A.biomeTwist=b.twist;
-  scene.fog = new THREE.Fog(0x000000, ARENA_R*0.8, ARENA_R*2.1);
+  scene.fog = new THREE.Fog(0x000000, ARENA_R*(b.fogMul?0.35:0.8), ARENA_R*(b.fogMul||2.1));
   applySky();
   const gMat=new THREE.MeshLambertMaterial({color:b.ground});
   const gGeo=new THREE.CylinderGeometry(ARENA_R, ARENA_R, 1, 48);
@@ -3392,7 +3415,7 @@ function fireProjectile(dir, size, color, dmg, lifeMul){
   const crit=Math.random()<A.stats.crit;
   A.projectiles.push({mesh:m, dir:dir.clone(), life:1.6*(lifeMul||1), dmg:(dmg||A.stats.dmg)*(crit?A.stats.critMul:1), crit,
                       pierceLeft:A.stats.pierce, hitSet:new Set(),
-                      trail:[], trailColor, trailSize:s});
+                      trailColor, trailSize:s});
 }
 
 // tracer line from player to current target
@@ -3412,10 +3435,11 @@ function updateTargetVisuals(){
   ensureTracer();
   if(t && A.enemies.includes(t)){
     setOutline(t,true);
-    const a=new THREE.Vector3(player.pos.x, player.pos.y+1.1, player.pos.z);
-    const b=new THREE.Vector3(t.mesh.position.x, t.mesh.position.y+(t.top||1)*0.5, t.mesh.position.z);
+    // Write straight into the tracer's position buffer — no per-frame
+    // Vector3 allocations (this runs every frame). (v062926a)
     const arr=tracer.geometry.attributes.position.array;
-    arr[0]=a.x; arr[1]=a.y; arr[2]=a.z; arr[3]=b.x; arr[4]=b.y; arr[5]=b.z;
+    arr[0]=player.pos.x; arr[1]=player.pos.y+1.1; arr[2]=player.pos.z;
+    arr[3]=t.mesh.position.x; arr[4]=t.mesh.position.y+(t.top||1)*0.5; arr[5]=t.mesh.position.z;
     tracer.geometry.attributes.position.needsUpdate=true;
     tracer.visible=true;
     // gentle pulse
@@ -3440,19 +3464,14 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
   // comps without trivializing them (you still have to land the hit
   // and the break is temporary).
   if(e.kind==='shielder' && fromPos){
-    // Tick down the shield-broken timer if it's active.
+    // While the shield is broken, damage passes through unmodified. The
+    // break timer ticks down in the per-frame enemy loop (not here), so the
+    // 3-second window is real wall-clock time even if you stop shooting —
+    // previously it only counted down on hits, leaving the shield down
+    // indefinitely if you broke it and walked away. (v062926a)
     if(e.shieldBrokenT > 0){
-      e.shieldBrokenT -= dt;
-      if(e.shieldMesh) e.shieldMesh.visible = false;
-      if(e.shieldBrokenT <= 0){
-        // shield comes back online
-        e.shieldBrokenT = 0;
-        if(e.shieldMesh){
-          e.shieldMesh.visible = true;
-          e.shieldMesh.material.emissive.setHex(0x000000);
-        }
-      }
-    } else if(e.shieldBrokenT === undefined || e.shieldBrokenT === 0){
+      // shield down — full damage, no frontal block
+    } else {
       // shield is up — check whether this hit is frontal
       const toShot = (e.mesh.rotation.y || 0);
       const fx = Math.sin(toShot), fz = Math.cos(toShot);
@@ -3518,6 +3537,13 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
     }
   }
   if(A.stats.lifesteal>0){ A.hp=Math.min(A.maxhp, A.hp+dmg*A.stats.lifesteal); }
+  // Executioner upgrade (v062926a): instantly finish off badly-wounded
+  // non-boss enemies once their HP drops below the threshold. Skips bosses
+  // so it can't trivialize boss fights.
+  if(A.stats.execute && e.hp>0 && e.kind!=='boss' && e.hp <= e.maxhp*A.stats.execute){
+    spawnDamageText(e.mesh.position.x, (e.top||1)+0.5, e.mesh.position.z, 'EXECUTE', true, false, e);
+    e.hp=0;
+  }
   if(e.hp<=0) killEnemy(e);
 }
 function killEnemy(e){
@@ -3772,6 +3798,16 @@ const UPGRADE_POOL = [
   {id:'frost',  ic:'❄️', nm:'Frost Rounds', ds:'+15% chance to slow enemies on hit', apply:s=>s.frostChance=(s.frostChance||0)+0.15},
   {id:'poison', ic:'☠️', nm:'Poison Rounds', ds:'+15% chance to poison (DoT) on hit', apply:s=>s.poisonChance=(s.poisonChance||0)+0.15},
   {id:'shock',  ic:'⚡', nm:'Shock Rounds', ds:'+15% chance to chain to nearby enemy', apply:s=>s.shockChance=(s.shockChance||0)+0.15},
+  // new upgrades (v062926a)
+  {id:'sharpshooter',ic:'🎯', nm:'Sharpshooter', ds:'+22% attack range', pct:22, apply:s=>s.range*=1.22},
+  {id:'juggernaut',ic:'🦾', nm:'Juggernaut', ds:'+55 max HP & heal', apply:s=>{A.maxhp+=55; A.hp+=55;}},
+  {id:'adrenaline',ic:'💉', nm:'Adrenaline', ds:'+12% attack speed & +8% move', apply:s=>{s.atkSpeed*=1.12; s.moveBonus+=0.08; player.speed*=1.08;}},
+  {id:'precision',ic:'🔬', nm:'Precision', ds:'+30% crit damage', pct:30, apply:s=>s.critMul+=0.3},
+  {id:'velocity',ic:'🏹', nm:'Velocity', ds:'+20% projectile speed', pct:20, apply:s=>s.projSpeed*=1.2},
+  {id:'mending', ic:'💚', nm:'Mending', ds:'+2 HP/sec', apply:s=>s.regen+=2},
+  // Executioner: instantly finishes off badly-wounded non-boss enemies.
+  // Each stack raises the HP threshold (capped at 40%). Bosses are immune.
+  {id:'execute', ic:'☠', nm:'Executioner', ds:'Instantly kill non-boss enemies under 12% HP', apply:s=>s.execute=Math.min(0.4,(s.execute||0)+0.12)},
 ];
 // weapon-unlock "cards" mixed into the level-up pool
 const WEAPON_UNLOCKS=[
@@ -4319,6 +4355,9 @@ function updateOverworld(){
   } else hint.style.display='none';
 }
 
+// Reusable scratch vectors for the ice-twist momentum calc so the slippery
+// floor doesn't allocate three Vector3s every frame while you're on it. (v062926a)
+const _iceFwd=new THREE.Vector3(), _iceRight=new THREE.Vector3(), _iceMv=new THREE.Vector3();
 function updateArena(){
   if(A.paused || GAME.paused){ return; }
   const exitHint=D.getElementById('hint');
@@ -4351,10 +4390,10 @@ function updateArena(){
       // Store current movement vector for ice sliding. We pull this from player.vel 
       // or we can calculate the vector they moved this frame. Let's use the explicit look direction 
       // scaled by their current speed.
-      const driftFwd = new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
+      const driftFwd = _iceFwd.set(Math.sin(player.yaw),0,Math.cos(player.yaw));
       // Factor in sideways movement if they are strafing
-      const right = new THREE.Vector3(-Math.cos(player.yaw),0,Math.sin(player.yaw));
-      const mv = new THREE.Vector3();
+      const right = _iceRight.set(-Math.cos(player.yaw),0,Math.sin(player.yaw));
+      const mv = _iceMv.set(0,0,0);
       if(keys[settings.keybinds.forward]) mv.add(driftFwd); if(keys[settings.keybinds.back]) mv.sub(driftFwd);
       if(keys[settings.keybinds.right]) mv.add(right); if(keys[settings.keybinds.left]) mv.sub(right);
       if(touch.active && (touch.mx||touch.my)){
@@ -4671,6 +4710,17 @@ function updateArena(){
         if(e.hp <= 0) killEnemy(e);
       }
     }
+    // SHIELDER: tick the shield-broken timer in real time so the break
+    // window is a true wall-clock 3 seconds even if the player stops
+    // shooting. When it expires the shield comes back online. (v062926a)
+    if(e.kind==='shielder' && e.shieldBrokenT > 0){
+      e.shieldBrokenT -= dt;
+      if(e.shieldMesh) e.shieldMesh.visible = false;
+      if(e.shieldBrokenT <= 0){
+        e.shieldBrokenT = 0;
+        if(e.shieldMesh){ e.shieldMesh.visible = true; e.shieldMesh.material.emissive.setHex(0x000000); }
+      }
+    }
     // PHANTOM: keep the body translucent even during the hit flash so its
     // ghostliness reads consistently.
     if(e.kind==='phantom' && e.bodyMat.opacity!==0.55){ e.bodyMat.opacity=0.55; }
@@ -4863,9 +4913,10 @@ function updateArena(){
       // particle count. Particles are tiny, short-lived, and tinted
       // to match the projectile color.
       if(p.trailColor){
-        p.trail.push({x:p.mesh.position.x, y:p.mesh.position.y, z:p.mesh.position.z});
-        if(p.trail.length > 8) p.trail.shift();
-        // emit a trail particle every other frame
+        // Emit a fading trail particle every other frame, tinted to match
+        // the projectile. The old per-frame p.trail position history was
+        // written but never read by anything, so it's gone — that's one
+        // fewer object allocated per projectile per frame. (v062926a)
         if((A._trailFrame = (A._trailFrame||0)+1) % 2 === 0){
           spawnParticle(p.mesh.position.x - p.dir.x*0.15, p.mesh.position.y - p.dir.y*0.15, p.mesh.position.z - p.dir.z*0.15,
                         0, 0, 0,
@@ -4989,7 +5040,15 @@ function spawnDamageText(x,y,z,val,special,crit,enemy){
   }
   // otherwise spawn a new one
   let el;
-  if(dmgTexts.length>=DMG_CAP){ el=dmgTexts.shift().el; }   // recycle the oldest node
+  if(dmgTexts.length>=DMG_CAP){
+    // recycle the oldest node. Clear its back-reference first, otherwise the
+    // enemy that owned it keeps pointing at a DOM node now reused for a
+    // different enemy — subsequent hits would corrupt the wrong number and
+    // the stale entry would never fade out. (v062926a)
+    const old=dmgTexts.shift();
+    if(old.enemy && old.enemy._dmgText===old) old.enemy._dmgText=null;
+    el=old.el;
+  }
   else { el=D.createElement('div'); }
   el.className='dmg '+(special?'special':(crit?'crit':'norm'));
   el.style.color = special ? settings.specialColor : (crit ? settings.critColor : settings.dmgColor);
@@ -5433,6 +5492,15 @@ const COSMETIC_PRESETS = [
   {name:'Neon',     colors:{head:'#e9d2b0',torso:'#00ff88',arms:'#ff00ff',legs:'#00aaff'}},
   {name:'Pastel',   colors:{head:'#e9d2b0',torso:'#ffb3d9',arms:'#b3d9ff',legs:'#d9ffb3'}},
   {name:'Mono',     colors:{head:'#e9d2b0',torso:'#888888',arms:'#888888',legs:'#444444'}},
+  // new presets (v062926a)
+  {name:'Emerald',  colors:{head:'#e9d2b0',torso:'#0fae6e',arms:'#0fae6e',legs:'#08603c'}},
+  {name:'Magma',    colors:{head:'#e9d2b0',torso:'#ff3b1f',arms:'#ff7a1f',legs:'#7a1a0a'}},
+  {name:'Void',     colors:{head:'#cfcfe0',torso:'#2a2150',arms:'#3a2a70',legs:'#120c2a'}},
+  {name:'Cyber',    colors:{head:'#e9d2b0',torso:'#00e5ff',arms:'#ff00e5',legs:'#1a1a3a'}},
+  {name:'Sakura',   colors:{head:'#e9d2b0',torso:'#ff9ec4',arms:'#ffd1e6',legs:'#b5527e'}},
+  {name:'Slate',    colors:{head:'#e9d2b0',torso:'#5a6b7a',arms:'#5a6b7a',legs:'#2e3845'}},
+  {name:'Honey',    colors:{head:'#e9d2b0',torso:'#ffcf4a',arms:'#ffcf4a',legs:'#a8761a'}},
+  {name:'Royal',    colors:{head:'#e9d2b0',torso:'#3a3acc',arms:'#3a3acc',legs:'#ffcf4a'}},
 ];
 // Hat definitions (v061926a). Each hat is a function that builds and
 // returns a THREE.Group positioned to sit on top of the player avatar's
@@ -5520,6 +5588,60 @@ const HATS = {
     // knot at the back
     const knot=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.1), new THREE.MeshLambertMaterial({color:0xcc2222}));
     knot.position.set(0,0.02,-0.24); g.add(knot);
+    return g;
+  }},
+  // new hats (v062926a)
+  cowboy: {name:'Cowboy Hat', build:()=>{
+    const g=new THREE.Group();
+    const mat=new THREE.MeshLambertMaterial({color:0x8a5a2b});
+    // wide upturned brim
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.03,16), mat);
+    brim.position.y=0.02; g.add(brim);
+    // domed crown
+    const crown=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.24,0.26,16), mat);
+    crown.position.y=0.16; g.add(crown);
+    // band
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.245,0.245,0.06,16), new THREE.MeshLambertMaterial({color:0x3a2410}));
+    band.position.y=0.06; g.add(band);
+    return g;
+  }},
+  beanie: {name:'Beanie', build:()=>{
+    const g=new THREE.Group();
+    const mat=new THREE.MeshLambertMaterial({color:0x2a7a8a});
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.26,14,10,0,Math.PI*2,0,Math.PI*0.55), mat);
+    cap.position.y=0.0; g.add(cap);
+    // folded cuff
+    const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.27,0.07,16), new THREE.MeshLambertMaterial({color:0x1d5663}));
+    cuff.position.y=0.02; g.add(cuff);
+    // pom-pom
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.07,8,8), new THREE.MeshLambertMaterial({color:0xf0f0f0}));
+    pom.position.y=0.2; g.add(pom);
+    return g;
+  }},
+  party: {name:'Party Hat', build:()=>{
+    const g=new THREE.Group();
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.5,14), new THREE.MeshLambertMaterial({color:0xff3fa0}));
+    cone.position.y=0.26; g.add(cone);
+    // stripes via a second slightly larger translucent cone
+    const stripe=new THREE.Mesh(new THREE.ConeGeometry(0.205,0.5,14,1,true), new THREE.MeshBasicMaterial({color:0x00d0ff, transparent:true, opacity:0.35, side:THREE.DoubleSide}));
+    stripe.position.y=0.26; g.add(stripe);
+    // pom on the tip
+    const pom=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8), new THREE.MeshLambertMaterial({color:0xffe14a}));
+    pom.position.y=0.53; g.add(pom);
+    return g;
+  }},
+  flower: {name:'Flower Crown', build:()=>{
+    const g=new THREE.Group();
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.25,0.03,8,18), new THREE.MeshLambertMaterial({color:0x3a8a3a}));
+    ring.rotation.x=Math.PI/2; ring.position.y=0.04; g.add(ring);
+    const petalCols=[0xff6fae,0xffe14a,0xff8a3a,0xbf6fff,0x6fd0ff];
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2;
+      const fmat=new THREE.MeshLambertMaterial({color:petalCols[i%petalCols.length]});
+      const flower=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8), fmat);
+      flower.position.set(Math.cos(a)*0.25, 0.07, Math.sin(a)*0.25);
+      g.add(flower);
+    }
     return g;
   }},
 };
