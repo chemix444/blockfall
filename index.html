@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062926a';   // keep in sync with VERSION below
+  var BUNDLED = 'v062926b';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -451,8 +451,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062926a · Content &amp; Polish (June 29, 2026)</div>
+    <div class="desc">v062926b · Homing Crash Fix (June 29, 2026)</div>
     <ul>
+      <li>Fixed a crash when firing <b>Seeker Missiles</b> at an enemy that was within the weapon's extended (2×) range but outside your normal attack range — most easily hit in Sandbox mode. A distance variable was declared as a constant but then reassigned inside the target-search loop, which threw an error and froze the game frame. Now homing fires reliably at long-range targets again</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062926a · Content &amp; Polish (June 29, 2026)</div>
+    <ul style="opacity:.6">
       <li>4 new biomes: <b>Mistwood</b> (dense, low-visibility fog), <b>Canyon</b>, <b>Obsidian</b>, and <b>Aurora</b>. They appear in normal runs and are selectable in the Sandbox setup menu</li>
       <li>New <b>Executioner</b> upgrade: instantly finishes off any non-boss enemy that drops below a low HP threshold. Each stack raises the threshold (capped at 40%); bosses are immune</li>
       <li>6 more level-up upgrades: Sharpshooter (range), Juggernaut (max HP), Adrenaline (attack speed + move), Precision (crit damage), Velocity (projectile speed), and Mending (regen)</li>
@@ -876,8 +880,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062926a';
-const UPDATE_TITLE = 'Content & Polish';
+const VERSION = 'v062926b';
+const UPDATE_TITLE = 'Homing Crash Fix';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -3213,7 +3217,11 @@ function fireHoming(target){
   // If target is null (called from autoFire with no range-limited target),
   // do our own 2x-range target search.
   if(!target){
-    const r2 = (A.stats.range*2)*(A.stats.range*2);
+    // `r2` starts as the 2x-range cap and shrinks to the closest distance
+    // found — so it must be `let`, not `const` (reassigning a const here
+    // threw "Assignment to constant variable" and crashed the frame the
+    // moment any enemy was within 2x range but out of normal range). (v062926b)
+    let r2 = (A.stats.range*2)*(A.stats.range*2);
     const all = A.enemies;
     for(const e of all){
       const d=(e.mesh.position.x-player.pos.x)**2+(e.mesh.position.z-player.pos.z)**2;
