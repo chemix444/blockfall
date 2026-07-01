@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v070126a';   // keep in sync with VERSION below
+  var BUNDLED = 'v070126b';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -451,8 +451,13 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v070126a · Sandbox Spawn Modes (July 1, 2026)</div>
+    <div class="desc">v070126b · Sandbox Respawns (July 1, 2026)</div>
     <ul>
+      <li>Sandbox mode now has <b>infinite respawns</b> — dying no longer ends the run. Instead you revive at full HP in the center of the arena with a brief invulnerability window and keep going, so you can keep experimenting without getting kicked back to the lobby (use the pause menu's End Run button to leave when you're done)</li>
+      <li>Fixed the level-up upgrade menu staying stuck on screen if you died while it was open — you previously had to press Escape and click a button to clear it. The menu now closes automatically on death, and it no longer pops up during the death animation in the first place</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v070126a · Sandbox Spawn Modes (July 1, 2026)</div>
+    <ul style="opacity:.6">
       <li>Sandbox setup now has a <b>Spawning</b> option: choose <b>Manual</b> (the default — no auto-spawns, place everything yourself with the Q menu), <b>Wave mode</b> (full wave progression with mini-bosses and bosses, just like a real Wave run), or <b>Endless mode</b> (continuous spawns with a boss every 3 minutes). The Q spawn menu still works on top of any of them, so you can mix hand-placed enemies into a live wave or endless run</li>
       <li>The mode indicator and the arena readout now show which sandbox spawner is active — "SANDBOX · WAVE" / "SANDBOX · ENDLESS" — with the current wave number or next-boss timer</li>
     </ul>
@@ -888,8 +893,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v070126a';
-const UPDATE_TITLE = 'Sandbox Spawn Modes';
+const VERSION = 'v070126b';
+const UPDATE_TITLE = 'Sandbox Respawns';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2417,7 +2422,7 @@ function clearDmgTexts(){
   dmgTexts.length=0;
 }
 function startArena(){
-  A.active=true; A.dead=false;
+  A.active=true; A.dead=false; A._dying=false;
   A.endless=false;   // reset — startEndless() sets this true after calling us
   A.sandbox=false;   // reset — startSandbox() sets this true after calling us
   A.sbSpawn='manual';   // sandbox auto-spawn behavior — startSandbox() overrides (v070126a)
@@ -3712,7 +3717,7 @@ function hurtPlayer(d, fromPos){
   const f=D.getElementById('dmgflash');
   f.style.boxShadow='inset 0 0 120px rgba(226,59,59,.55)';
   setTimeout(()=>f.style.boxShadow='inset 0 0 120px rgba(226,59,59,0)',90);
-  if(A.hp<=0 && !A.dead){ A.hp=0; _deathSlowmo=0.6; setTimeout(arenaDeath, 600); }
+  if(A.hp<=0) triggerDeath();
 }
 // continuous melee contact damage — enemies hurt you every frame they touch you,
 // with no hit-and-wait cooldown. e.dmg is treated as damage-per-second.
@@ -3741,12 +3746,47 @@ function contactDamage(e){
     const strength=9 + Math.min(12, e.dmg*0.3);
     player.knock={ x:kx*strength, z:kz*strength };
   }
-  if(A.hp<=0 && !A.dead){ A.hp=0; _deathSlowmo=0.6; setTimeout(arenaDeath, 600); }
+  if(A.hp<=0) triggerDeath();
+}
+// Schedule the death sequence: a 600ms slow-mo, then arenaDeath(). Guarded
+// with A._dying so repeated lethal hits during the slow-mo window don't stack
+// up multiple arenaDeath calls — important now that sandbox respawns instead
+// of ending the run. (v070126b)
+function triggerDeath(){
+  if(A.dead || A._dying) return;
+  A._dying = true;
+  A.hp = 0;
+  _deathSlowmo = 0.6;
+  setTimeout(arenaDeath, 600);
+}
+// Sandbox mode has infinite respawns. Instead of ending the run we revive the
+// player at full HP in the center of the arena with a short invulnerability
+// window, close any level-up menu that opened during the slow-mo, and keep the
+// run going. (v070126b)
+function sandboxRespawn(){
+  A.dead=false; A._dying=false;
+  A.hp = A.maxhp;
+  A.invuln = 1.5;
+  player.pos.set(0,0,0); player.vel.set(0,0,0); player.knock=null;
+  player.bhop=1;
+  _deathSlowmo = 0;
+  D.getElementById('upgrade').style.display='none';
+  A.paused=false;
+  toast('Respawned — sandbox has infinite lives');
 }
 function arenaDeath(){
+  A._dying=false;
+  if(A.dead) return;   // already processed
+  // Sandbox mode never ends on death — revive and keep going instead. (v070126b)
+  if(A.sandbox){ sandboxRespawn(); return; }
   A.active=false; A.dead=true;
   A.endless=false;   // reset endless flag on death
   A.sandbox=false;   // reset sandbox flag on death
+  // If the level-up menu popped during the death slow-mo, close it and clear
+  // the pause flag so the death screen isn't stuck behind an open upgrade
+  // overlay (previously you had to press Esc + click a button to escape). (v070126b)
+  D.getElementById('upgrade').style.display='none';
+  A.paused=false;
   GAME.state='dead';
   recordWave(A.wave);
   // Persistent stats: count the death, the completed run, per-class best
@@ -3867,6 +3907,10 @@ function applyUpgradeChoice(u){
   if(!isMobile) requestPointerLockSafe(cvs);
 }
 function offerUpgrades(){
+  // Don't pop the level-up menu once the death sequence has started (or after
+  // death) — otherwise it opens on top of / behind the death screen and traps
+  // the player. The level still counts; only the card picker is skipped. (v070126b)
+  if(A.dead || A._dying) return;
   A.paused=true;
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
@@ -4411,7 +4455,7 @@ function updateArena(){
         const f=D.getElementById('dmgflash');
         f.style.boxShadow='inset 0 0 80px rgba(255,80,0,.4)';
         setTimeout(()=>f.style.boxShadow='inset 0 0 80px rgba(255,80,0,0)',60);
-        if(A.hp<=0 && !A.dead){ A.hp=0; _deathSlowmo=0.6; setTimeout(arenaDeath, 600); }
+        if(A.hp<=0) triggerDeath();
         break;
       }
     }
