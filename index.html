@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v062926b';   // keep in sync with VERSION below
+  var BUNDLED = 'v070126a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -451,8 +451,13 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v062926b · Homing Crash Fix (June 29, 2026)</div>
+    <div class="desc">v070126a · Sandbox Spawn Modes (July 1, 2026)</div>
     <ul>
+      <li>Sandbox setup now has a <b>Spawning</b> option: choose <b>Manual</b> (the default — no auto-spawns, place everything yourself with the Q menu), <b>Wave mode</b> (full wave progression with mini-bosses and bosses, just like a real Wave run), or <b>Endless mode</b> (continuous spawns with a boss every 3 minutes). The Q spawn menu still works on top of any of them, so you can mix hand-placed enemies into a live wave or endless run</li>
+      <li>The mode indicator and the arena readout now show which sandbox spawner is active — "SANDBOX · WAVE" / "SANDBOX · ENDLESS" — with the current wave number or next-boss timer</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v062926b · Homing Crash Fix (June 29, 2026)</div>
+    <ul style="opacity:.6">
       <li>Fixed a crash when firing <b>Seeker Missiles</b> at an enemy that was within the weapon's extended (2×) range but outside your normal attack range — most easily hit in Sandbox mode. A distance variable was declared as a constant but then reassigned inside the target-search loop, which threw an error and froze the game frame. Now homing fires reliably at long-range targets again</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v062926a · Content &amp; Polish (June 29, 2026)</div>
@@ -753,6 +758,9 @@
     <div class="row"><label>Prop density</label><input id="sbProps" type="range" min="0" max="100" value="70" style="flex:1"><span class="val" id="sbPropsVal">70%</span></div>
     <div class="row"><label>Destructible props</label><label class="switch"><input id="sbDestruct" type="checkbox" checked><span class="track"></span></label></div>
     <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option><option value="Mistwood">Mistwood</option><option value="Canyon">Canyon</option><option value="Obsidian">Obsidian</option><option value="Aurora">Aurora</option></select></div>
+    <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">SPAWNING</h3>
+    <div class="row"><label>Enemy spawns</label><select id="sbSpawnMode" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="manual">Manual (Q menu)</option><option value="wave">Wave mode</option><option value="endless">Endless mode</option></select></div>
+    <div class="desc" style="margin:2px 0 0;font-size:11px;opacity:.6">Wave and Endless auto-spawn enemies exactly like the real modes. The Q spawn menu still works on top of either.</div>
     <div class="actions" style="margin-top:18px">
       <button class="btn-ghost" id="sandboxCancel">Cancel</button>
       <button class="btn-primary" id="sandboxStart">Enter Sandbox</button>
@@ -880,8 +888,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v062926b';
-const UPDATE_TITLE = 'Homing Crash Fix';
+const VERSION = 'v070126a';
+const UPDATE_TITLE = 'Sandbox Spawn Modes';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2412,6 +2420,7 @@ function startArena(){
   A.active=true; A.dead=false;
   A.endless=false;   // reset — startEndless() sets this true after calling us
   A.sandbox=false;   // reset — startSandbox() sets this true after calling us
+  A.sbSpawn='manual';   // sandbox auto-spawn behavior — startSandbox() overrides (v070126a)
   hideBossBar();
   A.wave=0; A.waveTime=0; A.spawnAcc=0; A.toSpawn=0;
   A.enemies.length=0; A.projectiles.length=0; A.orbs.length=0; A.boss=null;
@@ -2522,11 +2531,23 @@ function startSandbox(){
   const sbProps = +D.getElementById('sbProps').value;
   const sbDestruct = D.getElementById('sbDestruct').checked;
   const sbBiome = D.getElementById('sbBiome').value;
+  const sbSpawnMode = D.getElementById('sbSpawnMode').value;   // manual | wave | endless (v070126a)
   // Start arena with sandbox flag
   startArena();
   A.sandbox = true;
   A.endless = false;
-  A.toSpawn = 0;   // no auto-spawning in sandbox
+  A.sbSpawn = sbSpawnMode;
+  // Configure the optional auto-spawner. 'manual' (default) leaves spawning
+  // entirely to the Q menu. 'wave' keeps the wave system startArena() already
+  // queued (wave 1). 'endless' arms the continuous endless spawner. Either
+  // way the Q spawn menu still works, so you can mix hand-placed enemies in.
+  if(sbSpawnMode==='endless'){
+    A.endlessBossTimer=180; A.endlessSpawnAcc=0; A.endlessTime=0;
+    A.toSpawn=0; A.wave=0;
+  } else if(sbSpawnMode!=='wave'){
+    A.toSpawn = 0; A.wave=0;   // manual: no auto-spawning
+  }
+  // 'wave': leave A.wave / A.toSpawn as startArena()'s nextWave() set them
   // Override map with custom settings
   ARENA_R = sbSize;
   // Rebuild the map with the chosen biome + props
@@ -3947,7 +3968,7 @@ function setMode(m){
     if(m==='arena'){
       const diff = (settings.difficulty||'normal').toUpperCase();
       if(A.endless) modeEl.textContent='ENDLESS · '+diff;
-      else if(A.sandbox) modeEl.textContent='SANDBOX';
+      else if(A.sandbox) modeEl.textContent='SANDBOX'+(A.sbSpawn==='wave'?' · WAVE':A.sbSpawn==='endless'?' · ENDLESS':'');
       else modeEl.textContent='WAVE · '+diff;
     } else if(m==='overworld'){
       modeEl.textContent='LOBBY';
@@ -3990,8 +4011,13 @@ function updateArenaHud(){
         '<br><span style="opacity:.85;font-size:12px">'+bossStr+' &nbsp;·&nbsp; Kills: '+(A.runKills||0)+'</span>'+
         '<br><span style="opacity:.6;font-size:11px">exit portal glows at center</span>';
     } else if(A.sandbox){
-      waveHtml = '<div class="big" style="color:#14b45a">SANDBOX</div>'+enemies+' enemies'+
-        '<br><span style="opacity:.85;font-size:12px">Press Q for menu &nbsp;·&nbsp; Kills: '+(A.runKills||0)+'</span>'+
+      // Reflect the optional auto-spawn mode in the sandbox readout. (v070126a)
+      const sbTag = A.sbSpawn==='wave' ? ' · WAVE '+A.wave : A.sbSpawn==='endless' ? ' · ENDLESS' : '';
+      const sbLine2 = A.sbSpawn==='endless'
+        ? bossStr+' &nbsp;·&nbsp; Kills: '+(A.runKills||0)
+        : 'Press Q for menu &nbsp;·&nbsp; Kills: '+(A.runKills||0);
+      waveHtml = '<div class="big" style="color:#14b45a">SANDBOX'+sbTag+'</div>'+enemies+' enemies'+
+        '<br><span style="opacity:.85;font-size:12px">'+sbLine2+'</span>'+
         '<br><span style="opacity:.6;font-size:11px">Everything is free</span>';
     } else {
       waveHtml = '<div class="big">WAVE '+A.wave+'</div>'+enemies+' enemies left'+
@@ -4446,7 +4472,14 @@ function updateArena(){
 
   // wave timer / spawning
   A.waveTime+=dt;
-  if(A.endless){
+  // Sandbox can optionally drive wave or endless spawning via A.sbSpawn
+  // ('manual' by default → no auto-spawns, use the Q menu). These helpers
+  // fold that choice into the normal wave/endless flow below. (v070126a)
+  const sbEndless = A.sandbox && A.sbSpawn==='endless';
+  const sbWaveMode = A.sandbox && A.sbSpawn==='wave';
+  const doEndless = A.endless || sbEndless;
+  const doWaveAdvance = A.endless ? false : (A.sandbox ? sbWaveMode : true);
+  if(doEndless){
     // ---- ENDLESS MODE spawning (v061726l) ----
     // No waves. Maintain a target enemy count on screen — spawn
     // continuously to keep up. All enemy types are available from
@@ -4516,8 +4549,9 @@ function updateArena(){
     }
   }
   // advance wave when cleared -> vacuum up any leftover xp orbs first.
-  // Endless mode skips this — there are no waves to advance.
-  if(!A.endless && !A.sandbox && A.toSpawn===0 && A.enemies.length===0){
+  // Endless mode (and manual/endless sandbox) skip this — there are no
+  // waves to advance. Sandbox in 'wave' mode advances just like real waves.
+  if(doWaveAdvance && A.toSpawn===0 && A.enemies.length===0){
     collectAllXp();
     nextWave();
   }
