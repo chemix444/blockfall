@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v070126b';   // keep in sync with VERSION below
+  var BUNDLED = 'v070126c';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -125,6 +125,11 @@
   #overlay button:hover { filter:brightness(1.1); }
   #toast { position:fixed; top:78px; left:50%; transform:translateX(-50%); z-index:8; font-size:14px; background:rgba(0,0,0,.6); padding:7px 16px; border-radius:7px; opacity:0; transition:opacity .3s; pointer-events:none; }
   #dmgflash { position:fixed; inset:0; z-index:7; pointer-events:none; box-shadow:inset 0 0 120px rgba(226,59,59,0); transition:box-shadow .1s; }
+  /* Low-HP warning vignette: pulsing red edge glow when the player drops
+     below 25% HP. Pure CSS; JS toggles .show. (v070126c) */
+  #lowhp { position:fixed; inset:0; z-index:6; pointer-events:none; opacity:0; box-shadow:inset 0 0 140px 24px rgba(220,30,40,.55); transition:opacity .25s; }
+  #lowhp.show { animation:lowhpPulse 1.1s ease-in-out infinite; }
+  @keyframes lowhpPulse { 0%,100%{opacity:.3} 50%{opacity:.85} }
   /* Hint banner sits ABOVE the HP bar so it's not obscured by it.
      HP bar is at bottom:64px and is 18px tall, so the hint clears it
      with a small gap at bottom:110px. Pre-v061726i the hint sat at
@@ -251,6 +256,7 @@
 <canvas id="c"></canvas>
 <div id="crosshair"></div>
 <div id="dmgflash"></div>
+<div id="lowhp"></div>
 <div id="critflash" style="position:fixed;inset:0;z-index:7;pointer-events:none;box-shadow:inset 0 0 80px rgba(255,200,80,0);transition:box-shadow .08s"></div>
 <div id="indicators"></div>
 <div id="dmgLayer"></div>
@@ -339,19 +345,6 @@
     <div class="row">
       <label for="shakeToggle">Screen shake</label>
       <label class="switch"><input id="shakeToggle" type="checkbox"><span class="track"></span></label>
-    </div>
-    <div class="row">
-      <label for="weaponSel">Starting weapon</label>
-      <select id="weaponSel" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px">
-        <option value="ball">Ball (default)</option>
-        <option value="shotgun">Scatter Gun</option>
-        <option value="blades">Orbit Blades</option>
-        <option value="bolt">Chain Bolt</option>
-        <option value="boomerang">Boomerang</option>
-        <option value="nova">Frost Nova</option>
-        <option value="homing">Seeker Missiles</option>
-        <option value="pulse">Pulse</option>
-      </select>
     </div>
     <div class="row">
       <label for="musicVol">Music volume</label>
@@ -451,8 +444,15 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v070126b · Sandbox Respawns (July 1, 2026)</div>
+    <div class="desc">v070126c · Retry &amp; Polish (July 1, 2026)</div>
     <ul>
+      <li>New <b>Retry</b> button on the death screen — jump straight back into the same mode and difficulty without a trip through the lobby. You can also just press <b>R</b>. (Sandbox has infinite respawns, so it never hits this screen)</li>
+      <li>Added a <b>low-HP warning vignette</b> — the screen edges pulse red when you drop below 25% HP, so you get a clear heads-up when you're in danger</li>
+      <li>The death screen now celebrates a <b>★ NEW BEST WAVE ★</b> when you beat your record</li>
+      <li>Removed the <b>Starting weapon</b> picker from Settings — every run now begins with the Ball, and extra weapons come from your class loadout and level-up unlocks</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v070126b · Sandbox Respawns (July 1, 2026)</div>
+    <ul style="opacity:.6">
       <li>Sandbox mode now has <b>infinite respawns</b> — dying no longer ends the run. Instead you revive at full HP in the center of the arena with a brief invulnerability window and keep going, so you can keep experimenting without getting kicked back to the lobby (use the pause menu's End Run button to leave when you're done)</li>
       <li>Fixed the level-up upgrade menu staying stuck on screen if you died while it was open — you previously had to press Escape and click a button to clear it. The menu now closes automatically on death, and it no longer pops up during the death animation in the first place</li>
     </ul>
@@ -873,7 +873,10 @@
     <b>Walk into the portal</b> to enter the arena &nbsp;·&nbsp; <b>E</b> on the center pad to leave<br>
     In the arena you attack automatically. Just move and survive.
   </div>
-  <button id="startbtn">Click to Play</button>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center">
+    <button id="retrybtn" style="display:none;background:linear-gradient(160deg,#2ea043,#3fd06a);box-shadow:0 6px 20px rgba(46,160,67,.45)">Retry Run</button>
+    <button id="startbtn">Click to Play</button>
+  </div>
 </div>
 
 <script type="importmap">
@@ -893,8 +896,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v070126b';
-const UPDATE_TITLE = 'Sandbox Respawns';
+const VERSION = 'v070126c';
+const UPDATE_TITLE = 'Retry & Polish';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2433,15 +2436,12 @@ function startArena(){
   A.hp=A.maxhp=100; A.invuln=0; A.fireCd=0;
   A.stats={ dmg:10, atkSpeed:1.0, range:9, projSpeed:30, moveBonus:0, pickup:2.2,
             pierce:0, extraProj:0, crit:0.05, critMul:2, dodge:0, regen:0, lifesteal:0, multishotSpread:0.12 };
+  // Every run starts with the Ball. Extra weapons come from your class
+  // loadout (applyClass) and from level-up unlocks — the old "starting
+  // weapon" Settings picker was removed. (v070126c)
   A.weapons=['ball']; A.wcd={};
-  // Starting weapon: the player can pick a starting weapon from Settings
-  // (default: ball). Only applies if they actually own the weapon in the
-  // weapon-unlocks list — otherwise fall back to ball.
-  if(settings.startingWeapon && settings.startingWeapon!=='ball' && WEAPONS[settings.startingWeapon]){
-    A.weapons.push(settings.startingWeapon);
-  }
   A.runKills=0; A.runDamage=0; A.boomerangOut=false;
-  _hudCache = { hp: -1, maxhp: -1, xp: -1, xpNext: -1, level: -1, waveHash: '', bossHp: -1, bossMaxhp: -1 };
+  _hudCache = { hp: -1, maxhp: -1, xp: -1, xpNext: -1, level: -1, waveHash: '', bossHp: -1, bossMaxhp: -1, lowHp: null };
   A.runStartTime=performance.now();   // for the run-duration readout on the death screen
   player.speed=7.2;
   applyClass();                 // selected class modifies starting stats/weapons/speed
@@ -2730,7 +2730,9 @@ D.querySelectorAll('.sbAction').forEach(btn=>{
   });
 });
 // Q key toggles sandbox spawn menu (opens and closes)
-addEventListener('keydown', e=>{ 
+addEventListener('keydown', e=>{
+  // R on the death screen retries the same mode + difficulty. (v070126c)
+  if(e.code==='KeyR' && GAME.state==='dead'){ e.preventDefault(); retryRun(); return; }
   if(e.code==='KeyQ' && A.sandbox && GAME.state==='arena'){
     // Only allow Q to open if no other overlay is open. But ALWAYS allow Q to close the spawn menu if it's already open.
     const spawnMenu = D.getElementById('sandboxSpawn');
@@ -3748,6 +3750,7 @@ function contactDamage(e){
   }
   if(A.hp<=0) triggerDeath();
 }
+let _deathMode='wave';   // which mode to restart if the player hits Retry (v070126c)
 // Schedule the death sequence: a 600ms slow-mo, then arenaDeath(). Guarded
 // with A._dying so repeated lethal hits during the slow-mo window don't stack
 // up multiple arenaDeath calls — important now that sandbox respawns instead
@@ -3779,9 +3782,15 @@ function arenaDeath(){
   if(A.dead) return;   // already processed
   // Sandbox mode never ends on death — revive and keep going instead. (v070126b)
   if(A.sandbox){ sandboxRespawn(); return; }
+  // Remember which mode to restart on Retry, and whether this run beat the
+  // record — captured now, before A.endless is reset and recordWave() bumps
+  // bestWave. (v070126c)
+  _deathMode = A.endless ? 'endless' : 'wave';
+  const isNewBest = A.wave > bestWave;
   A.active=false; A.dead=true;
   A.endless=false;   // reset endless flag on death
   A.sandbox=false;   // reset sandbox flag on death
+  D.getElementById('lowhp').classList.remove('show');   // clear low-HP vignette (v070126c)
   // If the level-up menu popped during the death slow-mo, close it and clear
   // the pause flag so the death screen isn't stuck behind an open upgrade
   // overlay (previously you had to press Esc + click a button to escape). (v070126b)
@@ -3819,17 +3828,21 @@ function arenaDeath(){
   const dmgStr = Math.round(A.runDamage||0).toLocaleString();
   const ov=D.getElementById('overlay');
   ov.querySelector('h1').textContent='YOU DIED';
+  const newBestLine = isNewBest
+    ? '<div style="margin-top:10px;font-size:16px;font-weight:bold;color:#ffd24a;text-shadow:0 0 14px rgba(255,200,60,.7);letter-spacing:1px">★ NEW BEST WAVE ★</div>'
+    : '';
   ov.querySelector('.tag').innerHTML=
-    'You fell on <b>wave '+A.wave+'</b> at <b>level '+A.level+'</b>.<br>'+
+    'You fell on <b>wave '+A.wave+'</b> at <b>level '+A.level+'</b>.'+newBestLine+'<br>'+
     '<span style="display:inline-block;margin-top:8px;font-size:13px;opacity:.9">'+
     'Kills: <b>'+(A.runKills||0)+'</b> &nbsp;·&nbsp; '+
     'Damage: <b>'+dmgStr+'</b> &nbsp;·&nbsp; '+
     'Time: <b>'+timeStr+'</b> &nbsp;·&nbsp; '+
     'Best: <b>'+bestWave+'</b></span><br>'+
     '<span style="display:inline-block;margin-top:10px;font-size:13px;opacity:.7">'+
-    'Head back to the lobby and try again.</span>';
+    'Hit <b>Retry</b> (or press R) to dive straight back in, or return to the lobby.</span>';
   ov.querySelector('.ctrls').style.display='none';
   ov.querySelector('#startbtn').textContent='Return to Lobby';
+  D.getElementById('retrybtn').style.display='inline-block';   // show Retry on death (v070126c)
   ov.style.display='flex';
 }
 
@@ -4023,14 +4036,21 @@ function setMode(m){
 }
 function updateHotbar(){ /* no hotbar in lobby */ }
 function updateOverworldHud(){ /* no inventory in lobby */ }
-let _hudCache = { hp: -1, maxhp: -1, xp: -1, xpNext: -1, level: -1, waveHash: '', bossHp: -1, bossMaxhp: -1 };
+let _hudCache = { hp: -1, maxhp: -1, xp: -1, xpNext: -1, level: -1, waveHash: '', bossHp: -1, bossMaxhp: -1, lowHp: null };
 function updateArenaHud(){
   if(A.hp !== _hudCache.hp || A.maxhp !== _hudCache.maxhp){
     _hudCache.hp = A.hp; _hudCache.maxhp = A.maxhp;
     D.getElementById('hpfill').style.width=Math.max(0,A.hp/A.maxhp*100)+'%';
     D.getElementById('hptext').textContent=Math.ceil(A.hp)+' / '+A.maxhp;
   }
-  
+  // Low-HP warning vignette: pulse the screen edges red below 25% HP. Toggled
+  // only on change so we're not thrashing the DOM every frame. (v070126c)
+  const lowHp = A.hp>0 && (A.hp/A.maxhp) < 0.25;
+  if(lowHp !== _hudCache.lowHp){
+    _hudCache.lowHp = lowHp;
+    D.getElementById('lowhp').classList.toggle('show', lowHp);
+  }
+
   if(A.xp !== _hudCache.xp || A.xpNext !== _hudCache.xpNext){
     _hudCache.xp = A.xp; _hudCache.xpNext = A.xpNext;
     D.getElementById('xpfill').style.width=(A.xp/A.xpNext*100)+'%';
@@ -5456,7 +5476,6 @@ function openSettings(){
   D.getElementById('easyBhopToggle').checked=settings.easyBhop;
   D.getElementById('potatoToggle').checked=settings.potato;
   D.getElementById('shakeToggle').checked=settings.screenShake;
-  D.getElementById('weaponSel').value=settings.startingWeapon;
   // mobile already runs at this quality, so hide the toggle there
   D.getElementById('potatoRow').style.display = isMobile ? 'none' : 'flex';
   D.getElementById('colorblindSel').value = settings.colorblind;
@@ -5553,10 +5572,6 @@ D.getElementById('potatoToggle').addEventListener('change', e=>{
 D.getElementById('shakeToggle').addEventListener('change', e=>{
   settings.screenShake=e.target.checked;
   if(!settings.screenShake) _shakeMag=0;
-  persist();
-});
-D.getElementById('weaponSel').addEventListener('change', e=>{
-  settings.startingWeapon=e.target.value;
   persist();
 });
 // ---------- cosmetic shop ----------
@@ -6202,10 +6217,24 @@ function updateBestHud(){ const el=D.getElementById('bestwave'); if(el) el.textC
 // ============================================================
 //  START
 // ============================================================
+// Retry the last run straight from the death screen — same mode + difficulty,
+// skipping the lobby. Sandbox never reaches the death screen (infinite
+// respawns), so this only ever restarts a Wave or Endless run. (v070126c)
+function retryRun(){
+  if(GAME.state!=='dead') return;
+  D.getElementById('overlay').style.display='none';
+  D.getElementById('retrybtn').style.display='none';
+  setTouchEnabled(true);
+  A.dead=false; A._dying=false;
+  if(_deathMode==='endless') startEndless();
+  else startArena();
+  if(!isMobile) requestPointerLockSafe(cvs);
+}
 function beginGame(){
   initAudio();
   startMusic();
   setTouchEnabled(true);
+  D.getElementById('retrybtn').style.display='none';
   const ov=D.getElementById('overlay');
   if(GAME.state==='dead'){
     // returning to lobby after death
@@ -6237,6 +6266,7 @@ function exitArenaCleanupAfterDeath(){
 }
 
 onTap(D.getElementById('startbtn'), beginGame);
+onTap(D.getElementById('retrybtn'), retryRun);
 
 scene.fog=new THREE.Fog(0x000000,60,140);
 applyFov();
