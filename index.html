@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v070126c';   // keep in sync with VERSION below
+  var BUNDLED = 'v070226a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -444,8 +444,22 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v070126c · Retry &amp; Polish (July 1, 2026)</div>
+    <div class="desc">v070226a · Railgun &amp; Tune-Up (July 2, 2026)</div>
     <ul>
+      <li>New weapon: the <b>Railgun</b> ➸ — a heavy piercing lance that punches through every enemy in its path at double projectile speed. High damage, slow cooldown, one decisive shot. Unlocks through level-up cards like the other weapons</li>
+      <li>New upgrade: <b>Thorns</b> 🌵 — reflect 35% of the contact damage enemies deal you back at them (stacks)</li>
+      <li>New upgrade: <b>Second Wind</b> 🕊️ — survive one lethal hit per run, reviving at 40% HP with a 2-second safety window (extra stacks raise the revive HP)</li>
+      <li>Bosses and mini-bosses now drop a pink <b>healing orb</b> worth 25% of your max HP, so surviving a boss fight actually lets you recover</li>
+      <li>Fixed a nasty carry-over bug: enemy bullets still in flight and pending spawn warnings from your <i>previous</i> run survived into the next one — with the new Retry button you could take a hit from a dead boss, or meet late-wave enemies, seconds into wave 1</li>
+      <li>Fixed bullets occasionally rendering as rings or cones — returning boomerangs and homing missiles were being recycled into the ball-projectile pool, so later shots fired with the wrong shape</li>
+      <li>Fixed frost-slowed enemies teleporting away or vanishing if they were hit mid-dash before ever walking (a missing steering vector corrupted their position)</li>
+      <li>Fixed Chain Bolt hitting bosses twice per cast — the boss was counted twice in the chain-target list, silently doubling bolt damage on bosses</li>
+      <li>Fixed elite enemies with the golden <b>shield</b> modifier: the shield was purely cosmetic and blocked nothing. It now blocks 80% of frontal damage like a real Shielder shield, and piercing shots break it the same way</li>
+      <li>Fixed recycled elite bodies: after killing an elite, a later normal enemy could reuse its model and spawn 15% oversized — shielded elites even left their golden shield floating on the newcomer. Recycled models are now properly reset</li>
+      <li>Performance: enemy bullets and XP orbs are now object-pooled (boss bullet patterns used to allocate ~20 meshes per second), pooled resources are protected from accidental disposal during arena rebuilds, and two more per-frame allocations were removed from enemy steering and boss attacks</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v070126c · Retry &amp; Polish (July 1, 2026)</div>
+    <ul style="opacity:.6">
       <li>New <b>Retry</b> button on the death screen — jump straight back into the same mode and difficulty without a trip through the lobby. You can also just press <b>R</b>. (Sandbox has infinite respawns, so it never hits this screen)</li>
       <li>Added a <b>low-HP warning vignette</b> — the screen edges pulse red when you drop below 25% HP, so you get a clear heads-up when you're in danger</li>
       <li>The death screen now celebrates a <b>★ NEW BEST WAVE ★</b> when you beat your record</li>
@@ -896,8 +910,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v070126c';
-const UPDATE_TITLE = 'Retry & Polish';
+const VERSION = 'v070226a';
+const UPDATE_TITLE = 'Railgun & Tune-Up';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -931,6 +945,12 @@ addEventListener('resize', ()=>{
 function disposeObj(obj){
   if(!obj) return;
   obj.traverse(o=>{
+    // Pooled meshes share one geometry (and sometimes one material) across
+    // the whole pool — disposing those here would silently destroy every
+    // other pooled instance's GPU buffers (e.g. the arena-rebuild wipe used
+    // to dispose the shared projectile sphere). Meshes flagged _shared keep
+    // their resources; they're still removed from the scene below. (v070226a)
+    if(o.userData && o.userData._shared) return;
     if(o.geometry) o.geometry.dispose();
     const m=o.material;
     if(m){ if(Array.isArray(m)) m.forEach(x=>x&&x.dispose()); else m.dispose(); }
@@ -948,14 +968,71 @@ const _projPool = [];
 const _projGeo = new THREE.SphereGeometry(1, 8, 8);   // unit sphere, scaled per-use
 function obtainProjMesh(){
   if(_projPool.length) return _projPool.pop();
-  return new THREE.Mesh(_projGeo, new THREE.MeshBasicMaterial({color:0xfff1a8}));
+  const m=new THREE.Mesh(_projGeo, new THREE.MeshBasicMaterial({color:0xfff1a8}));
+  // _pooledProj: marks meshes that belong to this pool, so the projectile
+  // removal code knows to release them here rather than dispose them.
+  // Boomerang/homing meshes are NOT pool spheres — they used to get pushed
+  // in here anyway, and later shots would pop a torus or cone out of the
+  // pool and fire ring-shaped "balls". _shared protects the one sphere
+  // geometry from disposeObj. (v070226a)
+  m.userData._pooledProj=true; m.userData._shared=true;
+  return m;
 }
 function releaseProjMesh(m){
   if(!m) return;
   if(m.parent) m.parent.remove(m);
   m.visible=false;
+  if(!m.userData._pooledProj){ disposeObj(m); return; }   // foreign mesh — never pool it
   if(_projPool.length < 60) _projPool.push(m);   // cap pool size
   else { m.material.dispose(); }   // pool full, let it GC
+}
+// ---------- object pooling for XP orbs + enemy bullets (v070226a) ----------
+// Same idea as the projectile pool. Orbs share ONE unit octahedron geometry
+// and one material per color (small/big/heal); enemy bullets share one
+// sphere geometry with a per-mesh recolorable material. These were the two
+// biggest remaining GC sources: every kill allocated + disposed an orb
+// geometry, and boss bullet patterns allocated ~20 geometries per second.
+const _orbPool = [];
+const _orbGeo = new THREE.OctahedronGeometry(1);
+const _orbMats = {
+  small: new THREE.MeshBasicMaterial({color:0x4ad1ff}),
+  big:   new THREE.MeshBasicMaterial({color:0xffd24a}),
+  heal:  new THREE.MeshBasicMaterial({color:0xff5c8a}),
+};
+function obtainOrbMesh(kind){
+  const m = _orbPool.length ? _orbPool.pop() : new THREE.Mesh(_orbGeo, _orbMats.small);
+  m.userData._shared=true;   // geometry AND material are shared — never dispose
+  m.material = _orbMats[kind] || _orbMats.small;
+  m.visible=true;
+  return m;
+}
+function releaseOrbMesh(m){
+  if(!m) return;
+  if(m.parent) m.parent.remove(m);
+  m.visible=false;
+  if(_orbPool.length < 40) _orbPool.push(m);
+  // else: just let the mesh GC — its geometry/material are shared and live on
+}
+const _eshotPool = [];
+const _eshotGeo = new THREE.SphereGeometry(0.22, 8, 8);
+function obtainEShotMesh(color){
+  let m;
+  if(_eshotPool.length){ m=_eshotPool.pop(); }
+  else {
+    m=new THREE.Mesh(_eshotGeo, new THREE.MeshBasicMaterial({color:0xff4bd0}));
+    m.userData._shared=true;   // shared geometry; material is per-mesh but recolored
+    m.userData._pooledEshot=true;
+  }
+  m.material.color.setHex(color||0xff4bd0);
+  m.visible=true;
+  return m;
+}
+function releaseEShotMesh(m){
+  if(!m) return;
+  if(m.parent) m.parent.remove(m);
+  m.visible=false;
+  if(m.userData._pooledEshot && _eshotPool.length < 48) _eshotPool.push(m);
+  else if(m.material) m.material.dispose();   // per-mesh material can go
 }
 
 // ---------- replay system (v061726k) ----------
@@ -2193,9 +2270,14 @@ function propSupportY(pos, pr){
 // pushing straight back from the obstacle (which stalls the enemy when the push
 // directly opposes its goal), this steers tangentially — sliding along the prop
 // toward the side that makes progress — plus a small push-off to avoid grazing.
+// Result is written into a reused scratch object — avoidProps runs every
+// frame for every boss/tank on screen, and its only call site consumes the
+// value immediately, so returning a fresh {x,z} each call was pure GC churn. (v070226a)
+const _avoidOut={x:0,z:0};
 function avoidProps(e, dirx, dirz, big){
   let ax=0, az=0;
-  if(!A.props) return {x:0,z:0};
+  _avoidOut.x=0; _avoidOut.z=0;
+  if(!A.props) return _avoidOut;
   const ex=e.mesh.position.x, ez=e.mesh.position.z, ey=e.mesh.position.y;
   const look = e.size*0.5 + 1.6;
   for(const p of A.props){
@@ -2219,7 +2301,8 @@ function avoidProps(e, dirx, dirz, big){
       }
     }
   }
-  return {x:ax, z:az};
+  _avoidOut.x=ax; _avoidOut.z=az;
+  return _avoidOut;
 }
 // height of the tallest prop directly in front of a climbing (regular) enemy
 // whose top is above its feet — i.e. the wall it should scale. 0 if path is clear.
@@ -2432,6 +2515,14 @@ function startArena(){
   hideBossBar();
   A.wave=0; A.waveTime=0; A.spawnAcc=0; A.toSpawn=0;
   A.enemies.length=0; A.projectiles.length=0; A.orbs.length=0; A.boss=null;
+  // Clear leftover enemy bullets and pending spawn telegraphs from the
+  // previous run. Neither was reset before, so a quick restart (the Retry
+  // button, or lobby → portal within ~3s) started the new run with the old
+  // run's boss bullets still flying and its queued spawn rings still armed —
+  // you could take a hit, or meet wave-9 enemies, on wave 1. (v070226a)
+  if(A.eproj) A.eproj.length=0;
+  if(A.telegraphs) A.telegraphs.length=0;
+  A._swUsed=false;   // Second Wind (v070226a) — one revive per run
   A.level=1; A.xp=0; A.xpNext=3;
   A.hp=A.maxhp=100; A.invuln=0; A.fireCd=0;
   A.stats={ dmg:10, atkSpeed:1.0, range:9, projSpeed:30, moveBonus:0, pickup:2.2,
@@ -2861,6 +2952,15 @@ function obtainEnemyModel(size, color, kind){
       const mdl = pool.pop();
       mdl.group.visible = true;
       mdl.bodyMat.emissive.setHex(0x000000);
+      // Un-elite the recycled model (v070226a): elites are scaled up 1.15x
+      // and shielded elites get an ad-hoc golden shield added as a child.
+      // Neither was reset on reuse, so a dead elite's model came back as a
+      // normal enemy that was 15% too big and wearing a decorative shield.
+      mdl.group.scale.setScalar(1);
+      if(mdl.shieldMesh && mdl.shieldMesh.userData._eliteShield){
+        disposeObj(mdl.shieldMesh);
+        mdl.shieldMesh=null;
+      }
       if(mdl.shieldMesh) mdl.shieldMesh.visible = true;
       if(mdl.group.userData.fuse) mdl.group.userData.fuse.scale.setScalar(1);
       if(mdl.group.userData.orb) mdl.group.userData.orb.scale.setScalar(1);
@@ -3052,6 +3152,7 @@ function spawnEnemy(kind, atX, atZ){
       baseProps.shieldMesh=new THREE.Mesh(new THREE.BoxGeometry(baseProps.size*1.4, baseProps.size*1.0, baseProps.size*0.12), shieldMat);
       baseProps.shieldMesh.position.set(0, baseProps.size*0.55+baseProps.size*0.4, baseProps.size*0.55);
       baseProps.shieldMesh.castShadow=true;
+      baseProps.shieldMesh.userData._eliteShield=true;   // stripped when the model is recycled (v070226a)
       mdl.group.add(baseProps.shieldMesh);
     }
     // scale up the model a bit so elites read as bigger
@@ -3179,8 +3280,9 @@ const WEAPONS={
   nova:    { id:'nova',    ic:'❄', name:'Nova',     cd:2.2 },
   homing:  { id:'homing',  ic:'🛰', name:'Seeker',   cd:1.5 },
   pulse:   { id:'pulse',   ic:'💥', name:'Pulse',    cd:2.0 },
+  railgun: { id:'railgun', ic:'➸', name:'Railgun',  cd:2.6 },   // piercing lance (v070226a)
 };
-const WEAPON_ORDER=['ball','shotgun','blades','bolt','boomerang','nova','homing','pulse'];
+const WEAPON_ORDER=['ball','shotgun','blades','bolt','boomerang','nova','homing','pulse','railgun'];
 
 function fireBall(target){
   const dir=aimDirAt(target);
@@ -3201,9 +3303,13 @@ function fireShotgun(target){
   SFX.shoot();
 }
 function fireBolt(target){
-  // instant chain to nearest few enemies
-  const all=(A.boss?A.enemies.concat([A.boss]):A.enemies).slice()
-    .sort((a,b)=>a.mesh.position.distanceToSquared(player.pos)-b.mesh.position.distanceToSquared(player.pos));
+  // instant chain to the nearest few enemies. NOTE: the boss already lives
+  // inside A.enemies (since the v062426k boss rework), so the old
+  // `A.enemies.concat([A.boss])` put it in the list TWICE — a bolt cast
+  // near a boss chained to it two times for double damage. Distances are
+  // also precomputed now instead of twice per sort comparison. (v070226a)
+  for(const e of A.enemies) e._boltD=e.mesh.position.distanceToSquared(player.pos);
+  const all=A.enemies.slice().sort((a,b)=>a._boltD-b._boltD);
   const chain=all.slice(0,3);
   let from=new THREE.Vector3(player.pos.x, player.pos.y+1.1, player.pos.z);
   for(const e of chain){
@@ -3290,6 +3396,15 @@ function firePulse(){
   // ring of sparks for the blast
   for(let i=0;i<26;i++){ const a=i/26*Math.PI*2; spawnParticle(player.pos.x, player.pos.y+0.4, player.pos.z, Math.cos(a)*R*1.7, 1.2, Math.sin(a)*R*1.7, 0.75,0.92,1, 0.4); }
   SFX.hit();
+}
+// Railgun (v070226a): a single heavy lance that pierces EVERYTHING in its
+// path. High damage, slow cooldown, double projectile speed, longer flight
+// time so it crosses the whole arena. Split Shot doesn't multiply it — the
+// identity of the weapon is one big decisive shot.
+function fireRailgun(target){
+  const dir=aimDirAt(target);
+  fireProjectile(dir, 0.3, 0xaef6ff, A.stats.dmg*2.4, 1.6, {pierce:99, spdMul:2});
+  SFX.shoot();
 }
 const UP=new THREE.Vector3(0,1,0);
 const boltLines=[];
@@ -3430,10 +3545,11 @@ function autoFire(){
     else if(w==='shotgun') fireShotgun(best);
     else if(w==='bolt') fireBolt(best);
     else if(w==='boomerang') fireBoomerang(best);
+    else if(w==='railgun') fireRailgun(best);
     A.wcd[w]=def.cd/A.stats.atkSpeed;
   }
 }
-function fireProjectile(dir, size, color, dmg, lifeMul){
+function fireProjectile(dir, size, color, dmg, lifeMul, opts){
   // Use the object pool instead of creating a new mesh per shot.
   const m=obtainProjMesh();
   m.visible=true;
@@ -3443,14 +3559,16 @@ function fireProjectile(dir, size, color, dmg, lifeMul){
   m.material.color.setHex(color||0xfff1a8);
   m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
   arena.group.add(m);
-  // Trail (v061726n): replaced muzzle-flash particles with a trail
-  // behind the projectile. The trail is a list of recent positions
-  // stored on the projectile; the update loop draws fading particles
-  // along them. We seed the trail with the spawn position.
+  // Trail (v061726n): fading particles emitted behind the projectile,
+  // tinted to match its color.
   const trailColor = new THREE.Color(color||0xfff1a8);
   const crit=Math.random()<A.stats.crit;
+  // opts (v070226a): per-shot overrides for special weapons — the Railgun
+  // passes pierce:99 (punch through everything) and spdMul:2 (double speed).
   A.projectiles.push({mesh:m, dir:dir.clone(), life:1.6*(lifeMul||1), dmg:(dmg||A.stats.dmg)*(crit?A.stats.critMul:1), crit,
-                      pierceLeft:A.stats.pierce, hitSet:new Set(),
+                      pierceLeft:(opts&&opts.pierce!==undefined)?opts.pierce:A.stats.pierce,
+                      spdMul:(opts&&opts.spdMul)||1,
+                      hitSet:new Set(),
                       trailColor, trailSize:s});
 }
 
@@ -3499,7 +3617,12 @@ function damageEnemy(e, dmg, crit, fromPos, opts){
   // that window. This gives piercing builds a real answer into Shielder
   // comps without trivializing them (you still have to land the hit
   // and the break is temporary).
-  if(e.kind==='shielder' && fromPos){
+  // Frontal shield check. Applies to Shielders AND elites with the
+  // 'shielded' modifier — the elite version had the golden shield mesh but
+  // no actual damage reduction behind it (purely cosmetic since v061726k).
+  // Both now share the same block/break rules. (v070226a)
+  const hasShield = e.kind==='shielder' || (e._elite && e._eliteMod==='shielded');
+  if(hasShield && fromPos){
     // While the shield is broken, damage passes through unmodified. The
     // break timer ticks down in the per-frame enemy loop (not here), so the
     // 3-second window is real wall-clock time even if you stop shooting —
@@ -3624,6 +3747,7 @@ function killEnemy(e){
   if(e.kind==='boss'){
     addShards(9);                    // bosses are worth a bit more
     spawnOrb(e.mesh.position, e.xp, true);
+    spawnHealOrb(e.mesh.position);   // bosses drop a +25% max-HP heal (v070226a)
     if(e === A.boss){
       A.boss=null;
     }
@@ -3682,10 +3806,19 @@ function bomberExplode(x, y, z, baseDmg){
 }
 function spawnOrb(pos, xp, big){
   const s=big?0.5:0.22;
-  const m=new THREE.Mesh(new THREE.OctahedronGeometry(s),
-    new THREE.MeshBasicMaterial({color: big?0xffd24a:0x4ad1ff}));
+  const m=obtainOrbMesh(big?'big':'small');   // pooled — was a fresh geometry+material per kill (v070226a)
+  m.scale.setScalar(s);
   m.position.copy(pos); m.position.y=0.5; arena.group.add(m);
   A.orbs.push({mesh:m, xp, t:0});
+}
+// Healing orb (v070226a): dropped by bosses and mini-bosses. Restores 25%
+// of max HP on pickup instead of granting XP. Uses the same magnet/vacuum
+// flight as XP orbs, so it comes to you at the end of a boss wave.
+function spawnHealOrb(pos){
+  const m=obtainOrbMesh('heal');
+  m.scale.setScalar(0.4);
+  m.position.copy(pos); m.position.y=0.5; arena.group.add(m);
+  A.orbs.push({mesh:m, xp:0, heal:true, t:0});
 }
 
 function gainXp(n){
@@ -3726,6 +3859,11 @@ function hurtPlayer(d, fromPos){
 let _contactFx=0;
 function contactDamage(e){
   if(A.dead) return;
+  // Long invulnerability windows (Second Wind revive: 2s, sandbox respawn:
+  // 1.5s) gate contact damage too — otherwise reviving inside a mob just
+  // melted the revive instantly. The standard 0.45s on-hit invuln stays
+  // BELOW this threshold on purpose, so normal melee balance is unchanged. (v070226a)
+  if(A.invuln > 1.0) return;
   player.bhop=1;                 // getting hit kills your bunnyhop speed
   const applied = e.dmg*dt*(1-(A.stats.dodge||0));
   A.hp -= applied;
@@ -3735,6 +3873,18 @@ function contactDamage(e){
   // capped at maxhp so it can't overheal.
   if(e.kind==='leech'){
     e.hp = Math.min(e.maxhp, e.hp + applied*0.5);
+  }
+  // THORNS (v070226a): reflect a share of the contact damage back at the
+  // attacker. Accumulated per enemy and applied on a 0.5s tick — calling
+  // damageEnemy per frame would spam its sound + damage-text side effects.
+  if(A.stats.thorns){
+    e._thornsAcc=(e._thornsAcc||0)+applied*A.stats.thorns;
+    e._thornsClock=(e._thornsClock||0)+dt;
+    if(e._thornsClock>=0.5){
+      const refl=e._thornsAcc;
+      e._thornsAcc=0; e._thornsClock=0;
+      if(refl>0.5) damageEnemy(e, refl, false);   // no fromPos: body contact bypasses shields
+    }
   }
   _contactFx-=dt;
   if(_contactFx<=0){
@@ -3757,6 +3907,20 @@ let _deathMode='wave';   // which mode to restart if the player hits Retry (v070
 // of ending the run. (v070126b)
 function triggerDeath(){
   if(A.dead || A._dying) return;
+  // SECOND WIND (v070226a): once per run, a lethal hit revives you instead
+  // of killing you. Checked before the death sequence starts, so the run
+  // just continues — with a healthy invuln window and a burst of feedback
+  // so it never reads as "the game ignored my death".
+  if(A.stats.secondWind && !A._swUsed){
+    A._swUsed=true;
+    A.hp = Math.max(1, Math.round(A.maxhp*A.stats.secondWind));
+    A.invuln = 2.0;
+    spawnDamageText(player.pos.x, player.pos.y+2.2, player.pos.z, 'SECOND WIND!', true, false, null);
+    for(let i=0;i<20;i++){ const a=i/20*Math.PI*2; spawnParticle(player.pos.x, player.pos.y+1, player.pos.z, Math.cos(a)*4, 2.5, Math.sin(a)*4, 1.0,0.95,0.5, 0.5); }
+    SFX.level();
+    toast('Second Wind! Revived at '+Math.round(A.stats.secondWind*100)+'% HP');
+    return;
+  }
   A._dying = true;
   A.hp = 0;
   _deathSlowmo = 0.6;
@@ -3890,6 +4054,14 @@ const UPGRADE_POOL = [
   // Executioner: instantly finishes off badly-wounded non-boss enemies.
   // Each stack raises the HP threshold (capped at 40%). Bosses are immune.
   {id:'execute', ic:'☠', nm:'Executioner', ds:'Instantly kill non-boss enemies under 12% HP', apply:s=>s.execute=Math.min(0.4,(s.execute||0)+0.12)},
+  // new upgrades (v070226a)
+  // Thorns: reflect a share of contact damage back at the attacker. Applied
+  // on a per-enemy 0.5s tick in contactDamage so it doesn't spam damage
+  // numbers / sounds at 60fps.
+  {id:'thorns', ic:'🌵', nm:'Thorns', ds:'Reflect 35% of contact damage to attackers', pct:35, apply:s=>s.thorns=(s.thorns||0)+0.35},
+  // Second Wind: survive one lethal hit per run. Extra stacks raise the
+  // revive HP (40% base, +15% per stack, capped at 70%).
+  {id:'secondwind', ic:'🕊️', nm:'Second Wind', ds:'Survive one lethal hit per run (revive at 40% HP)', apply:s=>s.secondWind=Math.min(0.7,(s.secondWind||0)===0?0.4:s.secondWind+0.15)},
 ];
 // weapon-unlock "cards" mixed into the level-up pool
 const WEAPON_UNLOCKS=[
@@ -3900,6 +4072,7 @@ const WEAPON_UNLOCKS=[
   {id:'wpn_nova',    weapon:'nova',    ic:'❄', nm:'Frost Nova',  ds:'New weapon: ring of shards'},
   {id:'wpn_homing',  weapon:'homing',  ic:'🛰', nm:'Seeker Missiles', ds:'New weapon: homing shots'},
   {id:'wpn_pulse',   weapon:'pulse',   ic:'💥', nm:'Pulse Wave',  ds:'New weapon: shockwave around you'},
+  {id:'wpn_railgun', weapon:'railgun', ic:'➸', nm:'Railgun',     ds:'New weapon: piercing lance through everything'},
 ];
 const upgradeLevels={};
 function buildOfferPool(){
@@ -4794,7 +4967,12 @@ function updateArena(){
       // scale it back by re-moving the enemy at half speed. Cheaper than
       // refactoring the whole movement pass — just subtract half of what
       // we added. Only works because the movement was linear.
-      if(moved > 0 && !isBoss){
+      // Skip the retro-move while dashing: dashes move along dashDir, not
+      // steerX/steerZ, and a frost hit on an enemy that dashed before ever
+      // walking left steerX undefined — NaN'd its position and vanished it
+      // (the NaN then poisoned every distance check). Dashes are short, so
+      // frost just doesn't slow the dash itself. (v070226a)
+      if(moved > 0 && !isBoss && !(e.dashing>0) && e.steerX!==undefined){
         const back = moved * 0.5 * dt;
         e.mesh.position.x -= e.steerX * back;
         e.mesh.position.z -= e.steerZ * back;
@@ -4816,10 +4994,11 @@ function updateArena(){
         if(e.hp <= 0) killEnemy(e);
       }
     }
-    // SHIELDER: tick the shield-broken timer in real time so the break
-    // window is a true wall-clock 3 seconds even if the player stops
-    // shooting. When it expires the shield comes back online. (v062926a)
-    if(e.kind==='shielder' && e.shieldBrokenT > 0){
+    // SHIELDER (and shielded elites, v070226a): tick the shield-broken
+    // timer in real time so the break window is a true wall-clock 3 seconds
+    // even if the player stops shooting. When it expires the shield comes
+    // back online. (v062926a)
+    if((e.kind==='shielder' || (e._elite && e._eliteMod==='shielded')) && e.shieldBrokenT > 0){
       e.shieldBrokenT -= dt;
       if(e.shieldMesh) e.shieldMesh.visible = false;
       if(e.shieldBrokenT <= 0){
@@ -5012,7 +5191,7 @@ function updateArena(){
           }
         }
       }
-      p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*dt);
+      p.mesh.position.addScaledVector(p.dir, A.stats.projSpeed*(p.spdMul||1)*dt);
       // ---- trail rendering (v061726n) ----
       // Record the current position and emit a fading particle behind
       // the projectile. The trail is capped at 8 entries to limit
@@ -5076,7 +5255,7 @@ function updateArena(){
     const vy=p.mesh.position.y-(player.pos.y+0.9);
     if(Math.hypot(dx,dz)<0.45 && Math.abs(vy)<0.9){ hurtPlayer(p.dmg, p.mesh.position); p.life=0; }
     else if(hitsPropH(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.18)) p.life=0;
-    if(p.life<=0){ disposeObj(p.mesh); A.eproj.splice(i,1); }
+    if(p.life<=0){ releaseEShotMesh(p.mesh); A.eproj.splice(i,1); }
   }
 
   // orbs (xp pickup with magnet; vacuumed ones fly in from anywhere)
@@ -5100,7 +5279,15 @@ function updateArena(){
     }
     o.mesh.rotation.y+=dt*3;
     if(!o.vacuum) o.mesh.position.y=0.5+Math.sin(o.t*4)*0.12;
-    if(d<0.8){ gainXp(o.xp); SFX.xp(); disposeObj(o.mesh); A.orbs.splice(i,1); }
+    if(d<0.8){
+      if(o.heal){
+        // boss heal drop: restore 25% max HP (capped) with a little feedback
+        A.hp=Math.min(A.maxhp, A.hp + A.maxhp*0.25);
+        spawnDamageText(player.pos.x, player.pos.y+2.0, player.pos.z, '+HP', true, false, null);
+        SFX.level();
+      } else { gainXp(o.xp); SFX.xp(); }
+      releaseOrbMesh(o.mesh); A.orbs.splice(i,1);
+    }
   }
 
   updateArenaHud();
@@ -5221,7 +5408,7 @@ function updateBolts(){
 function eshot(x,z,dir,spd,dmg,color){
   A.eproj=A.eproj||[];
   const y=player.pos.y+0.9;   // track the player's vertical position
-  const m=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8), new THREE.MeshBasicMaterial({color:color||0xff4bd0}));
+  const m=obtainEShotMesh(color);   // pooled — was a fresh geometry+material per bullet (v070226a)
   m.position.set(x,y,z); arena.group.add(m);
   A.eproj.push({mesh:m, dir:dir.clone().normalize(), spd, life:3.2, dmg, y});
 }
@@ -5237,7 +5424,7 @@ function bossAttack(boss){
     for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; eshot(bx,bz,new THREE.Vector3(Math.cos(a),0,Math.sin(a)),11,15,col); }
     boss.atkCd=1.5; SFX.bossShot();
   } else if(type==='aimed'){
-    for(let i=-1;i<=1;i++){ const d=toP.clone().applyAxisAngle(new THREE.Vector3(0,1,0), i*0.14); eshot(bx,bz,d,16,16,col); }
+    for(let i=-1;i<=1;i++){ const d=toP.clone().applyAxisAngle(UP, i*0.14); eshot(bx,bz,d,16,16,col); }
     boss.atkCd=0.9; SFX.bossShot();
   } else if(type==='spiral'){
     boss.spin=(boss.spin||0)+0.5;
