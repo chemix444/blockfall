@@ -5,7 +5,7 @@ A single-file 3D first/third-person wave-based arena shooter built with Three.js
 ## Features
 
 - **Wave & Endless modes** — classic wave progression or pure survival
-- **10 biomes** — Meadow, Tundra, Emberfield, Mistwood, and more
+- **11 biomes** — Meadow, Tundra, Emberfield, Stormreach, and more (ice, lava, fog, and lightning twists)
 - **9 weapons** — Ball, Scatter Gun, Orbit Blades, Chain Bolt, Boomerang, Frost Nova, Seeker Missiles, Pulse, Railgun
 - **Upgrades & classes** — choose upgrades on level-up, permanent class mastery boosts
 - **Bosses** every 10 waves with multi-phase fights (Phase 2 at 50% HP, Desperate at 20%)

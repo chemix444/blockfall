@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v070226a';   // keep in sync with VERSION below
+  var BUNDLED = 'v070226b';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -444,8 +444,17 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v070226a · Railgun &amp; Tune-Up (July 2, 2026)</div>
+    <div class="desc">v070226b · Storms &amp; Warpers (July 2, 2026)</div>
     <ul>
+      <li>New biome: <b>Stormreach</b> ⛈️ — a slate-grey arena where telegraphed lightning strikes chase you. A pulsing yellow ring marks each strike ~1 second ahead; move out of it (or jump the moment it lands) to dodge. Selectable in the Sandbox biome picker too</li>
+      <li>New enemy: the <b>Warper</b> — a purple blinker that teleports 60% of the way toward you every few seconds, with particle bursts telegraphing both ends of the jump. You can't kite it forever; it appears from wave 6</li>
+      <li>2 new hats: <b>Propeller Cap</b> and <b>Traffic Cone</b> 🚧</li>
+      <li>Fixed a slow memory/performance leak in Orbit Blades: the per-enemy hit-cooldown table never evicted entries, so a long endless run had each blade checking thousands of dead enemies every frame (and keeping their models in memory)</li>
+      <li>Fixed the charge-shot glow permanently disappearing for the rest of the session if you died mid-charge, and the CHARGE meter staying stuck on the death screen</li>
+      <li>Performance: the arena loop no longer does per-frame DOM lookups and unconditional style writes for the hint text, END RUN and CHARGE buttons, and charge meter — elements are resolved once and only touched when their state actually changes</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v070226a · Railgun &amp; Tune-Up (July 2, 2026)</div>
+    <ul style="opacity:.6">
       <li>New weapon: the <b>Railgun</b> ➸ — a heavy piercing lance that punches through every enemy in its path at double projectile speed. High damage, slow cooldown, one decisive shot. Unlocks through level-up cards like the other weapons</li>
       <li>New upgrade: <b>Thorns</b> 🌵 — reflect 35% of the contact damage enemies deal you back at them (stacks)</li>
       <li>New upgrade: <b>Second Wind</b> 🕊️ — survive one lethal hit per run, reviving at 40% HP with a 2-second safety window (extra stacks raise the revive HP)</li>
@@ -776,7 +785,7 @@
     <div class="row"><label>Arena size</label><input id="sbSize" type="range" min="15" max="50" value="34" style="flex:1"><span class="val" id="sbSizeVal">34</span></div>
     <div class="row"><label>Prop density</label><input id="sbProps" type="range" min="0" max="100" value="70" style="flex:1"><span class="val" id="sbPropsVal">70%</span></div>
     <div class="row"><label>Destructible props</label><label class="switch"><input id="sbDestruct" type="checkbox" checked><span class="track"></span></label></div>
-    <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option><option value="Mistwood">Mistwood</option><option value="Canyon">Canyon</option><option value="Obsidian">Obsidian</option><option value="Aurora">Aurora</option></select></div>
+    <div class="row"><label>Biome</label><select id="sbBiome" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="random">Random</option><option value="Meadow">Meadow</option><option value="Desert">Desert</option><option value="Ashlands">Ashlands</option><option value="Tundra">Tundra</option><option value="Glimmerwood">Glimmerwood</option><option value="Emberfield">Emberfield</option><option value="Mistwood">Mistwood</option><option value="Canyon">Canyon</option><option value="Obsidian">Obsidian</option><option value="Aurora">Aurora</option><option value="Stormreach">Stormreach</option></select></div>
     <h3 style="font-size:13px;margin:14px 0 6px;opacity:.7;letter-spacing:1px">SPAWNING</h3>
     <div class="row"><label>Enemy spawns</label><select id="sbSpawnMode" style="flex:none;width:140px;background:#1a2138;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:4px 6px;font-size:13px"><option value="manual">Manual (Q menu)</option><option value="wave">Wave mode</option><option value="endless">Endless mode</option></select></div>
     <div class="desc" style="margin:2px 0 0;font-size:11px;opacity:.6">Wave and Endless auto-spawn enemies exactly like the real modes. The Q spawn menu still works on top of either.</div>
@@ -910,8 +919,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v070226a';
-const UPDATE_TITLE = 'Railgun & Tune-Up';
+const VERSION = 'v070226b';
+const UPDATE_TITLE = 'Storms & Warpers';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2440,6 +2449,7 @@ function buildArenaMap(seed){
     {ground:0xa64b2a, prop:0x6e2f18, sky:0xffc59b, name:'Canyon',    twist:'none'},
     {ground:0x2c2c3a, prop:0x16161f, sky:0x6a6480, name:'Obsidian',  twist:'none'},
     {ground:0x7a5fa8, prop:0x4a3570, sky:0xd9c2ff, name:'Aurora',    twist:'none'},
+    {ground:0x3a4a52, prop:0x22303a, sky:0x5a6a7a, name:'Stormreach', twist:'storm'},   // lightning strikes (v070226b)
   ];
   const b = biomes[Math.floor(rng()*biomes.length)];
   A.biomeName=b.name;
@@ -2523,6 +2533,14 @@ function startArena(){
   if(A.eproj) A.eproj.length=0;
   if(A.telegraphs) A.telegraphs.length=0;
   A._swUsed=false;   // Second Wind (v070226a) — one revive per run
+  // Reset charge-shot state (v070226b). Dying mid-charge left A._chargeMesh
+  // pointing at a mesh the next map rebuild had already wiped — and since
+  // autoFire only creates the glow when the reference is null, the charge
+  // glow silently never rendered again for the rest of the session.
+  A._charging=0;
+  if(A._chargeMesh){ disposeObj(A._chargeMesh); A._chargeMesh=null; }
+  if(A._strikes) A._strikes.length=0;   // storm-biome lightning state (v070226b)
+  A._stormT=0;
   A.level=1; A.xp=0; A.xpNext=3;
   A.hp=A.maxhp=100; A.invuln=0; A.fireCd=0;
   A.stats={ dmg:10, atkSpeed:1.0, range:9, projSpeed:30, moveBonus:0, pickup:2.2,
@@ -2660,6 +2678,7 @@ function startSandbox(){
     {ground:0xa64b2a, prop:0x6e2f18, sky:0xffc59b, name:'Canyon',    twist:'none'},
     {ground:0x2c2c3a, prop:0x16161f, sky:0x6a6480, name:'Obsidian',  twist:'none'},
     {ground:0x7a5fa8, prop:0x4a3570, sky:0xd9c2ff, name:'Aurora',    twist:'none'},
+    {ground:0x3a4a52, prop:0x22303a, sky:0x5a6a7a, name:'Stormreach', twist:'storm'},
   ];
   const b = sbBiome==='random' ? biomes[Math.floor(Math.random()*biomes.length)] : biomes.find(x=>x.name===sbBiome) || biomes[0];
   A.biomeName=b.name; A.biomeTwist=b.twist;
@@ -3112,6 +3131,10 @@ function spawnEnemy(kind, atX, atZ){
   // TURRET: stationary enemy that spawns in the arena and shoots at the
   // player. Forces repositioning. Counter: break line of sight with props.
   else if(kind==='turret'){ hp=(30+w*6)*lateMul; spd=0; size=1.0; color=0x88aabb; dmg=10*lateMul; xp=3; }
+  // Warper (v070226b): slow walker that periodically blinks most of the
+  // way toward the player. You can't kite it forever — it closes distance
+  // in bursts, so it has to be dealt with, not outrun.
+  else if(kind==='warper'){ hp=(15+w*4)*lateMul; spd=2.2*spdMul; size=0.9; color=0xdd66ff; dmg=16*lateMul; xp=3; }
   else { hp=(16+w*5)*lateMul; spd=3.7*spdMul; size=1.0; color=0xff4b6b; dmg=20*lateMul; xp=1; }
   // Apply difficulty multipliers (v061926a)
   hp *= DIFFICULTY.hp;
@@ -3129,6 +3152,7 @@ function spawnEnemy(kind, atX, atZ){
   if(kind==='summoner')baseProps.summonCd=3.5+Math.random()*1.5;
   if(kind==='shielder')baseProps.shieldMesh=mdl.shieldMesh;   // set by makeEnemyModel
   if(kind==='turret')  baseProps.shootCd=1.5+Math.random();
+  if(kind==='warper')  baseProps.warpCd=2.5+Math.random()*1.5;
   // ---- elite enemies (v061726k) ----
   // Every ~5 spawns, one enemy gets a random elite modifier. Elites
   // have 2x HP, a golden tint, and one of: faster, shielded, or
@@ -3162,7 +3186,7 @@ function spawnEnemy(kind, atX, atZ){
 }
 const ENEMY_LABELS={ basic:'Grunt', fast:'Runner', tank:'Tank', ranged:'Shooter', dasher:'Dasher', healer:'Healer',
                      bomber:'Bomber', splitter:'Splitter', shielder:'Shielder', summoner:'Summoner', phantom:'Phantom', leech:'Leech',
-                     turret:'Turret' };
+                     turret:'Turret', warper:'Warper' };
 // weighted enemy-kind picker; tougher/odder types unlock as waves climb
 function pickEnemyKind(w){
   const pool=[ ['basic',1.0], ['fast',0.5+w*0.02] ];
@@ -3177,6 +3201,7 @@ function pickEnemyKind(w){
   if(w>=6) pool.push(['healer',0.18]);
   if(w>=6) pool.push(['summoner',0.14+w*0.008]);
   if(w>=7) pool.push(['turret',0.12+w*0.008]);   // stationary shooter (v061726k)
+  if(w>=6) pool.push(['warper',0.15+w*0.01]);    // teleporter (v070226b)
   let tot=0; for(const p of pool) tot+=p[1];
   let r=Math.random()*tot;
   for(const p of pool){ r-=p[1]; if(r<=0) return p[0]; }
@@ -3475,11 +3500,21 @@ function updateBlades(){
         }
       }
     }
-    for(const [e,v] of b.hitCd){ b.hitCd.set(e, v-dt); }
+    // Tick down per-enemy hit cooldowns and EVICT expired entries. They
+    // were only ever decremented before, so the Map kept every enemy the
+    // blade had ever touched — for a long endless run that meant iterating
+    // thousands of stale entries per blade per frame AND pinning every dead
+    // enemy object (and its mesh) in memory. (v070226b)
+    for(const [e,v] of b.hitCd){
+      const nv=v-dt;
+      if(nv<=0) b.hitCd.delete(e);
+      else b.hitCd.set(e, nv);
+    }
   }
 }
 
 // run each owned weapon's cooldown + fire at target
+const _chargeMeterEl=D.getElementById('chargeMeter');   // resolved once — autoFire runs every frame (v070226b)
 function autoFire(){
   // Charged shot: holding LeftShift (or the CHARGE button on mobile)
   // pauses auto-fire and builds a charge. On release, the next ball
@@ -3526,8 +3561,7 @@ function autoFire(){
     return;
   }
   // hide the charge meter when not charging
-  const meter=D.getElementById('chargeMeter');
-  if(meter && meter.style.display==='block') meter.style.display='none';
+  if(_chargeMeterEl && _chargeMeterEl.style.display==='block') _chargeMeterEl.style.display='none';
   const best=A.target;
   A.wcd=A.wcd||{};
   for(const w of A.weapons){
@@ -3960,6 +3994,11 @@ function arenaDeath(){
   // overlay (previously you had to press Esc + click a button to escape). (v070126b)
   D.getElementById('upgrade').style.display='none';
   A.paused=false;
+  // Dying while charging left the CHARGE meter stuck on top of the death
+  // screen (autoFire stops running, so nothing ever hid it). (v070226b)
+  A._charging=0;
+  if(A._chargeMesh){ disposeObj(A._chargeMesh); A._chargeMesh=null; }
+  const _cm=D.getElementById('chargeMeter'); if(_cm) _cm.style.display='none';
   GAME.state='dead';
   recordWave(A.wave);
   // Persistent stats: count the death, the completed run, per-class best
@@ -4190,6 +4229,7 @@ function setMode(m){
   D.getElementById('crosshair').style.display = 'none';
   // LEAVE button is arena-only and gated further by proximity in updateArena
   const be=D.getElementById('btnExit'); if(be) be.style.display='none';
+  _hudExitShown=null; _hudChargeShown=null;   // resync updateArena's display cache (v070226b)
   // speed readout shows during play (lobby + arena)
   const sp=D.getElementById('speedo'); if(sp) sp.style.display=(m==='arena'||m==='overworld')?'block':'none';
   // Mode + difficulty indicator at top of screen (v061926d)
@@ -4629,9 +4669,14 @@ function updateOverworld(){
 // Reusable scratch vectors for the ice-twist momentum calc so the slippery
 // floor doesn't allocate three Vector3s every frame while you're on it. (v062926a)
 const _iceFwd=new THREE.Vector3(), _iceRight=new THREE.Vector3(), _iceMv=new THREE.Vector3();
+// Hot HUD elements resolved once — updateArena did three getElementById
+// calls plus two unconditional style writes every single frame. The display
+// values are now also tracked so the DOM is only touched on change. (v070226b)
+const _hudHint=D.getElementById('hint'), _hudBtnExit=D.getElementById('btnExit'), _hudBtnCharge=D.getElementById('btnCharge');
+let _hudExitShown=null, _hudChargeShown=null;
 function updateArena(){
   if(A.paused || GAME.paused){ return; }
-  const exitHint=D.getElementById('hint');
+  const exitHint=_hudHint;
   checkArenaTutorial();   // first-run tip (v061726k)
   // movement
   collideMove('arena');
@@ -4685,6 +4730,43 @@ function updateArena(){
       if(Math.hypot(A._iceSlideX, A._iceSlideZ) < 0.001) A._iceSlideX = A._iceSlideZ = 0;
     }
   }
+  // Storm: telegraphed lightning strikes near the player (v070226b). A
+  // yellow warning ring appears on the ground; 0.9s later a vertical bolt
+  // hits it. Standing in the ring when it lands hurts — jumping over the
+  // strike (feet off the ground) dodges it, same spirit as lava counterplay.
+  if(A.biomeTwist==='storm'){
+    A._stormT=(A._stormT||0)-dt;
+    if(A._stormT<=0){
+      A._stormT=2.2+Math.random()*1.6;
+      const ang=Math.random()*Math.PI*2, rad=1.5+Math.random()*5.5;
+      const sx=player.pos.x+Math.cos(ang)*rad, sz=player.pos.z+Math.sin(ang)*rad;
+      const ring=new THREE.Mesh(new THREE.RingGeometry(1.35,1.7,20),
+        new THREE.MeshBasicMaterial({color:0xffe14a, transparent:true, opacity:0.8, side:THREE.DoubleSide}));
+      ring.rotation.x=-Math.PI/2; ring.position.set(sx,0.08,sz);
+      arena.group.add(ring);
+      A._strikes=A._strikes||[];
+      A._strikes.push({x:sx, z:sz, t:0, mesh:ring});
+    }
+    if(A._strikes){
+      for(let i=A._strikes.length-1;i>=0;i--){
+        const s=A._strikes[i]; s.t+=dt;
+        // pulse the warning ring faster as the strike approaches
+        s.mesh.material.opacity=0.45+0.4*Math.sin(s.t*18);
+        if(s.t>=0.9){
+          // strike: jagged vertical bolt + sparks + thunder
+          spawnBolt(new THREE.Vector3(s.x, 15, s.z), new THREE.Vector3(s.x, 0.1, s.z));
+          for(let k=0;k<12;k++){ const a=k/12*Math.PI*2; spawnParticle(s.x, 0.4, s.z, Math.cos(a)*5, 2.5+Math.random()*2, Math.sin(a)*5, 1.0,0.95,0.5, 0.4); }
+          SFX.bossShot();
+          addShake(0.25);
+          if(Math.hypot(player.pos.x-s.x, player.pos.z-s.z)<1.7 && player.pos.y<1.2){
+            hurtPlayer(16, new THREE.Vector3(s.x, 0, s.z));
+          }
+          disposeObj(s.mesh);
+          A._strikes.splice(i,1);
+        }
+      }
+    }
+  }
 
   // exit: the End Run button is available via the pause menu (Esc →
   // End Run). The mobile END RUN button also works. The "Press E"
@@ -4694,11 +4776,10 @@ function updateArena(){
   if(A.exitGrace>0) A.exitGrace-=dt;
   const canLeave = A.exitGrace<=0;
   // the END RUN button shows on mobile whenever the player can leave
-  const btnExit=D.getElementById('btnExit');
-  if(btnExit) btnExit.style.display = (canLeave && isMobile) ? 'flex' : 'none';
+  const exitShow = (canLeave && isMobile);
+  if(_hudBtnExit && exitShow!==_hudExitShown){ _hudExitShown=exitShow; _hudBtnExit.style.display = exitShow ? 'flex' : 'none'; }
   // CHARGE button: always visible on mobile during arena play
-  const btnCharge=D.getElementById('btnCharge');
-  if(btnCharge) btnCharge.style.display = isMobile ? 'flex' : 'none';
+  if(_hudBtnCharge && isMobile!==_hudChargeShown){ _hudChargeShown=isMobile; _hudBtnCharge.style.display = isMobile ? 'flex' : 'none'; }
   if(canLeave){
     // In wave mode, we no longer show the "Press E to end run" hint, nor do we
     // allow pressing E to end the run. The player must use the End Run button 
@@ -5102,6 +5183,22 @@ function updateArena(){
       if(e.shootCd<=0 && dist<22){
         eshot(e.mesh.position.x, e.mesh.position.z, _tmpDir.set(dx,0,dz).normalize(), 10, e.dmg, 0x88aabb);
         e.shootCd = 1.8;
+      }
+    } else if(e.kind==='warper'){
+      // WARPER (v070226b): every few seconds, blink 60% of the remaining
+      // distance to the player (never closer than 2.5 units, so it doesn't
+      // teleport inside you). Particle bursts at both ends telegraph the
+      // move; pushOutOfProps keeps it from materializing inside scenery.
+      e.warpCd-=dt;
+      if(e.warpCd<=0 && dist>4){
+        e.warpCd=3.0+Math.random()*1.5;
+        const ox=e.mesh.position.x, oz=e.mesh.position.z;
+        for(let k=0;k<10;k++){ const a=k/10*Math.PI*2; spawnParticle(ox, (e.top||1)*0.5, oz, Math.cos(a)*3, 1.5, Math.sin(a)*3, 0.85,0.4,1.0, 0.35); }
+        const frac=Math.min(0.6, Math.max(0, (dist-2.5)/dist));
+        e.mesh.position.x += dx*frac;
+        e.mesh.position.z += dz*frac;
+        pushOutOfProps(e.mesh.position, e.size*0.5);
+        for(let k=0;k<10;k++){ const a=k/10*Math.PI*2; spawnParticle(e.mesh.position.x, (e.top||1)*0.5, e.mesh.position.z, Math.cos(a)*3, 1.5, Math.sin(a)*3, 0.85,0.4,1.0, 0.35); }
       }
     }
   }
@@ -5916,6 +6013,35 @@ const HATS = {
     // pom on the tip
     const pom=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8), new THREE.MeshLambertMaterial({color:0xffe14a}));
     pom.position.y=0.53; g.add(pom);
+    return g;
+  }},
+  // new hats (v070226b)
+  propeller: {name:'Propeller Cap', build:()=>{
+    const g=new THREE.Group();
+    // two-tone beanie-style cap
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.25,14,10,0,Math.PI*2,0,Math.PI*0.5), new THREE.MeshLambertMaterial({color:0xd23a3a}));
+    g.add(cap);
+    const stripe=new THREE.Mesh(new THREE.SphereGeometry(0.252,14,10,0,Math.PI,0,Math.PI*0.5), new THREE.MeshLambertMaterial({color:0x2a6dd2}));
+    g.add(stripe);
+    // mast + crossed propeller blades on top
+    const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.1,6), new THREE.MeshLambertMaterial({color:0xdddddd}));
+    mast.position.y=0.28; g.add(mast);
+    const bladeMat=new THREE.MeshLambertMaterial({color:0xffe14a});
+    const b1=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.02,0.06), bladeMat);
+    b1.position.y=0.34; g.add(b1);
+    const b2=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.02,0.4), bladeMat);
+    b2.position.y=0.34; g.add(b2);
+    return g;
+  }},
+  cone: {name:'Traffic Cone', build:()=>{
+    const g=new THREE.Group();
+    const base=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.04,0.34), new THREE.MeshLambertMaterial({color:0xe06a1a}));
+    base.position.y=0.02; g.add(base);
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.42,12), new THREE.MeshLambertMaterial({color:0xe06a1a}));
+    cone.position.y=0.24; g.add(cone);
+    // reflective stripe: a thin brighter band partway up the cone
+    const stripe=new THREE.Mesh(new THREE.CylinderGeometry(0.115,0.13,0.07,12), new THREE.MeshBasicMaterial({color:0xf5f5f5}));
+    stripe.position.y=0.22; g.add(stripe);
     return g;
   }},
   flower: {name:'Flower Crown', build:()=>{
