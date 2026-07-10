@@ -18,6 +18,19 @@ game behaves exactly as it always has. Nothing about the GitHub Pages deployment
 | `game.settings.muteAudio` + `addSettingsChangeListener` | The platform-level mute is respected and takes priority over the in-game volume sliders (sliders can't unmute while it's active). Test locally with `?muteAudio=true` |
 | `data` module (cloud saves) | Every `persist()` mirrors the save; on init, an existing cloud save wins over the (empty, different-origin) localStorage |
 
+Additional compliance items verified against their requirements docs (v071026d):
+
+- **Input during ads:** the death screen's Retry button and R-key shortcut are inert
+  while a midgame ad is playing (their ad rules require disabled inputs until the ad
+  completes or errors).
+- **Refresh-rate consistency:** all per-frame decay/turn factors (ice friction, homing
+  missile steering, particle drag, screen-shake decay) are dt-normalized, so physics
+  behave identically at 60/144/165 Hz.
+- **Frame-time clamp:** `dt` is capped at 50 ms, so tab-switch stutters can't teleport
+  entities.
+- **No external links, no custom fullscreen button, English UI, PEGI-12 content,
+  layout-independent controls** (`e.code` physical keys + full rebinding in Settings).
+
 Platform-specific behavior on CrazyGames:
 
 - The **Lofi Girl YouTube music is disabled** (players get SFX only). Embedded
