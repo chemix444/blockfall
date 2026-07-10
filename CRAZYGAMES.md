@@ -15,6 +15,7 @@ game behaves exactly as it always has. Nothing about the GitHub Pages deployment
 | `game.gameplayStop()` | Opening every menu listed above, plus death |
 | `game.happytime()` | Full boss kills, Perfect Waves, new best score |
 | `ad.requestAd('midgame')` | On the death screen, self-throttled to one request per 3 minutes; audio is muted in `adStarted` and restored in `adFinished`/`adError` |
+| `game.settings.muteAudio` + `addSettingsChangeListener` | The platform-level mute is respected and takes priority over the in-game volume sliders (sliders can't unmute while it's active). Test locally with `?muteAudio=true` |
 | `data` module (cloud saves) | Every `persist()` mirrors the save; on init, an existing cloud save wins over the (empty, different-origin) localStorage |
 
 Platform-specific behavior on CrazyGames:
