@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v071026b';   // keep in sync with VERSION below
+  var BUNDLED = 'v071026c';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -457,8 +457,12 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v071026b · CrazyGames Ready (July 10, 2026)</div>
+    <div class="desc">v071026c · Platform Mute (July 10, 2026)</div>
     <ul>
+      <li>The game now fully respects <b>CrazyGames' platform mute</b> — muting the game from the CrazyGames site silences everything (SFX and music) instantly, stays in effect even if you move the in-game volume sliders, and lifts cleanly when unmuted. Ad muting and platform muting now share one system, with your slider settings always restored exactly afterwards</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v071026b · CrazyGames Ready (July 10, 2026)</div>
+    <ul style="opacity:.6">
       <li>Blockfall is now ready to publish on <b>CrazyGames</b>! Integrated their SDK v3: gameplay start/stop events fire on every run, pause, menu, and death; big moments (boss kills, perfect waves, new best scores) are celebrated through the platform; and a midgame ad can play on the death screen (at most once per 3 minutes, with game audio properly muted during it)</li>
       <li>On CrazyGames your save lives in their <b>cloud save</b> system — it survives cleared caches and follows you across devices when logged in. Everywhere else, saves work exactly as before</li>
       <li>None of this changes the game here: outside CrazyGames the SDK stays dormant and everything plays identically. The Lofi Girl music remains on this version; CrazyGames players get sound effects only</li>
@@ -949,8 +953,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v071026b';
-const UPDATE_TITLE = 'CrazyGames Ready';
+const VERSION = 'v071026c';
+const UPDATE_TITLE = 'Platform Mute';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1244,24 +1248,29 @@ function loadSave(){
 // Everything routes through the guarded helpers below, so on GitHub Pages
 // (environment "disabled") or if the SDK script fails to load, the game
 // behaves exactly as before. See CRAZYGAMES.md for the submission guide.
-const CG = { on:false, sdk:null, lastAd:0, _prevSfx:null, _prevMusic:null };
+const CG = { on:false, sdk:null, lastAd:0, _adMute:false, _sysMute:false, _muted:false };
 function cgSafe(fn){ if(!CG.on) return; try{ fn(); }catch(_){} }
 function cgPlay(){ cgSafe(()=>CG.sdk.game.gameplayStart()); }    // gameplay (re)starts
 function cgBreak(){ cgSafe(()=>CG.sdk.game.gameplayStop()); }    // menu/pause/death
 function cgHappy(){ cgSafe(()=>CG.sdk.game.happytime()); }       // big wins, used sparingly
-// Mute/unmute everything for ads — CrazyGames requires the game to be
-// silent while an ad plays. Restores the player's previous volumes after.
-function cgMuteAll(m){
+// Two independent mute sources (v071026c):
+//  - _adMute:  set while an SDK ad plays (their QA requirement)
+//  - _sysMute: mirrors the platform's game.settings.muteAudio — the
+//    site-level mute, which their docs say must take priority over the
+//    game's own audio settings
+// The game is silent while EITHER is set. Unmuting restores through
+// applyVolumes(), so the player's slider values are always the source of
+// truth — no volume snapshots to get out of sync.
+function cgUpdateMute(){
+  CG._muted = !!(CG._adMute || CG._sysMute);
   try{
-    if(m){
-      if(sfxBus){ CG._prevSfx=sfxBus.gain.value; sfxBus.gain.value=0; }
-      if(musicBus){ CG._prevMusic=musicBus.gain.value; musicBus.gain.value=0; }
+    if(CG._muted){
+      if(sfxBus) sfxBus.gain.value=0;
+      if(musicBus) musicBus.gain.value=0;
       if(ytPlayer && ytPlayer.mute) ytPlayer.mute();
     } else {
-      if(sfxBus && CG._prevSfx!==null) sfxBus.gain.value=CG._prevSfx;
-      if(musicBus && CG._prevMusic!==null) musicBus.gain.value=CG._prevMusic;
+      applyVolumes();
       if(ytPlayer && ytPlayer.unMute) ytPlayer.unMute();
-      CG._prevSfx=CG._prevMusic=null;
     }
   }catch(_){}
 }
@@ -1275,11 +1284,11 @@ function cgMidgameAd(){
   CG.lastAd = now;
   try{
     CG.sdk.ad.requestAd('midgame', {
-      adStarted: ()=>cgMuteAll(true),
-      adFinished: ()=>cgMuteAll(false),
-      adError: ()=>cgMuteAll(false),
+      adStarted: ()=>{ CG._adMute=true; cgUpdateMute(); },
+      adFinished: ()=>{ CG._adMute=false; cgUpdateMute(); },
+      adError: ()=>{ CG._adMute=false; cgUpdateMute(); },
     });
-  }catch(_){ cgMuteAll(false); }
+  }catch(_){ CG._adMute=false; cgUpdateMute(); }
 }
 // The lofi-girl YouTube stream stays a GitHub-Pages-only feature: embedded
 // third-party media is a QA risk on CrazyGames, so their players get SFX
@@ -1304,6 +1313,14 @@ async function initCrazyGames(){
   }catch(_){ CG.on=false; }
   if(CG.on){
     cgSafe(()=>CG.sdk.game.loadingStart());
+    // Respect the platform's muteAudio setting (site-level mute; testable
+    // locally with ?muteAudio=true). Synced now and on every settings
+    // change — their docs require it to override in-game audio settings. (v071026c)
+    try{
+      const syncMute=()=>{ CG._sysMute=!!(CG.sdk.game.settings && CG.sdk.game.settings.muteAudio); cgUpdateMute(); };
+      syncMute();
+      if(CG.sdk.game.addSettingsChangeListener) CG.sdk.game.addSettingsChangeListener(syncMute);
+    }catch(_){}
     // Cloud save: the SDK's data module survives cache clears and syncs
     // across devices for logged-in players. If it holds a save, it wins
     // over this origin's localStorage; every persist() mirrors back into
@@ -1400,6 +1417,15 @@ function initAudio(){
   if(AC&&AC.state==='suspended') AC.resume();
 }
 function applyVolumes(){
+  // While CrazyGames has us muted (platform mute or an ad), slider changes
+  // must not restore audio — their muteAudio setting takes priority over
+  // in-game audio settings per the SDK docs. cgUpdateMute() re-calls this
+  // when the mute lifts, which re-applies the sliders. (v071026c)
+  if(CG._muted){
+    if(sfxBus) sfxBus.gain.value=0;
+    if(musicBus) musicBus.gain.value=0;
+    return;
+  }
   if(sfxBus) sfxBus.gain.value = settings.sfxVol/100;
   if(musicBus) musicBus.gain.value = settings.musicVol/100 * 0.5;
   // YouTube livestream volume — only meaningful once the YT player is
