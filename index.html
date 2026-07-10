@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v070226b';   // keep in sync with VERSION below
+  var BUNDLED = 'v071026a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -125,6 +125,12 @@
   #overlay button:hover { filter:brightness(1.1); }
   #toast { position:fixed; top:78px; left:50%; transform:translateX(-50%); z-index:8; font-size:14px; background:rgba(0,0,0,.6); padding:7px 16px; border-radius:7px; opacity:0; transition:opacity .3s; pointer-events:none; }
   #dmgflash { position:fixed; inset:0; z-index:7; pointer-events:none; box-shadow:inset 0 0 120px rgba(226,59,59,0); transition:box-shadow .1s; }
+  /* Universal press feedback (v071026a): every button / tappable tile gets
+     a quick squash + brighten pulse when activated, so a click never feels
+     like it was swallowed. Applied by flashPress() via onTap and a global
+     capture-phase click listener on native buttons. */
+  @keyframes pressPop { 0%{transform:scale(1);filter:brightness(1)} 35%{transform:scale(.94);filter:brightness(1.45)} 100%{transform:scale(1);filter:brightness(1)} }
+  .pressfx { animation:pressPop .18s ease-out; }
   /* Low-HP warning vignette: pulsing red edge glow when the player drops
      below 25% HP. Pure CSS; JS toggles .show. (v070126c) */
   #lowhp { position:fixed; inset:0; z-index:6; pointer-events:none; opacity:0; box-shadow:inset 0 0 140px 24px rgba(220,30,40,.55); transition:opacity .25s; }
@@ -444,8 +450,19 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v070226b · Storms &amp; Warpers (July 2, 2026)</div>
+    <div class="desc">v071026a · Feel &amp; Flow (July 10, 2026)</div>
     <ul>
+      <li>Floating name labels now hover above each lobby portal — <b style="color:#d9a6ff">WAVES</b>, <b style="color:#ffb066">ENDLESS</b>, and <b style="color:#8affab">SANDBOX</b> — so you always know which doorway is which</li>
+      <li>Every button and menu tile in the game now gives <b>press feedback</b> — a quick squash-and-brighten pulse when clicked or tapped, so a selection never feels like it was swallowed</li>
+      <li>Every hat now has its own icon in the cosmetics shop — hats added after the original seven were all showing a generic 🧢</li>
+      <li>Enemies now <b>burst into particles of their own color</b> when killed, scaled to their size — kills used to just delete the model</li>
+      <li>XP pickups now <b>ramp up in pitch</b> when collected in quick succession — vacuuming a wave's worth of orbs plays a rising arpeggio</li>
+      <li>New <b>★ Perfect Wave</b> bonus: clear a wave without taking any damage and earn +3 shards</li>
+      <li>New <b>🎁 Daily bonus</b>: your first run each day earns +50% shards for the whole run</li>
+      <li>The death screen now shows a <b>run score</b> (kills, waves, levels, and survival time combined) with a persistent best score to chase — beat it for a 🏆 NEW BEST</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v070226b · Storms &amp; Warpers (July 2, 2026)</div>
+    <ul style="opacity:.6">
       <li>New biome: <b>Stormreach</b> ⛈️ — a slate-grey arena where telegraphed lightning strikes chase you. A pulsing yellow ring marks each strike ~1 second ahead; move out of it (or jump the moment it lands) to dodge. Selectable in the Sandbox biome picker too</li>
       <li>New enemy: the <b>Warper</b> — a purple blinker that teleports 60% of the way toward you every few seconds, with particle bursts telegraphing both ends of the jump. You can't kite it forever; it appears from wave 6</li>
       <li>2 new hats: <b>Propeller Cap</b> and <b>Traffic Cone</b> 🚧</li>
@@ -919,8 +936,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v070226b';
-const UPDATE_TITLE = 'Storms & Warpers';
+const VERSION = 'v071026a';
+const UPDATE_TITLE = 'Feel & Flow';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1235,7 +1252,11 @@ function importSave(code){
     return true;
   }catch(e){ return false; }
 }
-function addShards(n){ shards += n; updateShardHud(); persist(); }
+function addShards(n){
+  // Daily bonus (v071026a): +50% shards on the first run of the day.
+  if(A._dailyBonus && A.active) n=Math.ceil(n*1.5);
+  shards += n; updateShardHud(); persist();
+}
 function recordWave(w){ if(w>bestWave){ bestWave=w; persist(); } updateBestHud(); }
 // Per-class best wave tracker — called at the end of every run. If the
 // player beat their previous best for the class they were using, update
@@ -1303,7 +1324,9 @@ const SFX={
   boss:()=>{ blip(90,0.5,'sawtooth',0.22,50); noise(0.4,0.18); },
   bossShot:()=>blip(300,0.10,'sawtooth',0.10,140),
   step:()=>blip(120,0.04,'sine',0.05),
-  xp:()=>blip(880,0.06,'sine',0.07,1180),
+  // Optional pitch multiplier (v071026a): rapid consecutive orb pickups ramp
+  // the pitch up, so vacuuming a wave's worth of XP plays a rising arpeggio.
+  xp:(mul)=>{ mul=mul||1; blip(880*mul,0.06,'sine',0.07,1180*mul); },
   weapon:()=>{ blip(440,0.1,'triangle',0.14); setTimeout(()=>blip(660,0.1,'triangle',0.14),80); setTimeout(()=>blip(990,0.14,'triangle',0.14),160); },
 };
 
@@ -1510,6 +1533,21 @@ let xpNpcMarker;
 const LOBBY_Y = 0;            // floor top surface
 let portalPlane;
 let portalPlaneEndless;   // endless-mode portal glow plane (v061726l)
+// Floating text label rendered to a canvas and shown as a camera-facing
+// sprite — used for the portal names above each doorway. (v071026a)
+function makePortalLabel(text, cssColor){
+  const c=D.createElement('canvas'); c.width=512; c.height=128;
+  const g=c.getContext('2d');
+  g.font='bold 64px "Trebuchet MS", system-ui, sans-serif';
+  g.textAlign='center'; g.textBaseline='middle';
+  g.shadowColor='rgba(0,0,0,0.9)'; g.shadowBlur=14;
+  g.fillStyle=cssColor;
+  g.fillText(text, 256, 68);
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false}));
+  sp.scale.set(3.6, 0.9, 1);
+  return sp;
+}
 function buildLobby(){
   // flat circular floor
   const floorMat = new THREE.MeshLambertMaterial({ color:0x2a2f45 });
@@ -1531,12 +1569,17 @@ function buildLobby(){
   const px = 0, pz = -7;
   buildPortalFrame(px, LOBBY_Y, pz, 0xb14bff);   // purple = arena
   PORTAL_POS.set(px, LOBBY_Y + 1.9, pz);
+  // name labels floating above each portal's lintel (v071026a)
+  const lblArena=makePortalLabel('WAVES', '#d9a6ff');
+  lblArena.position.set(px, LOBBY_Y+5.0, pz); overworld.group.add(lblArena);
 
   // endless portal off to the left — orange to distinguish from the
   // purple arena portal. Same frame geometry, different glow color.
   const ex = -6.5, ez = -7;
   buildPortalFrame(ex, LOBBY_Y, ez, 0xff6a1f);   // orange = endless
   ENDLESS_PORTAL_POS.set(ex, LOBBY_Y + 1.9, ez);
+  const lblEndless=makePortalLabel('ENDLESS', '#ffb066');
+  lblEndless.position.set(ex, LOBBY_Y+5.0, ez); overworld.group.add(lblEndless);
 
   // class-shop NPC off to the right
   const nx = 6.5, nz = -1;
@@ -1561,6 +1604,8 @@ function buildLobby(){
   const sx = 6.5, sz = -7;
   buildPortalFrame(sx, LOBBY_Y, sz, 0x33ff66);   // green = sandbox
   SANDBOX_PORTAL_POS.set(sx, LOBBY_Y + 1.9, sz);
+  const lblSandbox=makePortalLabel('SANDBOX', '#8affab');
+  lblSandbox.position.set(sx, LOBBY_Y+5.0, sz); overworld.group.add(lblSandbox);
 }
 // Class-shop NPC. Built as a blocky humanoid mirroring the default player
 // avatar (same body parts, same default colors) so it reads as "another person"
@@ -2124,13 +2169,28 @@ if(isMobile){
   }
 }
 // helper so menu buttons work on the first tap on touch devices (click can be swallowed)
+// Quick squash+brighten pulse on an element so every activation reads as
+// "the game heard you". Restarting the animation needs the remove →
+// reflow → re-add dance. (v071026a)
+function flashPress(el){
+  if(!el || !el.classList) return;
+  el.classList.remove('pressfx');
+  void el.offsetWidth;
+  el.classList.add('pressfx');
+}
+// Native <button>s everywhere get the same feedback via one capture-phase
+// listener (capture so it still fires when a handler stops propagation).
+D.addEventListener('click', e=>{
+  const b = e.target && e.target.closest ? e.target.closest('button') : null;
+  if(b) flashPress(b);
+}, true);
 function onTap(el, fn){
   if(!el) return;
   let moved=false, sx=0, sy=0, lastTouch=0;
   el.addEventListener('touchstart', e=>{ moved=false; const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; }, {passive:true});
   el.addEventListener('touchmove', e=>{ const t=e.changedTouches[0]; if(Math.hypot(t.clientX-sx,t.clientY-sy)>12) moved=true; }, {passive:true});
-  el.addEventListener('touchend', e=>{ if(moved) return; e.preventDefault(); lastTouch=Date.now(); fn(e); }, {passive:false});
-  el.addEventListener('click', e=>{ if(Date.now()-lastTouch<600) return; fn(e); });   // ignore ghost click after a handled tap
+  el.addEventListener('touchend', e=>{ if(moved) return; e.preventDefault(); lastTouch=Date.now(); flashPress(el); fn(e); }, {passive:false});
+  el.addEventListener('click', e=>{ if(Date.now()-lastTouch<600) return; flashPress(el); fn(e); });   // ignore ghost click after a handled tap
 }
 
 // ---------- physics + collision (voxel AABB) ----------
@@ -2577,6 +2637,17 @@ function startArena(){
                diff==='hard' ? {hp:1.4, dmg:1.4, spawn:1.2} :
                diff==='nightmare' ? {hp:2.0, dmg:2.0, spawn:1.5} :
                {hp:1.0, dmg:1.0, spawn:1.0};   // normal
+  // Daily bonus (v071026a): the first run of each calendar day earns +50%
+  // shards for the whole run. Announced a beat after the biome toast so
+  // the two messages don't clobber each other.
+  const _dNow=new Date();
+  const _dKey=_dNow.getFullYear()+'-'+(_dNow.getMonth()+1)+'-'+_dNow.getDate();
+  if(stats.lastDailyDate!==_dKey){
+    stats.lastDailyDate=_dKey;
+    A._dailyBonus=true;
+    persist();
+    setTimeout(()=>{ if(A.active) toast('🎁 Daily bonus: +50% shards this run!'); }, 2300);
+  } else A._dailyBonus=false;
   startMusic();
   updateUpgradePanel();
   nextWave();
@@ -2909,6 +2980,7 @@ function exitArena(keepNothingBut){
 // ----- waves -----
 function nextWave(){
   A.wave++;
+  A._waveDamaged=false;   // Perfect Wave tracking (v071026a)
   recordWave(A.wave);
   const isBoss = (A.wave%10===0);
   const isMiniBoss = (A.wave%5===0 && !isBoss);   // mini-boss on waves 5, 15, 25...
@@ -3749,6 +3821,19 @@ function killEnemy(e){
   addShards(1);                      // +1 shard per kill (also persists totalKills)
   SFX.kill();
   bumpStreak();
+  // Death burst (v071026a): a pop of particles tinted to the enemy's own
+  // color, scaled with its size. Kills used to just delete the model —
+  // this gives every kill a visible "payoff" moment.
+  {
+    const dc=e.color||0xff4b6b;
+    const dr=((dc>>16)&255)/255, dg=((dc>>8)&255)/255, db=(dc&255)/255;
+    const n=8+Math.round((e.size||1)*6);
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2, sp=2+Math.random()*4;
+      spawnParticle(e.mesh.position.x, e.mesh.position.y+(e.top||1)*0.5, e.mesh.position.z,
+        Math.cos(a)*sp, 1+Math.random()*3, Math.sin(a)*sp, dr, dg, db, 0.35+Math.random()*0.2);
+    }
+  }
   // Hit-stop on kills removed (v061726n) — was making the game
   // feel choppy. Kept the crit flash + SFX in damageEnemy instead.
   // Bomber explodes on death — same AoE as the contact explosion, so
@@ -3871,6 +3956,7 @@ function hurtPlayer(d, fromPos){
   if(A.invuln>0) return;
   if(A.stats.dodge && Math.random()<A.stats.dodge){ A.invuln=0.2; spawnDamageText(player.pos.x, player.pos.y+1.8, player.pos.z, 'DODGE', true); return; }
   A.hp-=d; A.invuln=0.45;
+  A._waveDamaged=true;   // no Perfect Wave bonus this wave (v071026a)
   player.bhop=1;                 // getting hit kills your bunnyhop speed
   SFX.hurt();
   // Small camera shake on taking damage — scaled by how big the hit
@@ -3901,6 +3987,7 @@ function contactDamage(e){
   player.bhop=1;                 // getting hit kills your bunnyhop speed
   const applied = e.dmg*dt*(1-(A.stats.dodge||0));
   A.hp -= applied;
+  A._waveDamaged=true;   // no Perfect Wave bonus this wave (v071026a)
   // LEECH: heals itself for 50% of the damage it deals on contact. Trading
   // hits with one is a losing proposition — its HP bar creeps back up while
   // yours ticks down. The heal is on a separate per-tick accumulator and is
@@ -4029,6 +4116,18 @@ function arenaDeath(){
   const secs = totalSec%60;
   const timeStr = mins+':'+(secs<10?'0':'')+secs;
   const dmgStr = Math.round(A.runDamage||0).toLocaleString();
+  // Run score (v071026a): a single chase-number combining everything the
+  // run produced. Persisted best gives players a target beyond best wave.
+  const score = (A.runKills||0)*10 + A.wave*100 + Math.max(0,A.level-1)*25 + totalSec;
+  const prevBestScore = stats.bestScore||0;
+  const newBestScore = score > prevBestScore;
+  if(newBestScore){ stats.bestScore = score; persist(); }
+  const scoreLine =
+    '<span style="display:inline-block;margin-top:6px;font-size:13px;opacity:.95">Score: <b>'+score.toLocaleString()+'</b>'+
+    (newBestScore
+      ? ' <span style="color:#ffd24a;font-weight:bold">🏆 NEW BEST</span>'
+      : ' &nbsp;·&nbsp; Best score: <b>'+prevBestScore.toLocaleString()+'</b>')+
+    '</span><br>';
   const ov=D.getElementById('overlay');
   ov.querySelector('h1').textContent='YOU DIED';
   const newBestLine = isNewBest
@@ -4041,6 +4140,7 @@ function arenaDeath(){
     'Damage: <b>'+dmgStr+'</b> &nbsp;·&nbsp; '+
     'Time: <b>'+timeStr+'</b> &nbsp;·&nbsp; '+
     'Best: <b>'+bestWave+'</b></span><br>'+
+    scoreLine+
     '<span style="display:inline-block;margin-top:10px;font-size:13px;opacity:.7">'+
     'Hit <b>Retry</b> (or press R) to dive straight back in, or return to the lobby.</span>';
   ov.querySelector('.ctrls').style.display='none';
@@ -4688,6 +4788,7 @@ function updateArena(){
     for(const lp of A.lavaPatches){
       if(Math.hypot(player.pos.x-lp.x, player.pos.z-lp.z) < lp.r){
         A.hp -= 12*dt;
+        A._waveDamaged=true;   // no Perfect Wave bonus this wave (v071026a)
         if(A.invuln<=0) A.invuln=0.1;   // brief invuln so the red flash doesn't spam
         // orange damage flash
         const f=D.getElementById('dmgflash');
@@ -4871,6 +4972,13 @@ function updateArena(){
   // waves to advance. Sandbox in 'wave' mode advances just like real waves.
   if(doWaveAdvance && A.toSpawn===0 && A.enemies.length===0){
     collectAllXp();
+    // Perfect Wave bonus (v071026a): clear a wave without taking any damage
+    // and bank +3 shards. A little skill-expression reward each wave.
+    if(A.wave>0 && !A._waveDamaged){
+      addShards(3);
+      toast('★ Perfect wave! +3 shards');
+      SFX.level();
+    }
     nextWave();
   }
 
@@ -5382,7 +5490,14 @@ function updateArena(){
         A.hp=Math.min(A.maxhp, A.hp + A.maxhp*0.25);
         spawnDamageText(player.pos.x, player.pos.y+2.0, player.pos.z, '+HP', true, false, null);
         SFX.level();
-      } else { gainXp(o.xp); SFX.xp(); }
+      } else {
+        // XP combo pitch ramp (v071026a): pickups within 0.9s of each other
+        // climb in pitch (capped), then reset — classic collect-streak juice.
+        const nowT=performance.now();
+        A._xpCombo = (nowT-(A._xpComboT||0) < 900) ? (A._xpCombo||0)+1 : 0;
+        A._xpComboT = nowT;
+        gainXp(o.xp); SFX.xp(1+Math.min(12,A._xpCombo)*0.05);
+      }
       releaseOrbMesh(o.mesh); A.orbs.splice(i,1);
     }
   }
@@ -5892,8 +6007,8 @@ const COSMETIC_PRESETS = [
 // head (y ≈ 1.92). The group is added to the avatar and removed when
 // the player switches hats. 'none' = no hat.
 const HATS = {
-  none: {name:'None', build:()=>null},
-  tophat: {name:'Top Hat', build:()=>{
+  none: {name:'None', ic:'🚫', build:()=>null},
+  tophat: {name:'Top Hat', ic:'🎩', build:()=>{
     const g=new THREE.Group();
     const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.04,12), new THREE.MeshLambertMaterial({color:0x1a1a1a}));
     brim.position.y=0.02; g.add(brim);
@@ -5901,7 +6016,7 @@ const HATS = {
     top.position.y=0.21; g.add(top);
     return g;
   }},
-  crown: {name:'Crown', build:()=>{
+  crown: {name:'Crown', ic:'👑', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0xffd700, emissive:0x442200});
     const base=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.12,8), mat);
@@ -5915,7 +6030,7 @@ const HATS = {
     }
     return g;
   }},
-  wizard: {name:'Wizard Hat', build:()=>{
+  wizard: {name:'Wizard Hat', ic:'🧙', build:()=>{
     const g=new THREE.Group();
     const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.03,12), new THREE.MeshLambertMaterial({color:0x4a2a6a}));
     brim.position.y=0.02; g.add(brim);
@@ -5923,7 +6038,7 @@ const HATS = {
     cone.position.y=0.28; g.add(cone);
     return g;
   }},
-  headphones: {name:'Headphones', build:()=>{
+  headphones: {name:'Headphones', ic:'🎧', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0x222222});
     // The player's head center is at ~1.70, and applyHat mounts the hat at 1.92.
@@ -5951,13 +6066,13 @@ const HATS = {
     
     return g;
   }},
-  halo: {name:'Halo', build:()=>{
+  halo: {name:'Halo', ic:'😇', build:()=>{
     const g=new THREE.Group();
     const ring=new THREE.Mesh(new THREE.TorusGeometry(0.26,0.04,8,20), new THREE.MeshBasicMaterial({color:0xffff88}));
     ring.rotation.x=Math.PI/2; ring.position.y=0.12; g.add(ring);
     return g;
   }},
-  horns: {name:'Devil Horns', build:()=>{
+  horns: {name:'Devil Horns', ic:'😈', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0x880000});
     const lh=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.18,6), mat);
@@ -5966,7 +6081,7 @@ const HATS = {
     rh.position.set(0.14,0.12,0); rh.rotation.z=-0.3; g.add(rh);
     return g;
   }},
-  bandana: {name:'Bandana', build:()=>{
+  bandana: {name:'Bandana', ic:'🥷', build:()=>{
     const g=new THREE.Group();
     const band=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.08,0.46), new THREE.MeshLambertMaterial({color:0xcc2222}));
     band.position.y=0.02; g.add(band);
@@ -5976,7 +6091,7 @@ const HATS = {
     return g;
   }},
   // new hats (v062926a)
-  cowboy: {name:'Cowboy Hat', build:()=>{
+  cowboy: {name:'Cowboy Hat', ic:'🤠', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0x8a5a2b});
     // wide upturned brim
@@ -5990,7 +6105,7 @@ const HATS = {
     band.position.y=0.06; g.add(band);
     return g;
   }},
-  beanie: {name:'Beanie', build:()=>{
+  beanie: {name:'Beanie', ic:'🧶', build:()=>{
     const g=new THREE.Group();
     const mat=new THREE.MeshLambertMaterial({color:0x2a7a8a});
     const cap=new THREE.Mesh(new THREE.SphereGeometry(0.26,14,10,0,Math.PI*2,0,Math.PI*0.55), mat);
@@ -6003,7 +6118,7 @@ const HATS = {
     pom.position.y=0.2; g.add(pom);
     return g;
   }},
-  party: {name:'Party Hat', build:()=>{
+  party: {name:'Party Hat', ic:'🥳', build:()=>{
     const g=new THREE.Group();
     const cone=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.5,14), new THREE.MeshLambertMaterial({color:0xff3fa0}));
     cone.position.y=0.26; g.add(cone);
@@ -6016,7 +6131,7 @@ const HATS = {
     return g;
   }},
   // new hats (v070226b)
-  propeller: {name:'Propeller Cap', build:()=>{
+  propeller: {name:'Propeller Cap', ic:'🚁', build:()=>{
     const g=new THREE.Group();
     // two-tone beanie-style cap
     const cap=new THREE.Mesh(new THREE.SphereGeometry(0.25,14,10,0,Math.PI*2,0,Math.PI*0.5), new THREE.MeshLambertMaterial({color:0xd23a3a}));
@@ -6033,7 +6148,7 @@ const HATS = {
     b2.position.y=0.34; g.add(b2);
     return g;
   }},
-  cone: {name:'Traffic Cone', build:()=>{
+  cone: {name:'Traffic Cone', ic:'🚧', build:()=>{
     const g=new THREE.Group();
     const base=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.04,0.34), new THREE.MeshLambertMaterial({color:0xe06a1a}));
     base.position.y=0.02; g.add(base);
@@ -6044,7 +6159,7 @@ const HATS = {
     stripe.position.y=0.22; g.add(stripe);
     return g;
   }},
-  flower: {name:'Flower Crown', build:()=>{
+  flower: {name:'Flower Crown', ic:'🌸', build:()=>{
     const g=new THREE.Group();
     const ring=new THREE.Mesh(new THREE.TorusGeometry(0.25,0.03,8,18), new THREE.MeshLambertMaterial({color:0x3a8a3a}));
     ring.rotation.x=Math.PI/2; ring.position.y=0.04; g.add(ring);
@@ -6114,7 +6229,10 @@ function buildCosmeticGrid(){
     const hdef=HATS[hid];
     const el=D.createElement('div');
     el.style.cssText='width:100px;cursor:pointer;text-align:center;padding:8px;border:2px solid '+(currentHat===hid?'#9b7bff':'rgba(255,255,255,.15)')+';border-radius:8px;background:#10182b;transition:border-color .15s';
-    el.innerHTML='<div style="font-size:22px;margin-bottom:4px">'+(hid==='none'?'🚫':hid==='tophat'?'🎩':hid==='crown'?'👑':hid==='wizard'?'🧙':hid==='headphones'?'🎧':hid==='halo'?'😇':hid==='horns'?'😈':'🧢')+'</div><div style="font-size:12px">'+hdef.name+'</div>';
+    // Each hat definition now carries its own icon (v071026a) — the old
+    // inline ternary only knew the first seven hats, so every hat added
+    // since (Bandana onward) fell through to the generic 🧢.
+    el.innerHTML='<div style="font-size:22px;margin-bottom:4px">'+(hdef.ic||'🧢')+'</div><div style="font-size:12px">'+hdef.name+'</div>';
     el.addEventListener('mouseenter',()=>el.style.borderColor='#9b7bff');
     el.addEventListener('mouseleave',()=>el.style.borderColor=(currentHat===hid?'#9b7bff':'rgba(255,255,255,.15)'));
     onTap(el, ()=>{
