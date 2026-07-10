@@ -16,6 +16,7 @@ A single-file 3D first/third-person wave-based arena shooter built with Three.js
 - **Settings** — FOV, keybind remapping, colorblind mode, screen shake, volume controls
 - **Mobile support** — touch controls with joystick + look pad
 - **Self-updating** — automatically checks for new versions
+- **CrazyGames-ready** — integrates the CrazyGames SDK v3 (gameplay events, midgame ads, cloud saves) when running on their platform; see `CRAZYGAMES.md`
 
 ## Play
 

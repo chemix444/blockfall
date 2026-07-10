@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v071026a';   // keep in sync with VERSION below
+  var BUNDLED = 'v071026b';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -48,14 +48,21 @@
   } catch(_) {}
 })();
 </script>
-<!-- YouTube IFrame API: loaded async so it doesn't block the page. The API
-     calls window.onYouTubeIframeAPIReady (defined in the main game script)
-     once it's ready to construct a player. Used for the lofi-girl livestream
-     that now replaces the procedural background music. -->
-<script src="https://www.youtube.com/iframe_api" async></script>
+<!-- CrazyGames SDK v3 (v071026b): loaded with defer so it doesn't block
+     first paint but is guaranteed to execute before the deferred game
+     module below (defer scripts run in insertion order). On any domain
+     where the SDK reports environment "disabled" (e.g. GitHub Pages) the
+     game runs exactly as before — every SDK call is gated. -->
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js" defer></script>
+<!-- YouTube IFrame API (lofi-girl music) is now injected dynamically by the
+     game script, and ONLY when NOT running on CrazyGames — third-party
+     embedded media is a QA risk there, and their players get SFX only.
+     window.onYouTubeIframeAPIReady is still defined before injection, so
+     the callback flow (and the v061926c race-condition check) is unchanged. -->
+
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'Trebuchet MS',system-ui,sans-serif; color:#fff; user-select:none; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'Trebuchet MS',system-ui,sans-serif; color:#fff; -webkit-user-select:none; user-select:none; }
   #c { display:block; width:100%; height:100%; }
   #crosshair { position:fixed; top:50%; left:50%; width:4px; height:4px; margin:-2px 0 0 -2px; background:#fff; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,.4); pointer-events:none; z-index:5; }
   .hud { position:fixed; z-index:6; pointer-events:none; text-shadow:0 2px 4px rgba(0,0,0,.7); }
@@ -450,8 +457,14 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v071026a · Feel &amp; Flow (July 10, 2026)</div>
+    <div class="desc">v071026b · CrazyGames Ready (July 10, 2026)</div>
     <ul>
+      <li>Blockfall is now ready to publish on <b>CrazyGames</b>! Integrated their SDK v3: gameplay start/stop events fire on every run, pause, menu, and death; big moments (boss kills, perfect waves, new best scores) are celebrated through the platform; and a midgame ad can play on the death screen (at most once per 3 minutes, with game audio properly muted during it)</li>
+      <li>On CrazyGames your save lives in their <b>cloud save</b> system — it survives cleared caches and follows you across devices when logged in. Everywhere else, saves work exactly as before</li>
+      <li>None of this changes the game here: outside CrazyGames the SDK stays dormant and everything plays identically. The Lofi Girl music remains on this version; CrazyGames players get sound effects only</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v071026a · Feel &amp; Flow (July 10, 2026)</div>
+    <ul style="opacity:.6">
       <li>Floating name labels now hover above each lobby portal — <b style="color:#d9a6ff">WAVES</b>, <b style="color:#ffb066">ENDLESS</b>, and <b style="color:#8affab">SANDBOX</b> — so you always know which doorway is which</li>
       <li>Every button and menu tile in the game now gives <b>press feedback</b> — a quick squash-and-brighten pulse when clicked or tapped, so a selection never feels like it was swallowed</li>
       <li>Every hat now has its own icon in the cosmetics shop — hats added after the original seven were all showing a generic 🧢</li>
@@ -936,8 +949,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v071026a';
-const UPDATE_TITLE = 'Feel & Flow';
+const VERSION = 'v071026b';
+const UPDATE_TITLE = 'CrazyGames Ready';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -1225,8 +1238,103 @@ function loadSave(){
     }
   }catch(e){ /* storage blocked: run without persistence */ }
 }
+// ============================================================
+//  CRAZYGAMES SDK INTEGRATION (v071026b)
+// ============================================================
+// Everything routes through the guarded helpers below, so on GitHub Pages
+// (environment "disabled") or if the SDK script fails to load, the game
+// behaves exactly as before. See CRAZYGAMES.md for the submission guide.
+const CG = { on:false, sdk:null, lastAd:0, _prevSfx:null, _prevMusic:null };
+function cgSafe(fn){ if(!CG.on) return; try{ fn(); }catch(_){} }
+function cgPlay(){ cgSafe(()=>CG.sdk.game.gameplayStart()); }    // gameplay (re)starts
+function cgBreak(){ cgSafe(()=>CG.sdk.game.gameplayStop()); }    // menu/pause/death
+function cgHappy(){ cgSafe(()=>CG.sdk.game.happytime()); }       // big wins, used sparingly
+// Mute/unmute everything for ads — CrazyGames requires the game to be
+// silent while an ad plays. Restores the player's previous volumes after.
+function cgMuteAll(m){
+  try{
+    if(m){
+      if(sfxBus){ CG._prevSfx=sfxBus.gain.value; sfxBus.gain.value=0; }
+      if(musicBus){ CG._prevMusic=musicBus.gain.value; musicBus.gain.value=0; }
+      if(ytPlayer && ytPlayer.mute) ytPlayer.mute();
+    } else {
+      if(sfxBus && CG._prevSfx!==null) sfxBus.gain.value=CG._prevSfx;
+      if(musicBus && CG._prevMusic!==null) musicBus.gain.value=CG._prevMusic;
+      if(ytPlayer && ytPlayer.unMute) ytPlayer.unMute();
+      CG._prevSfx=CG._prevMusic=null;
+    }
+  }catch(_){}
+}
+// Midgame ad at natural breaks (death screen). Self-throttled to one
+// request per 3 minutes — matching the typical interval in their docs —
+// and the game never depends on the ad succeeding.
+function cgMidgameAd(){
+  if(!CG.on) return;
+  const now=performance.now();
+  if(now - CG.lastAd < 180000) return;
+  CG.lastAd = now;
+  try{
+    CG.sdk.ad.requestAd('midgame', {
+      adStarted: ()=>cgMuteAll(true),
+      adFinished: ()=>cgMuteAll(false),
+      adError: ()=>cgMuteAll(false),
+    });
+  }catch(_){ cgMuteAll(false); }
+}
+// The lofi-girl YouTube stream stays a GitHub-Pages-only feature: embedded
+// third-party media is a QA risk on CrazyGames, so their players get SFX
+// only. Injected here (instead of a static <head> tag) so the choice can
+// be made after the SDK reports which environment we're in.
+function loadYouTubeAPI(){
+  try{
+    if(window.YT && window.YT.Player){ initYTPlayer(); return; }
+    const s=D.createElement('script'); s.src='https://www.youtube.com/iframe_api'; s.async=true;
+    D.head.appendChild(s);
+  }catch(_){}
+}
+async function initCrazyGames(){
+  let onCG=false;
+  try{
+    if(window.CrazyGames && window.CrazyGames.SDK){
+      await window.CrazyGames.SDK.init();
+      if(window.CrazyGames.SDK.environment !== 'disabled'){
+        CG.sdk=window.CrazyGames.SDK; CG.on=true; onCG=true;
+      }
+    }
+  }catch(_){ CG.on=false; }
+  if(CG.on){
+    cgSafe(()=>CG.sdk.game.loadingStart());
+    // Cloud save: the SDK's data module survives cache clears and syncs
+    // across devices for logged-in players. If it holds a save, it wins
+    // over this origin's localStorage; every persist() mirrors back into
+    // it, so the two stay in step from here on.
+    try{
+      const remote=CG.sdk.data.getItem(SAVE_KEY);
+      if(remote){
+        const data=JSON.parse(remote);
+        applySaveData(data);
+        refreshAfterSaveLoad();
+      }
+    }catch(_){}
+    cgSafe(()=>CG.sdk.game.loadingStop());
+  }
+  if(!onCG) loadYouTubeAPI();
+}
+// Re-apply every visual/HUD source that reads from the save — mirrors the
+// boot batch at the bottom of this file. Used after a cloud-save load.
+function refreshAfterSaveLoad(){
+  try{
+    applyFov(); applyPlayerColors(); applyHat(settings.hat); applyOutlineColor();
+    applySky(); applyParticleColors(); applyColorblind(); applyVolumes();
+    updateShardHud(); updateBestHud();
+  }catch(_){}
+}
 function persist(){
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({ shards, bestWave, totalKills, stats, ownedClasses, selectedClass, settings })); }
+  try{
+    const json = JSON.stringify({ shards, bestWave, totalKills, stats, ownedClasses, selectedClass, settings });
+    localStorage.setItem(SAVE_KEY, json);
+    if(CG.on) CG.sdk.data.setItem(SAVE_KEY, json);   // mirror to CrazyGames cloud save (v071026b)
+  }
   catch(e){ /* ignore */ }
 }
 // Save export/import — base64-encoded JSON the user can copy/paste to move
@@ -1237,18 +1345,23 @@ function exportSave(){
     return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
   }catch(e){ return ''; }
 }
+// Apply a parsed save object to the live game state. Shared by the
+// export/import code path and the CrazyGames cloud-save load. (v071026b)
+function applySaveData(data){
+  if(typeof data.shards==='number') shards = data.shards;
+  if(typeof data.bestWave==='number') bestWave = data.bestWave;
+  if(typeof data.totalKills==='number') totalKills = data.totalKills;
+  if(data.stats) stats = {...stats, ...data.stats};
+  if(Array.isArray(data.ownedClasses)) ownedClasses = data.ownedClasses.filter(id=>CLASSES.some(c=>c.id===id));
+  if(!ownedClasses.includes('recruit')) ownedClasses.push('recruit');
+  if(typeof data.selectedClass==='string' && ownedClasses.includes(data.selectedClass)) selectedClass = data.selectedClass;
+  if(data.settings) Object.assign(settings, data.settings);
+  persist();
+}
 function importSave(code){
   try{
     const data = JSON.parse(decodeURIComponent(escape(atob(code))));
-    if(typeof data.shards==='number') shards = data.shards;
-    if(typeof data.bestWave==='number') bestWave = data.bestWave;
-    if(typeof data.totalKills==='number') totalKills = data.totalKills;
-    if(data.stats) stats = {...stats, ...data.stats};
-    if(Array.isArray(data.ownedClasses)) ownedClasses = data.ownedClasses.filter(id=>CLASSES.some(c=>c.id===id));
-    if(!ownedClasses.includes('recruit')) ownedClasses.push('recruit');
-    if(typeof data.selectedClass==='string' && ownedClasses.includes(data.selectedClass)) selectedClass = data.selectedClass;
-    if(data.settings) Object.assign(settings, data.settings);
-    persist();
+    applySaveData(data);
     return true;
   }catch(e){ return false; }
 }
@@ -2028,7 +2141,7 @@ function escapePressed(){
   if(A.paused) return;        // level-up menu is open
   if(D.getElementById('classMenu').style.display==='flex'){ closeClassMenu(); return; }
   if(D.getElementById('cosmeticShop').style.display==='flex'){ closeCosmeticShop(); return; }
-  if(D.getElementById('xpMenu').style.display==='flex'){ D.getElementById('xpMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
+  if(D.getElementById('xpMenu').style.display==='flex'){ D.getElementById('xpMenu').style.display='none'; GAME.paused=false; cgPlay(); if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('difficultyMenu').style.display==='flex'){ D.getElementById('difficultyMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('sandboxMenu').style.display==='flex'){ D.getElementById('sandboxMenu').style.display='none'; GAME.paused=false; if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs); return; }
   if(D.getElementById('sandboxSpawn').style.display==='flex'){ toggleSandboxSpawn(); return; }
@@ -2052,12 +2165,14 @@ function openPauseMenu(){
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('pauseMenu').style.display='flex';
+  cgBreak();   // CrazyGames: gameplay paused (v071026b)
 }
 function closePauseMenu(skipLock){
   D.getElementById('pauseMenu').style.display='none';
   GAME.paused=false;
   setTouchEnabled(true);
   if(!isMobile && GAME.state==='arena' && !skipLock) requestPointerLockSafe(cvs);
+  cgPlay();    // CrazyGames: gameplay resumed (v071026b)
 }
 
 let pointerLocked=false;
@@ -2579,6 +2694,7 @@ function clearDmgTexts(){
 }
 function startArena(){
   A.active=true; A.dead=false; A._dying=false;
+  cgPlay();   // CrazyGames: a run is gameplay (v071026b)
   A.endless=false;   // reset — startEndless() sets this true after calling us
   A.sandbox=false;   // reset — startSandbox() sets this true after calling us
   A.sbSpawn='manual';   // sandbox auto-spawn behavior — startSandbox() overrides (v070126a)
@@ -2662,6 +2778,7 @@ let _pendingMode = 'wave';   // which mode the difficulty prompt is for
 function showDifficultyPrompt(mode){
   _pendingMode = mode;
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('difficultyMode').textContent = mode==='endless' ? 'Endless Mode' : 'Wave Mode';
@@ -2683,6 +2800,7 @@ D.querySelectorAll('.difficultyBtn').forEach(btn=>{
 onTap(D.getElementById('difficultyCancel'), ()=>{
   D.getElementById('difficultyMenu').style.display='none';
   GAME.paused=false;
+  cgPlay();   // CrazyGames (v071026b)
   setTouchEnabled(true);
   resetPlayerOverworld();
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
@@ -2690,6 +2808,7 @@ onTap(D.getElementById('difficultyCancel'), ()=>{
 // ---------- sandbox mode (v061926d) ----------
 function showSandboxMenu(){
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('sandboxMenu').style.display='flex';
@@ -2697,6 +2816,7 @@ function showSandboxMenu(){
 onTap(D.getElementById('sandboxCancel'), ()=>{
   D.getElementById('sandboxMenu').style.display='none';
   GAME.paused=false;
+  cgPlay();   // CrazyGames (v071026b)
   setTouchEnabled(true);
   resetPlayerOverworld();
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
@@ -2945,6 +3065,7 @@ function startEndless(){
   toast("Endless mode — survive as long as you can!");
 }
 function exitArena(keepNothingBut){
+  cgPlay();   // CrazyGames: back to free-roam lobby play (v071026b)
   A.active=false;
   A.endless=false;   // reset endless flag on exit
   A.sandbox=false;   // reset sandbox flag on exit
@@ -3874,6 +3995,7 @@ function killEnemy(e){
     if(i>=0) A.enemies.splice(i,1);
     
     stats.bossesKilled++; persist();   // persistent boss-kill counter
+    if(!e._miniBoss) cgHappy();   // CrazyGames: beating a full boss is a happytime moment (v071026b)
     toast("Boss down!");
     disposeObj(e.mesh);
     return;
@@ -4121,7 +4243,7 @@ function arenaDeath(){
   const score = (A.runKills||0)*10 + A.wave*100 + Math.max(0,A.level-1)*25 + totalSec;
   const prevBestScore = stats.bestScore||0;
   const newBestScore = score > prevBestScore;
-  if(newBestScore){ stats.bestScore = score; persist(); }
+  if(newBestScore){ stats.bestScore = score; persist(); cgHappy(); }   // CrazyGames: new record (v071026b)
   const scoreLine =
     '<span style="display:inline-block;margin-top:6px;font-size:13px;opacity:.95">Score: <b>'+score.toLocaleString()+'</b>'+
     (newBestScore
@@ -4146,6 +4268,8 @@ function arenaDeath(){
   ov.querySelector('.ctrls').style.display='none';
   ov.querySelector('#startbtn').textContent='Return to Lobby';
   D.getElementById('retrybtn').style.display='inline-block';   // show Retry on death (v070126c)
+  cgBreak();       // CrazyGames: run over (v071026b)
+  cgMidgameAd();   // natural break — throttled to one request per 3 min (v071026b)
   ov.style.display='flex';
 }
 
@@ -4227,6 +4351,7 @@ function applyUpgradeChoice(u){
   else { u.apply(A.stats); upgradeLevels[u.id]=(upgradeLevels[u.id]||0)+1; }
   D.getElementById('upgrade').style.display='none';
   A.paused=false;
+  cgPlay();   // CrazyGames: upgrade chosen, gameplay resumes (v071026b)
   setTouchEnabled(true);
   updateUpgradePanel();
   if(!isMobile) requestPointerLockSafe(cvs);
@@ -4237,6 +4362,7 @@ function offerUpgrades(){
   // the player. The level still counts; only the card picker is skipped. (v070126b)
   if(A.dead || A._dying) return;
   A.paused=true;
+  cgBreak();   // CrazyGames: level-up menu is a break (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   const pool=buildOfferPool().sort(()=>Math.random()-0.5).slice(0,3);
@@ -4978,6 +5104,7 @@ function updateArena(){
       addShards(3);
       toast('★ Perfect wave! +3 shards');
       SFX.level();
+      cgHappy();   // CrazyGames (v071026b)
     }
     nextWave();
   }
@@ -5751,6 +5878,7 @@ function updateIndicators(){
 function requestExit(){
   if(settings.skipExitConfirm){ exitArena(); return; }
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('exitDontAsk').checked=false;
@@ -5759,6 +5887,7 @@ function requestExit(){
 function closeExitConfirm(){
   D.getElementById('exitConfirm').style.display='none';
   GAME.paused=false;
+  cgPlay();   // CrazyGames (v071026b)
   setTouchEnabled(true);
 }
 onTap(D.getElementById('exitStay'), ()=>{
@@ -5800,6 +5929,7 @@ function classCardTap(c){
 }
 function openClassMenu(){
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   buildClassCards();
@@ -5809,6 +5939,7 @@ function openClassMenu(){
 function closeClassMenu(){
   D.getElementById('classMenu').style.display='none';
   GAME.paused=false;
+  cgPlay();   // CrazyGames (v071026b)
   setTouchEnabled(true);
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 }
@@ -6251,6 +6382,7 @@ function buildCosmeticGrid(){
 // the pointer locked and the game running behind the menu. (v061726o)
 function openCosmeticShop(){
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   buildCosmeticGrid();
@@ -6259,6 +6391,7 @@ function openCosmeticShop(){
 function closeCosmeticShop(){
   D.getElementById('cosmeticShop').style.display='none';
   GAME.paused=false;
+  cgPlay();   // CrazyGames (v071026b)
   setTouchEnabled(true);
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 }
@@ -6319,6 +6452,7 @@ function applyXpPickupBonus(){
 }
 function openXpMenu(){
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026b)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   const el=D.getElementById('xpContent');
@@ -6358,6 +6492,7 @@ function openXpMenu(){
 onTap(D.getElementById('xpClose'), ()=>{
   D.getElementById('xpMenu').style.display='none';
   GAME.paused=false;
+  cgPlay();   // CrazyGames (v071026b)
   setTouchEnabled(true);
   if(!isMobile && GAME.state==='overworld') requestPointerLockSafe(cvs);
 });
@@ -6663,6 +6798,7 @@ function retryRun(){
 }
 function beginGame(){
   initAudio();
+  cgPlay();   // CrazyGames: player enters the game (v071026b)
   startMusic();
   setTouchEnabled(true);
   D.getElementById('retrybtn').style.display='none';
@@ -6710,6 +6846,7 @@ applyParticleColors();
 applyColorblind();   // apply CSS filter on load (v061726m)
 updateShardHud();
 updateBestHud();
+initCrazyGames();   // async; no-op outside CrazyGames (v071026b)
 requestAnimationFrame(loop);
 </script>
 </body>
