@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v071026c';   // keep in sync with VERSION below
+  var BUNDLED = 'v071026d';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -457,8 +457,15 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v071026c · Platform Mute (July 10, 2026)</div>
+    <div class="desc">v071026d · Submission Polish (July 10, 2026)</div>
     <ul>
+      <li>Final CrazyGames pre-submission pass — audited the game against every page of their requirements docs</li>
+      <li>Fixed physics consistency on <b>high-refresh-rate monitors</b> (a CrazyGames requirement): ice sliding, homing missile turn rates, particle drag, and screen-shake decay were all tuned per-frame at 60fps, so on a 144Hz monitor ice felt grippier, missiles turned ~2.4× harder, and shake died faster. All four now decay per-second regardless of frame rate</li>
+      <li>The death screen's Retry button (and the R key) now go inert while an ad is playing, per CrazyGames ad rules — no more accidentally restarting a run mid-ad</li>
+      <li>Opening Settings directly from the lobby gear now correctly reports a gameplay break to the platform, matching every other menu</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v071026c · Platform Mute (July 10, 2026)</div>
+    <ul style="opacity:.6">
       <li>The game now fully respects <b>CrazyGames' platform mute</b> — muting the game from the CrazyGames site silences everything (SFX and music) instantly, stays in effect even if you move the in-game volume sliders, and lifts cleanly when unmuted. Ad muting and platform muting now share one system, with your slider settings always restored exactly afterwards</li>
     </ul>
     <div class="desc" style="margin-top:14px;opacity:.6">v071026b · CrazyGames Ready (July 10, 2026)</div>
@@ -953,8 +960,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v071026c';
-const UPDATE_TITLE = 'Platform Mute';
+const VERSION = 'v071026d';
+const UPDATE_TITLE = 'Submission Polish';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -2097,6 +2104,7 @@ function spawnParticle(x,y,z,vx,vy,vz,r,g,b,life){
   _pLife[i]=life; _pMax[i]=life;
 }
 function updateParticles(dt){
+  const _drag = Math.pow(0.94, dt*60);   // refresh-rate-independent drag (v071026d)
   for(let i=0;i<PCOUNT;i++){
     if(_pLife[i]<=0) continue;
     const i3=i*3;
@@ -2104,7 +2112,7 @@ function updateParticles(dt){
     if(_pLife[i]<=0){ _pCol[i3]=_pCol[i3+1]=_pCol[i3+2]=0; _pPos[i3+1]=-9999; continue; }
     _pVy[i]-=9*dt;                                  // light gravity
     _pPos[i3]+=_pVx[i]*dt; _pPos[i3+1]+=_pVy[i]*dt; _pPos[i3+2]+=_pVz[i]*dt;
-    _pVx[i]*=0.94; _pVz[i]*=0.94;                   // drag
+    _pVx[i]*=_drag; _pVz[i]*=_drag;                 // drag
     const f=_pLife[i]/_pMax[i];                      // fade to black (= invisible under additive)
     _pCol[i3]=_pBr[i]*f; _pCol[i3+1]=_pBg[i]*f; _pCol[i3+2]=_pBb[i]*f;
   }
@@ -4734,7 +4742,7 @@ function updateCamera(){
     camera.position.addScaledVector(right, (Math.random()*2-1)*amp);
     camera.position.addScaledVector(up,    (Math.random()*2-1)*amp);
     camera.position.addScaledVector(fwd,   (Math.random()*2-1)*amp*0.5);   // less forward shake
-    _shakeMag *= 0.85;   // exponential decay (~0.4s to fall below 1% at 60fps)
+    _shakeMag *= Math.pow(0.85, dt*60);   // exponential decay (~0.4s to 1%), refresh-rate independent (v071026d)
   } else {
     _shakeMag = 0;
   }
@@ -4978,8 +4986,13 @@ function updateArena(){
       player.pos.x += A._iceSlideX;
       player.pos.z += A._iceSlideZ;
       // Decay momentum (friction)
-      A._iceSlideX *= 0.96; // Less friction on ice
-      A._iceSlideZ *= 0.96;
+      // Frame-rate-independent friction (v071026d): 0.96/frame was tuned
+      // at 60fps — on a 144Hz monitor that decayed ~2.4x faster. Math.pow
+      // keeps the same decay-per-second on any refresh rate (a CrazyGames
+      // gameplay requirement).
+      const _iceFr = Math.pow(0.96, dt*60);
+      A._iceSlideX *= _iceFr; // Less friction on ice
+      A._iceSlideZ *= _iceFr;
       if(Math.hypot(A._iceSlideX, A._iceSlideZ) < 0.001) A._iceSlideX = A._iceSlideZ = 0;
     }
   }
@@ -5513,7 +5526,7 @@ function updateArena(){
             if(best){
               const bTop = best.top || 1;
               _tmpDir.set(best.mesh.position.x-p.mesh.position.x, best.mesh.position.y+bTop*0.5-p.mesh.position.y, best.mesh.position.z-p.mesh.position.z).normalize();
-              p.dir.lerp(_tmpDir, 0.08); p.dir.normalize();
+              p.dir.lerp(_tmpDir, 1-Math.pow(0.92, dt*60)); p.dir.normalize();   // 0.08/frame at 60fps, refresh-rate independent (v071026d)
             }
           }
           // face the direction of travel
@@ -5544,7 +5557,7 @@ function updateArena(){
               _tmpDir.z += perpZ * 0.6;
               _tmpDir.normalize();
             }
-            p.dir.lerp(_tmpDir, 0.15); p.dir.normalize();
+            p.dir.lerp(_tmpDir, 1-Math.pow(0.85, dt*60)); p.dir.normalize();   // 0.15/frame at 60fps, refresh-rate independent (v071026d)
             p.mesh.lookAt(bcx, bcy, bcz);
           }
         }
@@ -6024,6 +6037,7 @@ function applyQuality(){
 }
 function openSettings(){
   GAME.paused=true;
+  cgBreak();   // CrazyGames (v071026d)
   suppressAutoSettings=true; exitPointerLockSafe();
   setTouchEnabled(false);
   D.getElementById('fovRange').value=settings.fov;
@@ -6087,6 +6101,7 @@ function closeSettings(){
     D.getElementById('statsPage').style.display==='flex' ||
     D.getElementById('importModal').style.display==='flex';
   GAME.paused = otherOverlayOpen;   // stay paused if another menu is open
+  if(!otherOverlayOpen) cgPlay();   // CrazyGames: only if actually resuming (v071026d)
   setTouchEnabled(true);
   persist();
   // Only re-lock the pointer if no other overlay is still open.
@@ -6814,6 +6829,7 @@ function updateBestHud(){ const el=D.getElementById('bestwave'); if(el) el.textC
 // respawns), so this only ever restarts a Wave or Endless run. (v070126c)
 function retryRun(){
   if(GAME.state!=='dead') return;
+  if(CG._adMute) return;   // a CrazyGames ad is playing — inputs must be inert until it ends (v071026d)
   D.getElementById('overlay').style.display='none';
   D.getElementById('retrybtn').style.display='none';
   setTouchEnabled(true);
@@ -6823,6 +6839,7 @@ function retryRun(){
   if(!isMobile) requestPointerLockSafe(cvs);
 }
 function beginGame(){
+  if(CG._adMute) return;   // a CrazyGames ad is playing — inputs must be inert until it ends (v071026d)
   initAudio();
   cgPlay();   // CrazyGames: player enters the game (v071026b)
   startMusic();
