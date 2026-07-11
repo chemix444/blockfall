@@ -72,6 +72,17 @@ Platform-specific behavior on CrazyGames:
 - **Pointer lock** is used for mouse aim. It works inside their iframe, but if their
   mobile app review flags it, the touch controls already provide the fallback.
 
+## Post-rejection quality pass (v071126a)
+
+The July 2026 submission was rejected for "overall quality". The v071126a pass
+addressed the first-impression levers reviewers see in the first two minutes:
+ACES tone mapping + gradient skies + ground detail textures + glow halos
+(visuals), a cinematic title screen over the live lobby with a one-click
+**Quick Play** into a Normal run (time-to-gameplay), instant generative music on
+CrazyGames instead of an 8s silent fallback (audio), and pitch-varied SFX.
+Before resubmitting, compare the game side-by-side against the current
+CrazyGames front page and playtest with fresh players.
+
 ## Updating the CrazyGames build
 
 GitHub Pages updates flow automatically via `version.txt`. The CrazyGames copy does
