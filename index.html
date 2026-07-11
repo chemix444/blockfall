@@ -27,7 +27,7 @@
 // reload only fires on a confirmed mismatch, so on a fresh deploy
 // there is at most a one-frame flash before the reload.
 (function(){
-  var BUNDLED = 'v071026d';   // keep in sync with VERSION below
+  var BUNDLED = 'v071126a';   // keep in sync with VERSION below
   try {
     fetch('version.txt?cb=' + Date.now(), {cache:'no-store'})
       .then(function(r){ return r.ok ? r.text() : ''; })
@@ -124,8 +124,14 @@
     .card .lv { margin-top:5px; }
   }
   /* overlays */
-  #overlay { position:fixed; inset:0; background:rgba(6,8,16,.95); z-index:25; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; overflow:auto; padding:16px; -webkit-overflow-scrolling:touch; }
-  #overlay h1 { font-size:46px; letter-spacing:3px; margin-bottom:6px; }
+  /* v071126a: the title overlay is now translucent so the live 3D lobby
+     (with a slow cinematic camera orbit) shows behind the menu. */
+  #overlay { position:fixed; inset:0; background:rgba(6,8,16,.60); z-index:25; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; overflow:auto; padding:16px; -webkit-overflow-scrolling:touch; }
+  #overlay h1 { font-size:46px; letter-spacing:3px; margin-bottom:6px; animation:titleGlow 3.2s ease-in-out infinite; }
+  @keyframes titleGlow {
+    0%,100% { text-shadow:0 0 22px rgba(155,123,255,.9), 0 0 60px rgba(155,123,255,.35), 0 4px 14px rgba(0,0,0,.8); }
+    50%     { text-shadow:0 0 26px rgba(90,200,255,.9), 0 0 70px rgba(90,200,255,.4), 0 4px 14px rgba(0,0,0,.8); }
+  }
   #overlay .tag { opacity:.75; margin-bottom:26px; font-size:15px; max-width:520px; line-height:1.6; }
   #overlay .ctrls { font-size:13px; opacity:.7; line-height:1.9; margin-bottom:26px; }
   #overlay button, .btn { pointer-events:auto; background:linear-gradient(160deg,#6d54ff,#9b7bff); border:none; color:#fff; font-size:17px; font-weight:bold; padding:13px 34px; border-radius:9px; cursor:pointer; letter-spacing:1px; box-shadow:0 6px 20px rgba(109,84,255,.45); }
@@ -457,8 +463,17 @@
     <div class="actions" style="margin-top:0;margin-bottom:18px">
       <button class="btn-primary" id="closeChangelog">Back</button>
     </div>
-    <div class="desc">v071026d · Submission Polish (July 10, 2026)</div>
+    <div class="desc">v071126a · The Big Quality Pass (July 11, 2026)</div>
     <ul>
+      <li>Major graphics upgrade: <b>filmic color grading</b> (ACES tone mapping) across the whole game, <b>gradient skies</b> that darken toward the zenith and warm up at the horizon, and subtle <b>tiled ground detail</b> in every biome and the lobby — the flat look is gone</li>
+      <li>Everything that should glow now <b>actually glows</b>: player projectiles, enemy bullets, XP and heal orbs, and the lobby portals all carry soft bloom-style halos</li>
+      <li>New <b>cinematic title screen</b> — the menu now floats over the live 3D lobby with a slow orbiting camera, and the title pulses with a purple-cyan glow</li>
+      <li>New <b>⚡ Quick Play</b> button on the title screen: one click drops you straight into a Normal wave run — no lobby walk, no difficulty prompt. "Enter Lobby" is still right next to it</li>
+      <li>Music now starts <b>instantly</b> when playing on CrazyGames (generative chill soundtrack) instead of after an 8-second silence</li>
+      <li>Rapid-fire sound effects (shooting, hits, pickups) now vary slightly in pitch so they don't fatigue your ears</li>
+    </ul>
+    <div class="desc" style="margin-top:14px;opacity:.6">v071026d · Submission Polish (July 10, 2026)</div>
+    <ul style="opacity:.6">
       <li>Final CrazyGames pre-submission pass — audited the game against every page of their requirements docs</li>
       <li>Fixed physics consistency on <b>high-refresh-rate monitors</b> (a CrazyGames requirement): ice sliding, homing missile turn rates, particle drag, and screen-shake decay were all tuned per-frame at 60fps, so on a 144Hz monitor ice felt grippier, missiles turned ~2.4× harder, and shake died faster. All four now decay per-second regardless of frame rate</li>
       <li>The death screen's Retry button (and the R key) now go inert while an ad is playing, per CrazyGames ad rules — no more accidentally restarting a run mid-ad</li>
@@ -939,7 +954,8 @@
   </div>
   <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center">
     <button id="retrybtn" style="display:none;background:linear-gradient(160deg,#2ea043,#3fd06a);box-shadow:0 6px 20px rgba(46,160,67,.45)">Retry Run</button>
-    <button id="startbtn">Click to Play</button>
+    <button id="quickbtn" style="background:linear-gradient(160deg,#ff8b2a,#ffb14a);box-shadow:0 6px 20px rgba(255,139,42,.45)">⚡ Quick Play</button>
+    <button id="startbtn">Enter Lobby</button>
   </div>
 </div>
 
@@ -960,8 +976,8 @@ const W = window, D = document;
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && innerWidth<1024);
 // Single source of truth for the version + update title. Update both (and the
 // changelog) each release; everything that shows the version reads from here.
-const VERSION = 'v071026d';
-const UPDATE_TITLE = 'Submission Polish';
+const VERSION = 'v071126a';
+const UPDATE_TITLE = 'The Big Quality Pass';
 const VLABEL = VERSION + ' · ' + UPDATE_TITLE;
 { const ve=D.getElementById('version'); if(ve) ve.textContent=VLABEL;
   const vf=D.getElementById('verFooter'); if(vf) vf.textContent='Blockfall '+VLABEL;
@@ -976,6 +992,45 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE?1.5:2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+// Filmic tone mapping (v071126a): ACES gives the flat Lambert scene proper
+// highlight rolloff and richer saturation — the single cheapest "looks like
+// a real game now" switch in three.js. Light intensities below are bumped
+// to compensate for ACES's slightly darker midtones.
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.18;
+// Shared detail textures (v071126a), declared before any world building.
+// _groundTex: subtle near-white tile noise that multiplies against each
+// ground material's color, so one texture serves every biome + the lobby.
+const _groundTex=(()=>{
+  const c=D.createElement('canvas'); c.width=c.height=128;
+  const g=c.getContext('2d');
+  for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+    const v=230+((x+y)%2)*8+(Math.random()*14|0);
+    g.fillStyle='rgb('+v+','+v+','+v+')';
+    g.fillRect(x*16,y*16,16,16);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(14,14);
+  return t;
+})();
+// _glowTex + attachHalo: soft additive halo sprites that fake bloom on
+// projectiles, orbs, enemy bullets and portals — no post-processing needed.
+const _glowTex=(()=>{
+  const c=D.createElement('canvas'); c.width=c.height=64;
+  const g=c.getContext('2d');
+  const grd=g.createRadialGradient(32,32,0,32,32,32);
+  grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(0.4,'rgba(255,255,255,0.35)'); grd.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=grd; g.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+})();
+function attachHalo(mesh, scale, opacity){
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:_glowTex, transparent:true, opacity:opacity||0.8, blending:THREE.AdditiveBlending, depthWrite:false}));
+  halo.scale.setScalar(scale);
+  mesh.add(halo);
+  mesh.userData._halo=halo;
+  return halo;
+}
 
 // If the GL context is ever lost, prevent the default (permanent) behaviour so
 // the browser can restore it instead of leaving a frozen black canvas.
@@ -1019,6 +1074,7 @@ const _projGeo = new THREE.SphereGeometry(1, 8, 8);   // unit sphere, scaled per
 function obtainProjMesh(){
   if(_projPool.length) return _projPool.pop();
   const m=new THREE.Mesh(_projGeo, new THREE.MeshBasicMaterial({color:0xfff1a8}));
+  attachHalo(m, 3.0, 0.85);   // soft fake-bloom glow (v071126a)
   // _pooledProj: marks meshes that belong to this pool, so the projectile
   // removal code knows to release them here rather than dispose them.
   // Boomerang/homing meshes are NOT pool spheres — they used to get pushed
@@ -1053,6 +1109,8 @@ function obtainOrbMesh(kind){
   const m = _orbPool.length ? _orbPool.pop() : new THREE.Mesh(_orbGeo, _orbMats.small);
   m.userData._shared=true;   // geometry AND material are shared — never dispose
   m.material = _orbMats[kind] || _orbMats.small;
+  if(!m.userData._halo) attachHalo(m, 2.8, 0.7);   // soft glow (v071126a)
+  m.userData._halo.material.color.setHex(kind==='big'?0xffd24a:kind==='heal'?0xff5c8a:0x4ad1ff);
   m.visible=true;
   return m;
 }
@@ -1072,8 +1130,10 @@ function obtainEShotMesh(color){
     m=new THREE.Mesh(_eshotGeo, new THREE.MeshBasicMaterial({color:0xff4bd0}));
     m.userData._shared=true;   // shared geometry; material is per-mesh but recolored
     m.userData._pooledEshot=true;
+    attachHalo(m, 3.4, 0.8);   // glowing enemy bullets read much better (v071126a)
   }
   m.material.color.setHex(color||0xff4bd0);
+  if(m.userData._halo) m.userData._halo.material.color.setHex(color||0xff4bd0);
   m.visible=true;
   return m;
 }
@@ -1103,9 +1163,9 @@ function startReplay(){
 }
 
 // ---------- lighting / sky helpers ----------
-const hemi = new THREE.HemisphereLight(0xbfdfff, 0x4a5a3a, 0.85);
+const hemi = new THREE.HemisphereLight(0xbfdfff, 0x4a5a3a, 1.0);   // bumped for ACES (v071126a)
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+const sun = new THREE.DirectionalLight(0xffffff, 1.25);   // bumped for ACES (v071126a)
 sun.position.set(40,80,30); sun.castShadow = true;
 // Smaller shadow map on mobile — a 2048² depth target is a heavy allocation
 // and per-frame cost on phone GPUs.
@@ -1443,6 +1503,10 @@ function applyVolumes(){
 }
 function blip(freq, dur, type, vol, slideTo){
   if(!AC) return;
+  // ±5% pitch variation on short percussive blips (v071126a) so rapid-fire
+  // shoot/hit/pickup sounds don't repeat machine-identical and fatiguing.
+  // Longer melodic notes (level-up, weapon jingles) stay exact.
+  if(dur<=0.08){ const j=0.95+Math.random()*0.1; freq*=j; if(slideTo) slideTo*=j; }
   const t=AC.currentTime;
   const o=AC.createOscillator(), g=AC.createGain();
   o.type=type||'square'; o.frequency.setValueAtTime(freq,t);
@@ -1580,6 +1644,10 @@ function updateMusicIndicator(){
 }
 
 function startMusic(){
+  // CrazyGames (v071126a): YouTube is never loaded there, so don't sit
+  // through the 8s fallback timer in silence — start the generative
+  // soundtrack immediately on the user's first click.
+  if(CG.on){ if(!music.playing) startProceduralMusic(); return; }
   // Called from beginGame() (on the user's Play click) and from
   // startArena(). The Play click is the user gesture that satisfies
   // browser autoplay policies, so this is where we actually kick off
@@ -1696,7 +1764,7 @@ function makePortalLabel(text, cssColor){
 }
 function buildLobby(){
   // flat circular floor
-  const floorMat = new THREE.MeshLambertMaterial({ color:0x2a2f45 });
+  const floorMat = new THREE.MeshLambertMaterial({ color:0x2a2f45, map:_groundTex });
   const floor = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 1, 56), floorMat);
   floor.position.y = LOBBY_Y - 0.5; floor.receiveShadow = true;
   overworld.group.add(floor);
@@ -1885,6 +1953,10 @@ function buildPortalFrame(px, baseY, pz, glowColor){
   const plane = new THREE.Mesh(pg, pmat);
   plane.position.set(px, baseY + 2.0, pz);
   overworld.group.add(plane);
+  // big soft halo behind the portal plane — fake bloom (v071126a)
+  const pglow=new THREE.Sprite(new THREE.SpriteMaterial({map:_glowTex, color:glowColor, transparent:true, opacity:0.55, blending:THREE.AdditiveBlending, depthWrite:false}));
+  pglow.scale.set(7.5,7.5,1); pglow.position.set(px, baseY+2.0, pz);
+  overworld.group.add(pglow);
   // store the plane so updateOverworld can animate its opacity.
   // The arena portal uses the global portalPlane; the endless portal
   // uses portalPlaneEndless.
@@ -1977,10 +2049,29 @@ function applyOutlineColor(){
   for(const e of A.enemies) paint(e);
   if(A.boss) paint(A.boss);
 }
+// Gradient sky (v071126a): instead of one flat color, the sky is a
+// vertical gradient built from the player's sky color — darker at the
+// zenith, warm-lightened at the horizon. Rebuilt only when the color
+// actually changes.
+let _skyTexColor=null, _skyTex=null;
 function applySky(){
-  const c=new THREE.Color(hexToInt(settings.skyColor));
-  scene.background=c;
-  if(scene.fog) scene.fog.color.copy(c);
+  const base=new THREE.Color(hexToInt(settings.skyColor));
+  if(settings.skyColor!==_skyTexColor){
+    _skyTexColor=settings.skyColor;
+    const c=D.createElement('canvas'); c.width=2; c.height=256;
+    const g=c.getContext('2d');
+    const top=base.clone().multiplyScalar(0.6);
+    const hor=base.clone().lerp(new THREE.Color(1,0.95,0.85), 0.45);
+    const grd=g.createLinearGradient(0,0,0,256);
+    grd.addColorStop(0,'#'+top.getHexString());
+    grd.addColorStop(0.55,'#'+base.getHexString());
+    grd.addColorStop(1,'#'+hor.getHexString());
+    g.fillStyle=grd; g.fillRect(0,0,2,256);
+    if(_skyTex) _skyTex.dispose();
+    _skyTex=new THREE.CanvasTexture(c);
+  }
+  scene.background=_skyTex;
+  if(scene.fog) scene.fog.color.copy(base);   // fog keeps the base tone
 }
 let avatarStepTimer=0;
 function animateAvatar(){
@@ -2669,7 +2760,7 @@ function buildArenaMap(seed){
   scene.fog = new THREE.Fog(0x000000, ARENA_R*(b.fogMul?0.35:0.8), ARENA_R*(b.fogMul||2.1));
   applySky();   // sky/fog color comes from the player's setting (overrides biome)
   // ground disc (top surface at y=0)
-  const gMat=new THREE.MeshLambertMaterial({color:b.ground});
+  const gMat=new THREE.MeshLambertMaterial({color:b.ground, map:_groundTex});
   const gGeo=new THREE.CylinderGeometry(ARENA_R, ARENA_R, 1, 48);
   arenaGround=new THREE.Mesh(gGeo,gMat); arenaGround.position.y=-0.5; arenaGround.receiveShadow=true;
   arena.group.add(arenaGround);
@@ -2909,7 +3000,7 @@ function startSandbox(){
   A.biomeName=b.name; A.biomeTwist=b.twist;
   scene.fog = new THREE.Fog(0x000000, ARENA_R*(b.fogMul?0.35:0.8), ARENA_R*(b.fogMul||2.1));
   applySky();
-  const gMat=new THREE.MeshLambertMaterial({color:b.ground});
+  const gMat=new THREE.MeshLambertMaterial({color:b.ground, map:_groundTex});
   const gGeo=new THREE.CylinderGeometry(ARENA_R, ARENA_R, 1, 48);
   arenaGround=new THREE.Mesh(gGeo,gMat); arenaGround.position.y=-0.5; arenaGround.receiveShadow=true; arena.group.add(arenaGround);
   if(b.twist==='lava'){ A.lavaPatches=[]; for(let i=0;i<6;i++){ const ang=Math.random()*Math.PI*2,rad=5+Math.random()*(ARENA_R-8);const r=1.5+Math.random()*1.5;const lp=new THREE.Mesh(new THREE.CircleGeometry(r,16),new THREE.MeshBasicMaterial({color:0xff4400,transparent:true,opacity:0.7}));lp.rotation.x=-Math.PI/2;lp.position.set(Math.cos(ang)*rad,0.02,Math.sin(ang)*rad);arena.group.add(lp);A.lavaPatches.push({x:Math.cos(ang)*rad,z:Math.sin(ang)*rad,r});} }
@@ -3818,6 +3909,7 @@ function fireProjectile(dir, size, color, dmg, lifeMul, opts){
   const s = size||0.26;
   m.scale.setScalar(s);
   m.material.color.setHex(color||0xfff1a8);
+  if(m.userData._halo) m.userData._halo.material.color.setHex(color||0xfff1a8);   // (v071126a)
   m.position.copy(player.pos); m.position.y=player.pos.y+1.1;
   arena.group.add(m);
   // Trail (v061726n): fading particles emitted behind the projectile,
@@ -4302,6 +4394,7 @@ function arenaDeath(){
   ov.querySelector('.ctrls').style.display='none';
   ov.querySelector('#startbtn').textContent='Return to Lobby';
   D.getElementById('retrybtn').style.display='inline-block';   // show Retry on death (v070126c)
+  D.getElementById('quickbtn').style.display='none';   // title-only; Retry covers this on death (v071126a)
   cgBreak();       // CrazyGames: run over (v071026b)
   cgMidgameAd();   // natural break — throttled to one request per 3 min (v071026b)
   ov.style.display='flex';
@@ -4703,6 +4796,14 @@ function hitStop(ms){ _hitStopT = Math.max(_hitStopT, ms/1000); }
 // death screen appears. Gives the death moment weight.
 let _deathSlowmo=0;
 function updateCamera(){
+  // Title screen (v071126a): slow cinematic orbit around the lobby so the
+  // first thing a player sees is the game world, not a black wall.
+  if(GAME.state==='title'){
+    const a=performance.now()*0.00012;
+    camera.position.set(Math.sin(a)*13, 6.5, Math.cos(a)*13);
+    camera.lookAt(0, 2.2, -3);
+    return;
+  }
   const dir=_camDir.set(
     Math.sin(player.yaw)*Math.cos(player.pitch),
     Math.sin(player.pitch),
@@ -6877,6 +6978,15 @@ function exitArenaCleanupAfterDeath(){
 
 onTap(D.getElementById('startbtn'), beginGame);
 onTap(D.getElementById('retrybtn'), retryRun);
+// Quick Play (v071126a): one click from the title straight into a Normal
+// wave run — no lobby walk, no difficulty prompt. Reviewers and new players
+// reach actual gameplay in seconds; the lobby stays one button away.
+onTap(D.getElementById('quickbtn'), ()=>{
+  if(CG._adMute) return;
+  beginGame();
+  settings.difficulty='normal';
+  startArena();
+});
 
 scene.fog=new THREE.Fog(0x000000,60,140);
 applyFov();
