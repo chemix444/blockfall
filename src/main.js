@@ -11,7 +11,7 @@ const screen=(id,visible)=>{
   $(id).classList.toggle('hidden',!visible);
 };
 const compact=value=>Math.floor(value).toLocaleString('en-US');
-let save=loadSave(),mode='campaign',difficulty='normal',settingsFrom='menu',toastTimer=0,bannerTimer=0,lastHud=0;
+let save=loadSave(),mode='campaign',difficulty='normal',settingsFrom='menu',toastTimer=0,bannerTimer=0,streakTimer=0,lastHud=0,lastScore=0;
 const audio=new AudioSystem();
 
 function toast(message){
@@ -28,6 +28,30 @@ function updateMenu(){
 
 const game=new Game($('world'),save,audio,{
   toast,
+  pop:(x,z,label,kind)=>{
+    if(save.settings.reducedMotion)return;
+    const point=game.project(x,z);
+    if(!point.visible)return;
+    const layer=$('combat-popups');
+    if(layer.childElementCount>=28)layer.firstElementChild.remove();
+    const item=document.createElement('span');
+    item.className='combat-pop '+kind;item.textContent=label;
+    item.style.left=point.x+(Math.random()-.5)*35+'px';
+    item.style.top=point.y+(Math.random()-.5)*20+'px';
+    layer.append(item);setTimeout(()=>item.remove(),850);
+  },
+  impact:()=>{
+    if(save.settings.reducedMotion)return;
+    const flash=$('reward-flash');
+    flash.classList.remove('pulse');void flash.offsetWidth;flash.classList.add('pulse');
+  },
+  streak:combo=>{
+    const callout=$('streak-callout');
+    callout.textContent=combo>=20?'UNSTOPPABLE · '+combo+' KILLS':combo>=10?'RAMPAGE · '+combo+' KILLS':'ON A ROLL · '+combo+' KILLS';
+    show('streak-callout',true);callout.classList.remove('burst');void callout.offsetWidth;callout.classList.add('burst');
+    clearTimeout(streakTimer);streakTimer=setTimeout(()=>show('streak-callout',false),1450);
+  },
+  sweep:count=>toast('FIELD SWEEP · '+count+' PICKUP'+(count===1?'':'S')+' COLLECTED'),
   biome:biome=>{document.documentElement.style.setProperty('--biome-accent','#'+biome.accent.toString(16).padStart(6,'0'))},
   wave:(wave,biome,boss)=>{
     const banner=$('wave-banner');
@@ -90,6 +114,11 @@ const game=new Game($('world'),save,audio,{
     $('hud-biome').textContent=state.biome;
     $('hud-enemies').textContent=state.enemies+' HOSTILES';
     $('hud-score').textContent=String(state.score).padStart(6,'0');
+    if(state.score!==lastScore){
+      lastScore=state.score;
+      const score=$('hud-score');score.classList.remove('score-pop');void score.offsetWidth;score.classList.add('score-pop');
+    }
+    $('run-shards').textContent=compact(state.shards)+' ◆ THIS RUN';
     $('health-value').textContent=Math.ceil(state.health)+' / '+Math.ceil(state.maxHealth);
     $('health-fill').style.width=Math.max(0,state.health/state.maxHealth*100)+'%';
     $('dash-status').textContent=state.dash<=0?'READY':state.dash.toFixed(1)+'S';
@@ -98,6 +127,14 @@ const game=new Game($('world'),save,audio,{
     $('xp-fill').style.width=state.xp/state.xpNext*100+'%';
     $('xp-value').textContent=state.xp+' / '+state.xpNext+' XP';
     $('combo').textContent=state.combo>1?'COMBO ×'+state.combo:'BUILD YOUR COMBO';
+    $('combo').classList.toggle('hot',state.combo>=5);
+    $('combo-fill').style.width=state.combo>1?Math.max(0,state.comboTime/4*100)+'%':'0%';
+    $('target-readout').textContent=state.target?'AUTO LOCK · '+state.target.type.toUpperCase()+' · '+Math.round(Math.hypot(state.target.x-game.player.x,state.target.z-game.player.z))+'M':'AUTO LOCK · SCANNING';
+    for(const [id,cooldown] of [['mobile-dash',state.dash],['mobile-pulse',state.pulse]]){
+      const button=$(id);
+      button.classList.toggle('cooling',cooldown>0);
+      button.textContent=cooldown>0?cooldown.toFixed(1):id==='mobile-dash'?'DASH':'PULSE';
+    }
     for(const [index,id] of ['blaster','scatter','rail'].entries()){
       const slot=document.querySelector('[data-slot="'+index+'"]');
       slot.classList.toggle('active',state.selected===index);
@@ -116,11 +153,11 @@ const game=new Game($('world'),save,audio,{
 
 function startRun(){
   audio.start();
+  lastScore=0;$('combat-popups').replaceChildren();show('streak-callout',false);
   for(const id of screens)screen(id,false);
   show('hud',true);
   document.body.classList.add('playing');
-  if(game.mobile){show('mobile-controls',true);show('crosshair',false)}
-  else show('crosshair',true);
+  if(game.mobile)show('mobile-controls',true);
   game.startRun(mode,difficulty);
 }
 function returnMenu(){
@@ -132,7 +169,6 @@ function returnMenu(){
 
 function syncSettings(){
   $('volume').value=save.settings.volume;$('volume-value').textContent=save.settings.volume+'%';
-  $('sensitivity').value=save.settings.sensitivity;$('sensitivity-value').textContent=save.settings.sensitivity+'%';
   $('quality').value=save.settings.quality;
   $('color-mode').value=save.settings.colorMode;
   $('reduced-motion').checked=save.settings.reducedMotion;
@@ -195,14 +231,11 @@ $('resume').addEventListener('click',()=>{screen('pause',false);game.resume()});
 $('abandon').addEventListener('click',()=>game.finish('abandon'));
 document.querySelectorAll('[data-slot]').forEach(button=>button.addEventListener('click',()=>game.selectWeapon(Number(button.dataset.slot))));
 
-for(const [id,key] of [['volume','volume'],['sensitivity','sensitivity']]){
-  $(id).addEventListener('input',event=>{
-    save.settings[key]=Number(event.target.value);
-    $(id+'-value').textContent=save.settings[key]+'%';
-    if(key==='volume')audio.setVolume(save.settings.volume);
-    writeSave(save);
-  });
-}
+$('volume').addEventListener('input',event=>{
+  save.settings.volume=Number(event.target.value);
+  $('volume-value').textContent=save.settings.volume+'%';
+  audio.setVolume(save.settings.volume);writeSave(save);
+});
 $('quality').addEventListener('change',event=>{save.settings.quality=event.target.value;game.setQuality(save.settings.quality);writeSave(save)});
 $('color-mode').addEventListener('change',event=>{save.settings.colorMode=event.target.value;document.body.dataset.filter=save.settings.colorMode;writeSave(save)});
 $('reduced-motion').addEventListener('change',event=>{save.settings.reducedMotion=event.target.checked;writeSave(save)});
@@ -229,6 +262,10 @@ function escape(){
 addEventListener('keydown',event=>{
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code))event.preventDefault();
   if(event.code==='Escape'){if(!event.repeat)escape();return}
+  if(game.phase==='choice'&&/^Digit[1-3]$/.test(event.code)&&!event.repeat){
+    $('choice-cards').querySelectorAll('button')[Number(event.code.slice(-1))-1]?.click();
+    return;
+  }
   if(game.phase!=='playing'||event.repeat)return;
   game.keys.add(event.code);
   if(event.code==='Space')game.dash();
@@ -236,30 +273,21 @@ addEventListener('keydown',event=>{
   if(['Digit1','Digit2','Digit3'].includes(event.code))game.selectWeapon(Number(event.code.slice(-1))-1);
 });
 addEventListener('keyup',event=>game.keys.delete(event.code));
-addEventListener('blur',()=>{game.keys.clear();game.pointer.down=false;if(game.phase==='playing')game.pause()});
-const canvas=$('world');
-canvas.addEventListener('pointermove',event=>{
-  game.pointer.x=event.clientX/innerWidth*2-1;
-  game.pointer.y=1-event.clientY/innerHeight*2;
-  $('crosshair').style.left=event.clientX+'px';$('crosshair').style.top=event.clientY+'px';
-});
-canvas.addEventListener('pointerdown',event=>{if(event.button===0&&game.phase==='playing'){game.pointer.down=true;audio.start()}});
-addEventListener('pointerup',()=>game.pointer.down=false);
-canvas.addEventListener('contextmenu',event=>event.preventDefault());
-for(const [id,key] of [['move-pad','touchMove'],['aim-pad','touchAim']]){
-  const pad=$(id);let pointerId=null;
+addEventListener('blur',()=>{game.keys.clear();if(game.phase==='playing')game.pause()});
+{
+  const pad=$('move-pad');let pointerId=null;
   function move(event){
     const rect=pad.getBoundingClientRect(),centerX=rect.left+rect.width/2,centerY=rect.top+rect.height/2;
     const dx=(event.clientX-centerX)/(rect.width*.4),dy=(event.clientY-centerY)/(rect.height*.4);
     const length=Math.max(1,Math.hypot(dx,dy));
-    game[key].x=dx/length;game[key].y=dy/length;
-    pad.querySelector('.touch-knob').style.transform='translate(calc(-50% + '+(game[key].x*rect.width*.3)+'px), calc(-50% + '+(game[key].y*rect.height*.3)+'px))';
+    game.touchMove.x=dx/length;game.touchMove.y=dy/length;
+    pad.querySelector('.touch-knob').style.transform='translate(calc(-50% + '+(game.touchMove.x*rect.width*.3)+'px), calc(-50% + '+(game.touchMove.y*rect.height*.3)+'px))';
   }
-  pad.addEventListener('pointerdown',event=>{event.preventDefault();pointerId=event.pointerId;pad.setPointerCapture(pointerId);game[key].down=true;audio.start();move(event)});
+  pad.addEventListener('pointerdown',event=>{event.preventDefault();pointerId=event.pointerId;pad.setPointerCapture(pointerId);audio.start();move(event)});
   pad.addEventListener('pointermove',event=>{if(event.pointerId===pointerId)move(event)});
   function release(event){
     if(event.pointerId!==pointerId)return;
-    pointerId=null;game[key].x=0;game[key].y=0;game[key].down=false;
+    pointerId=null;game.touchMove.x=0;game.touchMove.y=0;
     pad.querySelector('.touch-knob').style.transform='translate(-50%,-50%)';
   }
   pad.addEventListener('pointerup',release);pad.addEventListener('pointercancel',release);

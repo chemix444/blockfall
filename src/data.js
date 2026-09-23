@@ -40,6 +40,7 @@ export const FORGE = [
   {id:'power',name:'POWER',desc:'+6% starting damage per level.',base:45,scale:1.8},
   {id:'tempo',name:'TEMPO',desc:'+4% movement speed per level.',base:40,scale:1.75},
   {id:'reservoir',name:'RESERVOIR',desc:'+6% starting fire rate per level.',base:50,scale:1.8},
+  {id:'reach',name:'PICKUP RANGE',desc:'+1.5 pickup range per level. Pull XP and healing in sooner.',base:30,scale:1.65},
 ];
 
 export const forgeCost = (id,level) => {
