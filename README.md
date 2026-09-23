@@ -13,7 +13,9 @@ experience; leveling up and clearing waves offer new weapons and upgrades.
 Uncollected pickups are swept up when a wave ends. Bosses appear every five
 waves. Earn shards during a run, then spend them on permanent starting upgrades
 in the Forge, including pickup range. Hostile difficulty makes enemies stronger
-and banks 50% more shards.
+and banks 50% more shards. Enemies navigate around arena blocks when pursuing
+you. Upgrade screens offer a random pick button, or Settings can automatically
+pick one of the three offered cards and show the selection on screen.
 
 | Input | Action |
 | --- | --- |
@@ -22,6 +24,7 @@ and banks 50% more shards.
 | Space | Dash |
 | E | Pulse, which damages nearby enemies and destroys their projectiles |
 | 1, 2, 3 | Switch unlocked weapons, or choose an upgrade card |
+| R | Choose a random offered upgrade |
 | Esc | Pause / resume |
 
 On touch screens, drag the left pad to move and tap Dash or Pulse. Standard
@@ -32,6 +35,7 @@ automatically aim and fire on every device.
 
 - `index.html` and `styles.css`: Blockfall 2.0 UI, directly served by GitHub Pages.
 - `src/game.js`: Three.js scene, combat, waves, enemy AI, pickups, and effects.
+- `src/navigation.js`: shared enemy routes around arena obstacles.
 - `src/main.js`: menus, controls, HUD, and save integration.
 - `src/data.js`: weapons, biomes, enemies, upgrades, and Forge costs.
 - `src/audio.js`: music and sound synthesized locally with Web Audio.

@@ -52,6 +52,13 @@ const game=new Game($('world'),save,audio,{
     clearTimeout(streakTimer);streakTimer=setTimeout(()=>show('streak-callout',false),1450);
   },
   sweep:count=>toast('FIELD SWEEP · '+count+' PICKUP'+(count===1?'':'S')+' COLLECTED'),
+  autoPick:name=>{
+    const feed=$('auto-pick-feed'),notice=document.createElement('div');
+    notice.className='auto-pick-notice';notice.textContent='AUTO PICK · '+name;
+    feed.append(notice);
+    if(feed.childElementCount>5)feed.firstElementChild.remove();
+    setTimeout(()=>notice.remove(),2800);
+  },
   biome:biome=>{document.documentElement.style.setProperty('--biome-accent','#'+biome.accent.toString(16).padStart(6,'0'))},
   wave:(wave,biome,boss)=>{
     const banner=$('wave-banner');
@@ -154,6 +161,7 @@ const game=new Game($('world'),save,audio,{
 function startRun(){
   audio.start();
   lastScore=0;$('combat-popups').replaceChildren();show('streak-callout',false);
+  $('auto-pick-feed').replaceChildren();
   for(const id of screens)screen(id,false);
   show('hud',true);
   document.body.classList.add('playing');
@@ -162,6 +170,7 @@ function startRun(){
 }
 function returnMenu(){
   game.toMenu();show('hud',false);show('mobile-controls',false);
+  $('auto-pick-feed').replaceChildren();
   document.body.classList.remove('playing');
   for(const id of screens)screen(id,false);
   screen('menu',true);updateMenu();
@@ -172,6 +181,7 @@ function syncSettings(){
   $('quality').value=save.settings.quality;
   $('color-mode').value=save.settings.colorMode;
   $('reduced-motion').checked=save.settings.reducedMotion;
+  $('auto-upgrades').checked=save.settings.autoPick;
   document.body.dataset.filter=save.settings.colorMode;
   audio.setVolume(save.settings.volume);
   game.setQuality(save.settings.quality);
@@ -239,6 +249,8 @@ $('volume').addEventListener('input',event=>{
 $('quality').addEventListener('change',event=>{save.settings.quality=event.target.value;game.setQuality(save.settings.quality);writeSave(save)});
 $('color-mode').addEventListener('change',event=>{save.settings.colorMode=event.target.value;document.body.dataset.filter=save.settings.colorMode;writeSave(save)});
 $('reduced-motion').addEventListener('change',event=>{save.settings.reducedMotion=event.target.checked;writeSave(save)});
+$('auto-upgrades').addEventListener('change',event=>{save.settings.autoPick=event.target.checked;writeSave(save);toast(save.settings.autoPick?'AUTO PICK ENABLED':'AUTO PICK DISABLED')});
+$('random-upgrade').addEventListener('click',()=>{game.chooseRandom();if(game.phase!=='choice')screen('choices',false)});
 $('export-save').addEventListener('click',async()=>{
   const code=exportSave(save);
   try{await navigator.clipboard.writeText(code);toast('SAVE CODE COPIED')}
@@ -266,6 +278,7 @@ addEventListener('keydown',event=>{
     $('choice-cards').querySelectorAll('button')[Number(event.code.slice(-1))-1]?.click();
     return;
   }
+  if(game.phase==='choice'&&event.code==='KeyR'&&!event.repeat){$('random-upgrade').click();return}
   if(game.phase!=='playing'||event.repeat)return;
   game.keys.add(event.code);
   if(event.code==='Space')game.dash();
