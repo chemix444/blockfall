@@ -5,6 +5,11 @@ const TAU=Math.PI*2;
 const ARENA=17;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+const segmentDistanceSquared=(point,x1,z1,x2,z2)=>{
+  const dx=x2-x1,dz=z2-z1;
+  const t=clamp(((point.x-x1)*dx+(point.z-z1)*dz)/(dx*dx+dz*dz||1),0,1);
+  return (point.x-x1-dx*t)**2+(point.z-z1-dz*t)**2;
+};
 const random=(min,max)=>min+Math.random()*(max-min);
 const material=(color,emissive=0,metalness=.25)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:emissive?.4:0,metalness,roughness:.45});
 
@@ -41,18 +46,18 @@ export class Game{
     this.world=new THREE.Group();this.scene.add(this.world);
     this.actors=new THREE.Group();this.scene.add(this.actors);
     this.fx=new THREE.Group();this.scene.add(this.fx);
-    this.raycaster=new THREE.Raycaster();this.groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-    this.keys=new Set();this.pointer={x:0,y:0,down:false};
-    this.touchMove={x:0,y:0};this.touchAim={x:0,y:0,down:false};
-    this.gamepad={moveX:0,moveY:0,aimX:0,aimY:0,fire:false,dash:false,pulse:false};
+    this.keys=new Set();this.touchMove={x:0,y:0};
+    this.gamepad={moveX:0,moveY:0,dash:false,pulse:false};
     this.player={x:0,z:0,rotation:0,mesh:null};
-    this.aim={x:0,z:-1};
+    this.aim={x:0,z:-1};this.target=null;
     this.cameraTarget=new THREE.Vector3(0,0,0);
     this.enemies=[];this.projectiles=[];this.pickups=[];this.particles=[];this.rings=[];
     this.obstacles=[];this.hazards=[];
     this.mode='campaign';this.difficulty='normal';this.phase='menu';
     this.time=0;this.elapsed=0;this.cameraShake=0;this.lastFrame=0;this.wave=0;
     this._createPlayer();
+    this.targetMarker=new THREE.Mesh(new THREE.RingGeometry(.8,1,48),new THREE.MeshBasicMaterial({color:0xd8ff91,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
+    this.targetMarker.rotation.x=-Math.PI/2;this.targetMarker.visible=false;this.fx.add(this.targetMarker);
     this.buildArena(0);
     this.resize();
     addEventListener('resize',()=>this.resize());
@@ -139,6 +144,7 @@ export class Game{
   }
 
   _clearDynamic(){
+    this.target=null;this.targetMarker.visible=false;
     for(const collection of [this.enemies,this.projectiles,this.pickups,this.particles,this.rings]){
       for(const entry of collection)discard(entry.mesh);
       collection.length=0;
@@ -153,14 +159,13 @@ export class Game{
     this.stats={
       maxHealth:100+forge.vitality*10,damage:1+forge.power*.06,fireRate:1+forge.reservoir*.06,
       moveSpeed:7*(1+forge.tempo*.04),dashCooldown:2.6,pulseCooldown:8,pulseDamage:36,pulseRange:4,
-      pickupRange:2.2,crit:.05,extraShots:0,healOnKill:0,reduction:0,
+      pickupRange:2.2+forge.reach*1.5,crit:.05,extraShots:0,healOnKill:0,reduction:0,
     };
     this.health=this.stats.maxHealth;this.invuln=0;this.dashTime=0;this.dashLeft=0;this.pulseLeft=0;
     this.fireLeft=0;this.hazardLeft=0;this.hurtSoundLeft=0;this.selected=0;
     this.weapons=new Set(['blaster']);this.upgrades={};this.offered=[];
     this.player.x=0;this.player.z=2;this.player.mesh.position.set(0,0,2);
     this.player.mesh.visible=true;
-    this.pointer.down=false;this.touchAim.down=false;
     this.cameraTarget.set(0,0,2);
     this.buildArena(0);this.startWave();
   }
@@ -230,7 +235,7 @@ export class Game{
 
   selectWeapon(slot){
     const id=['blaster','scatter','rail'][slot];
-    if(this.weapons.has(id)){this.selected=slot;this.audio.effect('choice')}
+    if(this.weapons.has(id)&&this.selected!==slot){this.selected=slot;this.audio.effect('choice')}
   }
 
   _movement(){
@@ -246,15 +251,20 @@ export class Game{
   }
 
   _aim(){
-    const gamepad=this.gamepad, touch=this.touchAim;
-    if(touch.down&&Math.hypot(touch.x,touch.y)>.15){this.aim={x:touch.x,z:touch.y};return}
-    if(Math.hypot(gamepad.aimX,gamepad.aimY)>.24){this.aim={x:gamepad.aimX,z:gamepad.aimY};return}
-    this.raycaster.setFromCamera(new THREE.Vector2(this.pointer.x,this.pointer.y),this.camera);
-    const point=new THREE.Vector3();
-    if(this.raycaster.ray.intersectPlane(this.groundPlane,point)){
-      const dx=point.x-this.player.x,dz=point.z-this.player.z,length=Math.hypot(dx,dz);
-      if(length>.2)this.aim={x:dx/length,z:dz/length};
+    let nearest=null,nearestDistance=Infinity;
+    for(const enemy of this.enemies){
+      const d=distance(enemy,this.player);
+      if(d<nearestDistance){nearest=enemy;nearestDistance=d}
     }
+    this.target=nearest;
+    this.targetMarker.visible=!!nearest;
+    if(!nearest)return;
+    const dx=nearest.x-this.player.x,dz=nearest.z-this.player.z;
+    this.aim={x:dx/(nearestDistance||1),z:dz/(nearestDistance||1)};
+    this.player.mesh.rotation.y=Math.atan2(-this.aim.x,-this.aim.z);
+    this.targetMarker.position.set(nearest.x,.055,nearest.z);
+    this.targetMarker.scale.setScalar((nearest.radius+.48)*(1+Math.sin(this.time*8)*.06));
+    this.targetMarker.material.opacity=.6+Math.sin(this.time*8)*.2;
   }
 
   _move(dt){
@@ -264,7 +274,6 @@ export class Game{
     if(this.dashTime>0){this._position(player.x+this.dashDirection.x*speed*dt,player.z+this.dashDirection.z*speed*dt,.44)}
     else this._position(player.x+move.x*speed*dt,player.z+move.z*speed*dt,.44);
     this.player.mesh.position.set(player.x,Math.sin(this.time*11)*(this.dashTime>0?.08:.035),player.z);
-    this.player.mesh.rotation.y=Math.atan2(-this.aim.x,-this.aim.z);
     this.player.mesh.userData.core.rotation.y+=dt*2.3;
     this.player.mesh.userData.ring.rotation.z+=dt*.7;
     if(this.dashTime>0&&Math.random()<.65)this.particle(player.x,.4,player.z,0x85ffe2,1.1);
@@ -306,7 +315,7 @@ export class Game{
 
   _fire(dt){
     this.fireLeft=Math.max(0,this.fireLeft-dt);
-    if(!(this.pointer.down||this.touchAim.down||this.gamepad.fire)||this.fireLeft>0)return;
+    if(!this.target||this.fireLeft>0)return;
     const id=['blaster','scatter','rail'][this.selected],weapon=WEAPONS[id];
     this.fireLeft=weapon.cooldown/this.stats.fireRate;
     const angle=Math.atan2(this.aim.z,this.aim.x);
@@ -325,8 +334,8 @@ export class Game{
     const player=owner==='player',source=origin||this.player;
     const radius=weapon.radius;
     const projectileMesh=mesh(new THREE.SphereGeometry(radius,8,6),weapon.color,weapon.color);
-    const x=source.x+Math.cos(angle)*(player?.8:source.radius+.3);
-    const z=source.z+Math.sin(angle)*(player?.8:source.radius+.3);
+    const x=source.x+Math.cos(angle)*(player?.4:source.radius+.3);
+    const z=source.z+Math.sin(angle)*(player?.4:source.radius+.3);
     projectileMesh.position.set(x,player?1:.7,z);this.actors.add(projectileMesh);
     const projectile={owner,x,z,mesh:projectileMesh,vx:Math.cos(angle)*weapon.speed,vz:Math.sin(angle)*weapon.speed,
       radius,damage,life:weapon.range/weapon.speed,pierce,hit:new Set()};
@@ -347,6 +356,11 @@ export class Game{
     enemy.fill.scale.x=clamp(enemy.hp/enemy.maxHp,0,1);
     enemy.fill.position.x=-(1-enemy.fill.scale.x)*enemy.radius;
     this.particle(enemy.x,enemy.radius+.6,enemy.z,critical?0xffdf84:0xff8597,1.1);
+    if(critical){
+      this.ring(enemy.x,enemy.z,0xffd779,enemy.radius+1,.24);
+      this.events.pop?.(enemy.x,enemy.z,Math.ceil(damage)+' CRIT','crit');
+      this.audio.effect('crit');
+    }else if(Math.random()<.35)this.events.pop?.(enemy.x,enemy.z,Math.ceil(damage),'damage');
     if(enemy.hp<=0)this.killEnemy(enemy);
     else if(Math.random()<.25)this.audio.effect('hit');
   }
@@ -360,13 +374,22 @@ export class Game{
     this.score+=Math.round(definition.score*Math.min(5,1+Math.floor(this.combo/8)*.25));
     this.shards+=enemy.type==='warden'?25:enemy.type==='bruiser'?3:1;
     this.health=Math.min(this.stats.maxHealth,this.health+this.stats.healOnKill);
-    this.audio.effect('kill');
+    this.audio.effect('kill',this.combo);
+    this.events.pop?.(enemy.x,enemy.z,'+'+(enemy.type==='warden'?25:enemy.type==='bruiser'?3:1)+' ◆','shard');
+    if(this.combo===5||this.combo===10||this.combo>=20&&this.combo%10===0){
+      this.events.streak?.(this.combo);
+      this.audio.effect('streak');
+      this.cameraShake=this.save.settings.reducedMotion?0:.12;
+    }
     this.ring(enemy.x,enemy.z,definition.color,enemy.type==='warden'?4:1.2,.3);
     for(let i=0;i<(enemy.type==='warden'?24:7);i++)this.particle(enemy.x,enemy.radius+.5,enemy.z,definition.color,random(1,2));
     this.spawnPickup('xp',enemy.x,enemy.z,definition.xp);
     if(Math.random()<(enemy.type==='warden'?.75:.07))this.spawnPickup('heal',enemy.x+random(-.7,.7),enemy.z+random(-.7,.7),18);
     discard(enemy.mesh);
-    if(enemy.type==='warden')this.events.toast?.('WARDEN ELIMINATED · +25 ◆');
+    if(enemy.type==='warden'){
+      this.events.toast?.('WARDEN ELIMINATED · +25 ◆');
+      this.events.impact?.();
+    }
   }
 
   hurt(amount){
@@ -384,6 +407,26 @@ export class Game{
     this.pickups.push({kind,value,x,z,mesh:object,age:random(0,TAU)});
   }
 
+  _collectPickup(pickup,quiet=false){
+    const index=this.pickups.indexOf(pickup);
+    if(index<0)return;
+    this.pickups.splice(index,1);discard(pickup.mesh);
+    if(pickup.kind==='xp'){
+      this.xp+=pickup.value;
+      if(!quiet&&pickup.value>=7)this.events.pop?.(this.player.x,this.player.z,'+'+pickup.value+' XP','xp');
+      while(this.xp>=this.xpNext){
+        this.xp-=this.xpNext;this.level++;this.xpNext=Math.round(10+this.level*7);
+        this.pending.push('level');this.audio.effect('level');
+        this.events.impact?.();
+      }
+    }else{
+      const healed=Math.min(this.stats.maxHealth-this.health,pickup.value);
+      this.health+=healed;
+      if(healed>0&&!quiet)this.events.pop?.(this.player.x,this.player.z,'+'+Math.ceil(healed)+' HP','heal');
+    }
+    if(!quiet)this.audio.effect('pickup');
+  }
+
   _updatePickups(dt){
     for(const pickup of [...this.pickups]){
       pickup.age+=dt*3;pickup.mesh.rotation.y+=dt*2;
@@ -395,34 +438,27 @@ export class Game{
         pickup.z+=(this.player.z-pickup.z)/d*speed*dt;
       }
       if(d<.75){
-        this.pickups.splice(this.pickups.indexOf(pickup),1);discard(pickup.mesh);
-        if(pickup.kind==='xp'){
-          this.xp+=pickup.value;
-          while(this.xp>=this.xpNext){
-            this.xp-=this.xpNext;this.level++;this.xpNext=Math.round(10+this.level*7);
-            this.pending.push('level');
-          }
-        }else this.health=Math.min(this.stats.maxHealth,this.health+pickup.value);
-        this.audio.effect('pickup');
+        this._collectPickup(pickup);
       }
     }
   }
 
   _updateProjectiles(dt){
     for(const projectile of [...this.projectiles]){
+      const oldX=projectile.x,oldZ=projectile.z;
       projectile.x+=projectile.vx*dt;projectile.z+=projectile.vz*dt;projectile.life-=dt;
       projectile.mesh.position.x=projectile.x;projectile.mesh.position.z=projectile.z;
       if(projectile.life<=0||Math.abs(projectile.x)>ARENA||Math.abs(projectile.z)>ARENA||
-         this.obstacles.some(obstacle=>distance(projectile,obstacle)<obstacle.r+projectile.radius)){
+         this.obstacles.some(obstacle=>segmentDistanceSquared(obstacle,oldX,oldZ,projectile.x,projectile.z)<(obstacle.r+projectile.radius)**2)){
         this.removeProjectile(projectile);continue;
       }
       if(projectile.owner==='player'){
         for(const enemy of [...this.enemies]){
-          if(projectile.hit.has(enemy)||distance(projectile,enemy)>projectile.radius+enemy.radius)continue;
+          if(projectile.hit.has(enemy)||segmentDistanceSquared(enemy,oldX,oldZ,projectile.x,projectile.z)>(projectile.radius+enemy.radius)**2)continue;
           projectile.hit.add(enemy);this.damageEnemy(enemy,projectile.damage);
           if(projectile.pierce--<=0){this.removeProjectile(projectile);break}
         }
-      }else if(distance(projectile,this.player)<projectile.radius+.45){
+      }else if(segmentDistanceSquared(this.player,oldX,oldZ,projectile.x,projectile.z)<(projectile.radius+.45)**2){
         this.removeProjectile(projectile);this.hurt(projectile.damage);
       }
       if(projectile.owner==='player'&&Math.random()<.55)this.particle(projectile.x,.8,projectile.z,projectile.mesh.material.color.getHex(),.45);
@@ -434,6 +470,7 @@ export class Game{
       enemy.cooldown-=dt;enemy.contactLeft=Math.max(0,enemy.contactLeft-dt);
       enemy.flash=Math.max(0,enemy.flash-dt);
       enemy.shell.material.emissiveIntensity=enemy.flash>0?1.5:.4;
+      enemy.shell.scale.setScalar(enemy.flash>0?1.13:1);
       enemy.phase+=dt*2;
       const dx=this.player.x-enemy.x,dz=this.player.z-enemy.z,d=Math.hypot(dx,dz)||.001;
       enemy.mesh.rotation.y=Math.atan2(-dx,-dz);
@@ -532,6 +569,12 @@ export class Game{
   _checkWave(){
     if(this.spawnsLeft>0||this.enemies.length||this.waveDone)return;
     this.waveDone=true;
+    if(this.pickups.length){
+      const count=this.pickups.length;
+      for(const pickup of [...this.pickups])this._collectPickup(pickup,true);
+      this.events.sweep?.(count);
+      this.audio.effect('sweep');
+    }
     if(this.mode==='campaign'&&this.wave>=10){this.finish('victory');return}
     this.pending.push('wave');
     this._offerChoice();
@@ -574,14 +617,14 @@ export class Game{
 
   pause(){
     if(this.phase!=='playing')return;
-    this.phase='paused';this.audio.playing=false;this.pointer.down=false;
+    this.phase='paused';this.audio.playing=false;
     this.events.pause?.();
   }
   resume(){if(this.phase==='paused'){this.phase='playing';this.audio.playing=true}}
 
   finish(reason){
     if(this.phase==='result'||this.phase==='menu')return;
-    this.phase='result';this.audio.playing=false;this.pointer.down=false;
+    this.phase='result';this.audio.playing=false;this.targetMarker.visible=false;
     this.events.result?.({reason,mode:this.mode,difficulty:this.difficulty,wave:this.wave,kills:this.kills,score:this.score,shards:Math.round(this.shards*(this.difficulty==='hard'?1.5:1))});
   }
   toMenu(){
@@ -597,16 +640,20 @@ export class Game{
       biome:BIOMES[this.biomeIndex].name,enemies:this.enemies.length+this.spawnsLeft,
       score:this.score,health:this.health,maxHealth:this.stats?.maxHealth||100,
       dash:this.dashLeft||0,pulse:this.pulseLeft||0,selected:this.selected,weapons:this.weapons||new Set(['blaster']),
-      level:this.level||1,xp:this.xp||0,xpNext:this.xpNext||10,combo:this.combo||0,shards:this.shards||0,boss};
+      level:this.level||1,xp:this.xp||0,xpNext:this.xpNext||10,combo:this.combo||0,comboTime:this.comboTime||0,
+      shards:this.shards||0,target:this.target&&this.enemies.includes(this.target)?this.target:null,boss};
+  }
+
+  project(x,z){
+    const point=new THREE.Vector3(x,1.3,z).project(this.camera);
+    return {x:(point.x+1)*innerWidth/2,y:(1-point.y)*innerHeight/2,visible:point.z<1&&Math.abs(point.x)<1.1&&Math.abs(point.y)<1.1};
   }
 
   _pollGamepad(){
     const pad=navigator.getGamepads?.()[0];
-    if(!pad){this.gamepad={moveX:0,moveY:0,aimX:0,aimY:0,fire:false,dash:false,pulse:false};return}
+    if(!pad){this.gamepad={moveX:0,moveY:0,dash:false,pulse:false};return}
     const axis=value=>Math.abs(value)>.22?value:0;
     this.gamepad.moveX=axis(pad.axes[0]||0);this.gamepad.moveY=axis(pad.axes[1]||0);
-    this.gamepad.aimX=axis(pad.axes[2]||0);this.gamepad.aimY=axis(pad.axes[3]||0);
-    this.gamepad.fire=!!(pad.buttons[7]?.pressed||pad.buttons[5]?.pressed);
     if(pad.buttons[0]?.pressed&&!this.gamepad.dash)this.dash();
     if(pad.buttons[1]?.pressed&&!this.gamepad.pulse)this.pulse();
     this.gamepad.dash=!!pad.buttons[0]?.pressed;this.gamepad.pulse=!!pad.buttons[1]?.pressed;
@@ -630,7 +677,7 @@ export class Game{
     this.lastFrame=now;this.time+=dt;
     this._camera(dt);
     if(this.phase==='playing'){
-      this._pollGamepad();this._aim();this._move(dt);
+      this._pollGamepad();this._move(dt);
       this.invuln=Math.max(0,this.invuln-dt);this.dashLeft=Math.max(0,this.dashLeft-dt);
       this.pulseLeft=Math.max(0,this.pulseLeft-dt);this.comboTime=Math.max(0,this.comboTime-dt);
       if(!this.comboTime)this.combo=0;
@@ -640,7 +687,7 @@ export class Game{
         this.spawnClock-=dt;
         if(this.spawnClock<=0){this.spawnEnemy(this.pickEnemy());this.spawnsLeft--;this.spawnClock=clamp(.65-this.wave*.025,.18,.65)}
       }
-      this._fire(dt);this._updateEnemies(dt);this._updateProjectiles(dt);
+      this._updateEnemies(dt);this._aim();this._fire(dt);this._updateProjectiles(dt);
       this._updatePickups(dt);this._updateHazards(dt);this._checkWave();
       if(this.phase==='playing'&&this.pending.length)this._offerChoice();
       this.audio.update(dt);

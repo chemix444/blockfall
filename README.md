@@ -8,25 +8,25 @@ The original game is preserved at
 ## Play
 
 Choose a 10-wave Expedition or an Endless run. Each run starts with a Blaster.
-Enemies drop experience; leveling up and clearing waves offer new weapons and
-upgrades. Bosses appear every five waves. Earn shards during a run, then spend
-them on permanent starting upgrades in the Forge. Hostile difficulty makes
-enemies stronger and banks 50% more shards.
+Your character always faces and fires at the closest enemy. Enemies drop
+experience; leveling up and clearing waves offer new weapons and upgrades.
+Uncollected pickups are swept up when a wave ends. Bosses appear every five
+waves. Earn shards during a run, then spend them on permanent starting upgrades
+in the Forge, including pickup range. Hostile difficulty makes enemies stronger
+and banks 50% more shards.
 
 | Input | Action |
 | --- | --- |
 | WASD / arrow keys | Move |
-| Mouse | Aim |
-| Left click | Fire |
+| Automatic | Face and fire at the closest enemy |
 | Space | Dash |
 | E | Pulse, which damages nearby enemies and destroys their projectiles |
-| 1, 2, 3 | Switch unlocked weapons |
+| 1, 2, 3 | Switch unlocked weapons, or choose an upgrade card |
 | Esc | Pause / resume |
 
-On touch screens, drag the left pad to move and the right pad to aim and fire.
-The Dash and Pulse buttons sit above the right pad. Standard controllers use
-the left stick to move, the right stick to aim, a trigger to fire, A to dash,
-and B to pulse.
+On touch screens, drag the left pad to move and tap Dash or Pulse. Standard
+controllers use the left stick to move, A to dash, and B to pulse. Weapons
+automatically aim and fire on every device.
 
 ## Structure
 
