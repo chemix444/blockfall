@@ -1,15 +1,11 @@
 import * as THREE from 'three';
 import {BIOMES,ENEMIES,WEAPONS,UPGRADES} from './data.js';
+import {Navigation,segmentDistanceSquared} from './navigation.js';
 
 const TAU=Math.PI*2;
 const ARENA=17;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
-const segmentDistanceSquared=(point,x1,z1,x2,z2)=>{
-  const dx=x2-x1,dz=z2-z1;
-  const t=clamp(((point.x-x1)*dx+(point.z-z1)*dz)/(dx*dx+dz*dz||1),0,1);
-  return (point.x-x1-dx*t)**2+(point.z-z1-dz*t)**2;
-};
 const random=(min,max)=>min+Math.random()*(max-min);
 const material=(color,emissive=0,metalness=.25)=>new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:emissive?.4:0,metalness,roughness:.45});
 
@@ -140,6 +136,7 @@ export class Game{
         this.hazards.push({x,z,r:2.05,kind:biome.hazard});
       }
     }
+    this.navigation=new Navigation(this.obstacles,ARENA);
     this.events.biome?.(biome);
   }
 
@@ -196,7 +193,7 @@ export class Game{
     for(let attempts=0;attempts<25;attempts++){
       const angle=random(0,TAU),radius=random(10,14.3);
       x=Math.cos(angle)*radius;z=Math.sin(angle)*radius;
-      if(this.obstacles.every(obstacle=>Math.hypot(x-obstacle.x,z-obstacle.z)>obstacle.r+1.6)&&distance({x,z},this.player)>8)break;
+      if(this.obstacles.every(obstacle=>Math.hypot(x-obstacle.x,z-obstacle.z)>obstacle.r+definition.radius+.25)&&distance({x,z},this.player)>8)break;
     }
     const scale=definition.radius;
     const group=new THREE.Group();
@@ -305,8 +302,7 @@ export class Game{
     for(const enemy of [...this.enemies]){
       const d=distance(enemy,this.player);
       if(d<this.stats.pulseRange+enemy.radius){
-        enemy.x+=((enemy.x-this.player.x)/(d||1))*1.5;
-        enemy.z+=((enemy.z-this.player.z)/(d||1))*1.5;
+        this._advanceEnemy(enemy,(enemy.x-this.player.x)/(d||1),(enemy.z-this.player.z)/(d||1),1.5);
         this.damageEnemy(enemy,this.stats.pulseDamage*this.stats.damage);
       }
     }
@@ -465,6 +461,20 @@ export class Game{
     }
   }
 
+  _advanceEnemy(enemy,x,z,amount){
+    const length=Math.hypot(x,z);
+    if(!length||amount<=0)return;
+    const steps=Math.ceil(amount/.3),step=amount/steps,radius=enemy.radius+.02;
+    for(let i=0;i<steps;i++){
+      const nx=clamp(enemy.x+x/length*step,-ARENA+radius,ARENA-radius);
+      const nz=clamp(enemy.z+z/length*step,-ARENA+radius,ARENA-radius);
+      if(this.navigation.clear(enemy.x,enemy.z,nx,nz,radius)){
+        enemy.x=nx;enemy.z=nz;
+      }else if(this.navigation.clear(enemy.x,enemy.z,nx,enemy.z,radius))enemy.x=nx;
+      else if(this.navigation.clear(enemy.x,enemy.z,enemy.x,nz,radius))enemy.z=nz;
+    }
+  }
+
   _updateEnemies(dt){
     for(const enemy of [...this.enemies]){
       enemy.cooldown-=dt;enemy.contactLeft=Math.max(0,enemy.contactLeft-dt);
@@ -480,7 +490,8 @@ export class Game{
         enemy.telegraph-=dt;
         if(enemy.telegraph<=0){
           if(enemy.type==='bruiser'){
-            enemy.x+=dx/d*Math.min(3,d-1);enemy.z+=dz/d*Math.min(3,d-1);
+            const route=this.navigation.direction(enemy,this.player);
+            this._advanceEnemy(enemy,route?.x??dx/d,route?.z??dz/d,Math.min(3,Math.max(0,d-1)));
             this.ring(enemy.x,enemy.z,0xff9477,2.2,.2);
             if(distance(enemy,this.player)<2.1)this.hurt(ENEMIES.bruiser.damage*(this.difficulty==='hard'?1.4:1));
           }else this.enemyVolley(enemy);
@@ -490,12 +501,13 @@ export class Game{
         let direction=1;
         if(enemy.type==='gunner'&&d<8)direction=-.65;
         if(enemy.type==='warden'&&d<5)direction=-.25;
-        if(d>enemy.radius+.65&&d<24){
-          const strafe=enemy.type==='gunner'||enemy.type==='warden'?Math.sin(enemy.phase*.65)*.42:0;
-          const nx=enemy.x+(dx/d*direction-dz/d*strafe)*speed*dt;
-          const nz=enemy.z+(dz/d*direction+dx/d*strafe)*speed*dt;
-          if(Math.abs(nx)<ARENA-enemy.radius&&this.obstacles.every(obstacle=>Math.hypot(nx-obstacle.x,enemy.z-obstacle.z)>obstacle.r+enemy.radius))enemy.x=nx;
-          if(Math.abs(nz)<ARENA-enemy.radius&&this.obstacles.every(obstacle=>Math.hypot(enemy.x-obstacle.x,nz-obstacle.z)>obstacle.r+enemy.radius))enemy.z=nz;
+        if(d>enemy.radius+.65){
+          const route=this.navigation.direction(enemy,this.player);
+          const strafe=!route&&(enemy.type==='gunner'||enemy.type==='warden')?Math.sin(enemy.phase*.65)*.42:0;
+          const dir=route?1:direction;
+          const vx=(route?.x??dx/d)*dir-(route?.z??dz/d)*strafe;
+          const vz=(route?.z??dz/d)*dir+(route?.x??dx/d)*strafe;
+          this._advanceEnemy(enemy,vx,vz,speed*dt);
         }
         if(enemy.cooldown<=0){
           if(enemy.type==='gunner'||enemy.type==='warden'||enemy.type==='bruiser'){
@@ -599,16 +611,25 @@ export class Game{
       return;
     }
     this.offered=choices.map(choice=>choice.id);
+    if(this.save.settings.autoPick){this.chooseRandom(true);return}
     this.events.choice?.(choices,reason,this);
   }
 
-  choose(id){
+  chooseRandom(automatic=false){
+    if(this.phase!=='choice'||!this.offered.length)return;
+    const id=this.offered[Math.floor(Math.random()*this.offered.length)];
+    this.choose(id,automatic?'auto':'random');
+  }
+
+  choose(id,source='manual'){
     if(this.phase!=='choice')return;
     const upgrade=UPGRADES.find(option=>option.id===id);
     if(!upgrade||!this.offered.includes(id)||this.upgrades[id]>=upgrade.max||upgrade.available&&!upgrade.available(this))return;
     this.offered=[];
     this.upgrades[id]=(this.upgrades[id]||0)+1;
-    upgrade.apply(this);this.audio.effect('choice');this.events.toast?.(upgrade.name+' INSTALLED');
+    upgrade.apply(this);this.audio.effect('choice');
+    if(source==='auto')this.events.autoPick?.(upgrade.name);
+    else this.events.toast?.((source==='random'?'RANDOM PICK · ':'')+upgrade.name+' INSTALLED');
     this.phase='playing';
     if(this.pending.length)this._offerChoice();
     else if(this.waveDone)this.startWave();

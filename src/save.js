@@ -4,7 +4,7 @@ const KEY='blockfall_2_save';
 const defaults=()=>({
   version:2, shards:0, records:{campaign:0,endless:0}, wins:0, runs:0, kills:0,
   forge:Object.fromEntries(FORGE.map(upgrade=>[upgrade.id,0])),
-  settings:{volume:60,quality:'auto',colorMode:'none',reducedMotion:false},
+  settings:{volume:60,quality:'auto',colorMode:'none',reducedMotion:false,autoPick:false},
 });
 const number=(value,min,max,fallback)=>Number.isFinite(value)?Math.max(min,Math.min(max,value)):fallback;
 
@@ -21,6 +21,7 @@ export function validateSave(input){
   if(['auto','high','low'].includes(input.settings?.quality)) save.settings.quality=input.settings.quality;
   if(['none','deuteranopia','protanopia','tritanopia'].includes(input.settings?.colorMode)) save.settings.colorMode=input.settings.colorMode;
   save.settings.reducedMotion=input.settings?.reducedMotion===true;
+  save.settings.autoPick=input.settings?.autoPick===true;
   return save;
 }
 
