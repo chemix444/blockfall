@@ -88,11 +88,11 @@ export class Game{
     this.renderer.shadowMap.needsUpdate=true;
   }
 
-  buildArena(index){
+  buildArena(index,layout){
     this.biomeIndex=index%BIOMES.length;
     const biome=BIOMES[this.biomeIndex];
     while(this.world.children.length)discard(this.world.children[0]);
-    this.obstacles=[];this.hazards=[];
+    this.obstacles=[];this.hazards=[];this.arenaBlocks=[];
     this.scene.background=new THREE.Color(biome.sky);
     this.scene.fog=new THREE.FogExp2(biome.fog,.023);
     this.ambient.color.setHex(biome.accent);
@@ -117,14 +117,16 @@ export class Game{
       }
     }
     const positions=[[-10,-7],[10,-7],[-10,7],[10,7],[-5,-11],[5,11],[0,-10],[0,10]];
-    for(const [x,z] of positions){
-      if(Math.random()<.18)continue;
-      const width=random(1.4,2.5),depth=random(1.2,2.3),height=random(.9,2.3);
+    const blocks=layout||positions.filter(()=>Math.random()>=.18).map(([x,z])=>({
+      x,z,width:random(1.4,2.5),depth:random(1.2,2.3),height:random(.9,2.3),rotated:Math.random()<.5,
+    }));
+    for(const {x,z,width,depth,height,rotated} of blocks){
       const block=mesh(new THREE.BoxGeometry(width,height,depth),0x294453);
-      block.position.set(x,height/2,z);block.rotation.y=Math.random()<.5?0:Math.PI/2;this.world.add(block);
+      block.position.set(x,height/2,z);block.rotation.y=rotated?0:Math.PI/2;this.world.add(block);
       const cap=mesh(new THREE.BoxGeometry(width+.08,.1,depth+.08),biome.accent,biome.accent);
       cap.position.set(x,height+.03,z);cap.rotation.y=block.rotation.y;this.world.add(cap);
       this.obstacles.push({x,z,r:Math.max(width,depth)*.53});
+      this.arenaBlocks.push({x,z,width,depth,height,rotated});
     }
     if(biome.hazard){
       for(let i=0;i<4;i++){
@@ -148,7 +150,7 @@ export class Game{
     }
   }
 
-  startRun(mode,difficulty){
+  startRun(mode,difficulty,restoring=false){
     this._clearDynamic();this.mode=mode;this.difficulty=difficulty;this.phase='playing';
     this.wave=0;this.level=1;this.xp=0;this.xpNext=10;this.score=0;this.kills=0;this.shards=0;
     this.combo=0;this.comboTime=0;this.elapsed=0;this.waveDone=false;this.pending=[];
@@ -160,11 +162,13 @@ export class Game{
     };
     this.health=this.stats.maxHealth;this.invuln=0;this.dashTime=0;this.dashLeft=0;this.pulseLeft=0;
     this.fireLeft=0;this.hazardLeft=0;this.hurtSoundLeft=0;this.selected=0;
+    this.checkpointLeft=2;this.choiceReason=null;
     this.weapons=new Set(['blaster']);this.upgrades={};this.offered=[];
     this.player.x=0;this.player.z=2;this.player.mesh.position.set(0,0,2);
     this.player.mesh.visible=true;
     this.cameraTarget.set(0,0,2);
-    this.buildArena(0);this.startWave();
+    this.buildArena(0);
+    if(!restoring)this.startWave();
   }
 
   startWave(){
@@ -178,6 +182,7 @@ export class Game{
     this.audio.biome=this.biomeIndex;this.audio.playing=true;
     this.audio.effect(boss?'boss':'wave');
     this.events.wave?.(this.wave,BIOMES[this.biomeIndex],boss);
+    this.events.checkpoint?.(this.captureRun());
   }
 
   pickEnemy(){
@@ -595,6 +600,7 @@ export class Game{
   _offerChoice(){
     if(!this.pending.length||this.phase==='choice'||this.phase==='result')return;
     const reason=this.pending.shift();
+    this.choiceReason=reason;
     this.phase='choice';this.audio.playing=false;
     const available=UPGRADES.filter(upgrade=>(this.upgrades[upgrade.id]||0)<upgrade.max&&(!upgrade.available||upgrade.available(this)));
     const pool=[...available],choices=[];
@@ -611,6 +617,7 @@ export class Game{
       return;
     }
     this.offered=choices.map(choice=>choice.id);
+    this.events.checkpoint?.(this.captureRun());
     if(this.save.settings.autoPick){this.chooseRandom(true);return}
     this.events.choice?.(choices,reason,this);
   }
@@ -634,14 +641,82 @@ export class Game{
     if(this.pending.length)this._offerChoice();
     else if(this.waveDone)this.startWave();
     else this.audio.playing=true;
+    this.events.checkpoint?.(this.captureRun());
   }
 
   pause(){
     if(this.phase!=='playing')return;
     this.phase='paused';this.audio.playing=false;
+    this.events.checkpoint?.(this.captureRun());
     this.events.pause?.();
   }
-  resume(){if(this.phase==='paused'){this.phase='playing';this.audio.playing=true}}
+  resume(){if(this.phase==='paused'){this.phase='playing';this.audio.playing=true;this.events.checkpoint?.(this.captureRun())}}
+
+  captureRun(){
+    return {
+      version:1,mode:this.mode,difficulty:this.difficulty,phase:this.phase,choiceReason:this.choiceReason,
+      wave:this.wave,biomeIndex:this.biomeIndex,waveDone:this.waveDone,waveTime:this.waveTime,
+      spawnClock:this.spawnClock,spawnsLeft:this.spawnsLeft,arenaBlocks:this.arenaBlocks.map(block=>({...block})),
+      player:{x:this.player.x,z:this.player.z},health:this.health,stats:{...this.stats},
+      level:this.level,xp:this.xp,xpNext:this.xpNext,score:this.score,kills:this.kills,
+      shards:this.shards,combo:this.combo,comboTime:this.comboTime,elapsed:this.elapsed,
+      invuln:this.invuln,dashLeft:this.dashLeft,pulseLeft:this.pulseLeft,fireLeft:this.fireLeft,
+      hazardLeft:this.hazardLeft,selected:this.selected,weapons:[...this.weapons],
+      upgrades:{...this.upgrades},pending:[...this.pending],offered:[...this.offered],
+      enemies:this.enemies.map(enemy=>({type:enemy.type,x:enemy.x,z:enemy.z,hp:enemy.hp,
+        maxHp:enemy.maxHp,cooldown:enemy.cooldown,contactLeft:enemy.contactLeft,
+        telegraph:enemy.telegraph,phase:enemy.phase,flash:enemy.flash})),
+      projectiles:this.projectiles.map(projectile=>({owner:projectile.owner,x:projectile.x,z:projectile.z,
+        vx:projectile.vx,vz:projectile.vz,radius:projectile.radius,damage:projectile.damage,
+        life:projectile.life,pierce:projectile.pierce,color:projectile.mesh.material.color.getHex(),
+        hit:[...projectile.hit].map(enemy=>this.enemies.indexOf(enemy)).filter(index=>index>=0)})),
+      pickups:this.pickups.map(pickup=>({kind:pickup.kind,x:pickup.x,z:pickup.z,
+        value:pickup.value,age:pickup.age})),
+    };
+  }
+
+  restoreRun(run){
+    this.startRun(run.mode,run.difficulty,true);
+    this._clearDynamic();
+    this.buildArena(run.biomeIndex,run.arenaBlocks);
+    this.wave=run.wave;this.waveDone=run.waveDone;this.waveTime=run.waveTime;
+    this.spawnClock=run.spawnClock;this.spawnsLeft=run.spawnsLeft;
+    this.player.x=run.player.x;this.player.z=run.player.z;
+    this.player.mesh.position.set(run.player.x,0,run.player.z);
+    this.cameraTarget.set(run.player.x,0,run.player.z);
+    this.health=run.health;this.stats={...run.stats};
+    for(const key of ['level','xp','xpNext','score','kills','shards','combo','comboTime','elapsed',
+      'invuln','dashLeft','pulseLeft','fireLeft','hazardLeft','selected'])this[key]=run[key];
+    this.weapons=new Set(run.weapons);this.upgrades={...run.upgrades};
+    this.pending=[...run.pending];this.offered=[...run.offered];this.choiceReason=run.choiceReason;
+    this.dashTime=0;this.keys.clear();this.touchMove={x:0,y:0};
+    for(const state of run.enemies){
+      const enemy=this.spawnEnemy(state.type);
+      Object.assign(enemy,state);
+      enemy.mesh.position.set(enemy.x,0,enemy.z);
+      enemy.fill.scale.x=clamp(enemy.hp/enemy.maxHp,0,1);
+      enemy.fill.position.x=-(1-enemy.fill.scale.x)*enemy.radius;
+    }
+    for(const state of run.projectiles){
+      const angle=Math.atan2(state.vz,state.vx),speed=Math.hypot(state.vx,state.vz);
+      const projectile=this.spawnProjectile(state.owner,angle,
+        {speed,range:state.life*speed,radius:state.radius,color:state.color},
+        state.damage,state.pierce,{x:state.x,z:state.z,radius:0});
+      Object.assign(projectile,state);
+      projectile.hit=new Set(state.hit.map(index=>this.enemies[index]));
+      projectile.mesh.position.set(state.x,state.owner==='player'?1:.7,state.z);
+    }
+    for(const state of run.pickups){
+      this.spawnPickup(state.kind,state.x,state.z,state.value);
+      this.pickups.at(-1).age=state.age;
+    }
+    this.audio.biome=this.biomeIndex;
+    this.phase=run.phase==='choice'?'choice':'playing';
+    this.audio.playing=this.phase==='playing';
+    if(this.phase==='choice')this.events.choice?.(
+      this.offered.map(id=>UPGRADES.find(upgrade=>upgrade.id===id)),this.choiceReason,this);
+    this.events.checkpoint?.(this.captureRun());
+  }
 
   finish(reason){
     if(this.phase==='result'||this.phase==='menu')return;
@@ -712,6 +787,10 @@ export class Game{
       this._updatePickups(dt);this._updateHazards(dt);this._checkWave();
       if(this.phase==='playing'&&this.pending.length)this._offerChoice();
       this.audio.update(dt);
+      if(this.phase==='playing'){
+        this.checkpointLeft-=dt;
+        if(this.checkpointLeft<=0){this.checkpointLeft=2;this.events.checkpoint?.(this.captureRun())}
+      }
     }else if(this.phase==='menu'){
       this.player.mesh.rotation.y+=dt*.23;
       this.player.mesh.userData.core.rotation.y+=dt*1.6;
