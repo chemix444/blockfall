@@ -1,7 +1,7 @@
 import {Game} from './game.js';
 import {AudioSystem} from './audio.js';
 import {FORGE,forgeCost} from './data.js';
-import {loadSave,writeSave,exportSave,importSave} from './save.js';
+import {loadSave,writeSave,exportSave,importSave,readRun,writeRun,clearRun} from './save.js';
 
 const $=id=>document.getElementById(id);
 const screens=['menu','choices','pause','results','forge','settings','how'];
@@ -11,7 +11,7 @@ const screen=(id,visible)=>{
   $(id).classList.toggle('hidden',!visible);
 };
 const compact=value=>Math.floor(value).toLocaleString('en-US');
-let save=loadSave(),mode='campaign',difficulty='normal',settingsFrom='menu',toastTimer=0,bannerTimer=0,streakTimer=0,lastHud=0,lastScore=0;
+let save=loadSave(),mode='campaign',difficulty='normal',settingsFrom='menu',toastTimer=0,bannerTimer=0,streakTimer=0,lastHud=0,lastScore=0,checkpointWarning=false;
 const audio=new AudioSystem();
 
 function toast(message){
@@ -24,10 +24,21 @@ function updateMenu(){
   $('record-mode').textContent=mode==='campaign'?'EXPEDITION':'ENDLESS';
   $('record-runs').textContent=compact(save.runs);
   $('record-kills').textContent=compact(save.kills);
+  const checkpoint=readRun();
+  show('continue-run',!!checkpoint);show('checkpoint-summary',!!checkpoint);
+  $('play-label').textContent=checkpoint?'NEW RUN':'DEPLOY';
+  $('play').classList.toggle('primary',!checkpoint);
+  $('play').classList.toggle('secondary',!!checkpoint);
+  if(checkpoint)$('checkpoint-summary').textContent='SAVED '+(checkpoint.mode==='campaign'?'EXPEDITION':'ENDLESS')+
+    ' · WAVE '+String(checkpoint.wave).padStart(2,'0')+' · '+compact(checkpoint.shards)+' ◆ UNBANKED';
 }
 
 const game=new Game($('world'),save,audio,{
   toast,
+  checkpoint:run=>{
+    if(writeRun(run)){checkpointWarning=false;return}
+    if(!checkpointWarning){checkpointWarning=true;toast('RUN CHECKPOINT UNAVAILABLE IN THIS BROWSER')}
+  },
   pop:(x,z,label,kind)=>{
     if(save.settings.reducedMotion)return;
     const point=game.project(x,z);
@@ -93,6 +104,7 @@ const game=new Game($('world'),save,audio,{
     screen('pause',true);
   },
   result:result=>{
+    clearRun();
     save.shards+=result.shards;save.runs++;save.kills+=result.kills;
     save.records[result.mode]=Math.max(save.records[result.mode],result.wave);
     if(result.reason==='victory')save.wins++;
@@ -159,6 +171,7 @@ const game=new Game($('world'),save,audio,{
 });
 
 function startRun(){
+  clearRun();
   audio.start();
   lastScore=0;$('combat-popups').replaceChildren();show('streak-callout',false);
   $('auto-pick-feed').replaceChildren();
@@ -167,6 +180,19 @@ function startRun(){
   document.body.classList.add('playing');
   if(game.mobile)show('mobile-controls',true);
   game.startRun(mode,difficulty);
+}
+function continueRun(){
+  const checkpoint=readRun();
+  if(!checkpoint){updateMenu();toast('SAVED RUN UNAVAILABLE');return}
+  audio.start();
+  lastScore=checkpoint.score;
+  $('combat-popups').replaceChildren();$('auto-pick-feed').replaceChildren();
+  show('streak-callout',false);show('wave-banner',false);
+  for(const id of screens)screen(id,false);
+  show('hud',true);document.body.classList.add('playing');
+  if(game.mobile)show('mobile-controls',true);
+  try{game.restoreRun(checkpoint);toast('RUN RESTORED · WAVE '+String(game.wave).padStart(2,'0'))}
+  catch{clearRun();returnMenu();toast('SAVED RUN COULD NOT BE RESTORED')}
 }
 function returnMenu(){
   game.toMenu();show('hud',false);show('mobile-controls',false);
@@ -226,7 +252,11 @@ document.querySelectorAll('[data-difficulty]').forEach(button=>button.addEventLi
   difficulty=button.dataset.difficulty;
   document.querySelectorAll('[data-difficulty]').forEach(item=>{item.classList.toggle('selected',item===button);item.setAttribute('aria-pressed',item===button?'true':'false')});
 }));
-$('play').addEventListener('click',startRun);
+$('play').addEventListener('click',()=>{
+  if(readRun()&&!confirm('Start a new run? Your saved run and its unbanked shards will be lost.'))return;
+  startRun();
+});
+$('continue-run').addEventListener('click',continueRun);
 $('again').addEventListener('click',startRun);
 $('return-menu').addEventListener('click',returnMenu);
 $('open-forge').addEventListener('click',()=>{renderForge();screen('forge',true)});
@@ -238,6 +268,10 @@ $('pause-settings').addEventListener('click',()=>openSettings('pause'));
 $('settings-close').addEventListener('click',closeSettings);
 $('pause-button').addEventListener('click',()=>game.pause());
 $('resume').addEventListener('click',()=>{screen('pause',false);game.resume()});
+$('save-exit').addEventListener('click',()=>{
+  if(!writeRun(game.captureRun())){toast('RUN CHECKPOINT UNAVAILABLE IN THIS BROWSER');return}
+  returnMenu();toast('RUN SAVED · CONTINUE WHEN READY');
+});
 $('abandon').addEventListener('click',()=>game.finish('abandon'));
 document.querySelectorAll('[data-slot]').forEach(button=>button.addEventListener('click',()=>game.selectWeapon(Number(button.dataset.slot))));
 
@@ -287,6 +321,9 @@ addEventListener('keydown',event=>{
 });
 addEventListener('keyup',event=>game.keys.delete(event.code));
 addEventListener('blur',()=>{game.keys.clear();if(game.phase==='playing')game.pause()});
+addEventListener('pagehide',()=>{
+  if(['playing','paused','choice'].includes(game.phase))writeRun(game.captureRun());
+});
 {
   const pad=$('move-pad');let pointerId=null;
   function move(event){

@@ -15,7 +15,10 @@ waves. Earn shards during a run, then spend them on permanent starting upgrades
 in the Forge, including pickup range. Hostile difficulty makes enemies stronger
 and banks 50% more shards. Enemies navigate around arena blocks when pursuing
 you. Upgrade screens offer a random pick button, or Settings can automatically
-pick one of the three offered cards and show the selection on screen.
+pick one of the three offered cards and show the selection on screen. Runs are
+checkpointed locally, including mid-wave combat and pending upgrade choices.
+Use Continue on the menu after a refresh, or Save & Exit from the pause screen.
+Starting a new run replaces the saved one, while ending a run banks its shards.
 
 | Input | Action |
 | --- | --- |
@@ -49,6 +52,9 @@ To run locally, serve the repository directory with a static HTTP server, for
 example `python3 -m http.server 8000`, then open `http://localhost:8000`.
 Browsers block JavaScript module imports when opening `index.html` directly
 with a `file://` URL.
+Run the dependency-free checkpoint tests with `npm test`.
 
 Blockfall 2.0 saves under `blockfall_2_save`; Legacy keeps its original
 `blockfall_save_v1` save. Both games remain independently playable.
+The active Blockfall 2.0 run uses the separate `blockfall_2_run` local storage
+key and is not included in exported permanent-progression save codes.
